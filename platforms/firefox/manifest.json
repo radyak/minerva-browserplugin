@@ -1,0 +1,49 @@
+{
+  "manifest_version": 3,
+  "name": "Element Marker",
+  "version": "$VERSION",
+  "description": "Marks a configured element with a red border while a configured URL is open.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "element-marker@example.com",
+      "strict_min_version": "142.0",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
+    }
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "permissions": ["tabs", "storage"],
+  "host_permissions": "$CONTENT_MATCHES",
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "action": {
+    "default_title": "Element Marker",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png"
+    }
+  },
+  "sidebar_action": {
+    "default_title": "Element Marker",
+    "default_panel": "panel/panel.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": "$CONTENT_MATCHES",
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+/* The panel is narrow (Chrome ~320px, Firefox user resizable) - keep it fluid. */
+body {
+  min-width: 260px;
+}

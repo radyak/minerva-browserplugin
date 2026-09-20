@@ -1,0 +1,9 @@
+/*
+ * Injected into every matching page. Kept to a single class so the page's own
+ * styles are never touched. `outline` marks the element without changing the
+ * layout the way a real `border` would.
+ */
+.xbp-marked {
+  outline: 3px solid #dc3545 !important;
+  outline-offset: 2px !important;
+}
