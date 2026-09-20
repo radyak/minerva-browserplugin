@@ -1,5 +1,5 @@
 import { MSG } from "../core/messages.js";
-import { syncDocument } from "../core/marker.js";
+import { syncDocument } from "../core/annotator.js";
 import { ext, sendMessage } from "../platform/browser.js";
 
 /**
@@ -12,7 +12,10 @@ let lastState = null;
 function sync(reason) {
   const state = syncDocument(document, location.href);
   const changed =
-    !lastState || lastState.active !== state.active || lastState.marked !== state.marked;
+    !lastState ||
+    lastState.active !== state.active ||
+    lastState.annotated !== state.annotated ||
+    lastState.unparsable !== state.unparsable;
   lastState = state;
   if (changed) {
     sendMessage({ type: MSG.STATE_CHANGED, url: location.href, ...state, reason });
@@ -21,8 +24,11 @@ function sync(reason) {
 }
 
 /**
- * Re-run after DOM changes - the target element may be rendered late by the
- * page's own JavaScript. Coalesced into one run per animation frame.
+ * Re-run after DOM changes - the price element may be rendered late or have its
+ * text replaced by the page's own JavaScript. `characterData` is what catches a
+ * price that changes in place. Coalesced into one run per animation frame; the
+ * annotator only writes on a real change, so our own updates settle after one
+ * extra pass instead of looping.
  */
 function observeDom() {
   let scheduled = false;
@@ -34,7 +40,11 @@ function observeDom() {
       sync("mutation");
     });
   });
-  observer.observe(document.documentElement, { childList: true, subtree: true });
+  observer.observe(document.documentElement, {
+    childList: true,
+    characterData: true,
+    subtree: true,
+  });
 }
 
 ext.runtime.onMessage.addListener((message, _sender, sendResponse) => {

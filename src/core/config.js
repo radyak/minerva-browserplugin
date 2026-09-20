@@ -9,21 +9,27 @@
 /**
  * Coarse host level match patterns. They decide where the content script is
  * injected at all and are baked into every manifest by scripts/build.mjs.
- * Must be valid WebExtension match patterns.
+ * Must be valid WebExtension match patterns (no port numbers allowed).
  */
-export const CONTENT_SCRIPT_MATCHES = ["https://www.biddr.com/*"];
+export const CONTENT_SCRIPT_MATCHES = ["https://www.biddr.com/*","https://example.com/*"];
 
 /**
- * Fine grained URL glob. The content script only marks the element while the
- * page URL matches this pattern. "*" matches any run of characters.
+ * Fine grained URL glob. The content script only acts while the page URL
+ * matches this pattern. "*" matches any run of characters.
  */
-export const TARGET_URL_PATTERN = "https://www.biddr.com/*";
+export const TARGET_URL_PATTERN = "https://www.biddr.com/*"; //"https://example.com/app/dashboard*";
 
-/** CSS selector of the element that gets the red marker. */
-export const TARGET_SELECTOR = '.current-bid';
+/** CSS selector of the element whose text content holds the price. */
+export const TARGET_SELECTOR = '.current-bid, #app-root .content-card[data-module="overview"]';
 
-/** Class the content script adds to matched elements (see content/content.css). */
-export const MARKER_CLASS = "xbp-marked";
+/** Surcharge applied to the parsed price (0.2 = +20%). */
+export const MARKUP_RATE = 0.2;
+
+/** Class of the sibling element the extension inserts (see content/content.css). */
+export const ANNOTATION_CLASS = "xbp-price-markup";
+
+/** Shown in the sibling element when the target text holds no parsable price. */
+export const UNPARSABLE_TEXT = "n/a";
 
 /** Key used for the side panel draft text in browser.storage.local. */
 export const STORAGE_KEY_PANEL_INPUT = "panel.inputValue";

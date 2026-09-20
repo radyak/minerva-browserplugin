@@ -1,5 +1,5 @@
 import { MSG } from "../core/messages.js";
-import { isTargetUrl } from "../core/marker.js";
+import { isTargetUrl } from "../core/annotator.js";
 import { ext, getActiveTab, sendMessageToTab } from "../platform/browser.js";
 import { registerPanelOpener } from "../platform/panel.js";
 
@@ -37,7 +37,9 @@ ext.runtime.onMessage.addListener((message, sender, sendResponse) => {
       .then(async (tab) => {
         if (!tab) return { active: false, url: null };
         const state = await sendMessageToTab(tab.id, { type: MSG.SYNC_REQUEST });
-        return state ?? { active: isTargetUrl(tab.url), url: tab.url ?? null, marked: 0 };
+        return (
+          state ?? { active: isTargetUrl(tab.url), url: tab.url ?? null, annotated: 0, unparsable: 0 }
+        );
       })
       .then(sendResponse);
     return true; // keep the message channel open for the async response

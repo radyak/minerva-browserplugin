@@ -9,7 +9,10 @@ const status = document.querySelector("#status");
 
 function renderStatus(state) {
   const active = Boolean(state?.active);
-  status.textContent = active ? `marking ${state.marked ?? 0} element(s)` : "inactive";
+  const count = state?.annotated ?? 0;
+  const unparsable = state?.unparsable ?? 0;
+  const label = `${count} price${count === 1 ? "" : "s"} updated`;
+  status.textContent = active ? (unparsable ? `${label}, ${unparsable} n/a` : label) : "inactive";
   status.className = `badge ${active ? "text-bg-danger" : "text-bg-secondary"}`;
 }
 
