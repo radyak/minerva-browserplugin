@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Element Marker",
+  "name": "Minerva - Online Auction Assistant",
   "version": "$VERSION",
-  "description": "Marks a configured element with a red border while a configured URL is open.",
+  "description": "Assists with online auctions by making effective prices transparent",
   "icons": {
     "16": "icons/icon-16.png",
     "32": "icons/icon-32.png",
@@ -15,7 +15,7 @@
     "service_worker": "background.js"
   },
   "action": {
-    "default_title": "Element Marker",
+    "default_title": "Minerva - Online Auction Assistant",
     "default_icon": {
       "16": "icons/icon-16.png",
       "32": "icons/icon-32.png"

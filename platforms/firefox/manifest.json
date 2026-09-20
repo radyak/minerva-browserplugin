@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Element Marker",
+  "name": "Minerva - Online Auction Assistant",
   "version": "$VERSION",
-  "description": "Marks a configured element with a red border while a configured URL is open.",
+  "description": "Assists with online auctions by making effective prices transparent",
   "browser_specific_settings": {
     "gecko": {
       "id": "element-marker@example.com",
@@ -24,14 +24,14 @@
     "scripts": ["background.js"]
   },
   "action": {
-    "default_title": "Element Marker",
+    "default_title": "Minerva - Online Auction Assistant",
     "default_icon": {
       "16": "icons/icon-16.png",
       "32": "icons/icon-32.png"
     }
   },
   "sidebar_action": {
-    "default_title": "Element Marker",
+    "default_title": "Minerva - Online Auction Assistant",
     "default_panel": "panel/panel.html",
     "default_icon": {
       "16": "icons/icon-16.png",

@@ -1,6 +1,11 @@
-# Browser Plugin
+# Minerva - Browser assistant for online auctions
 
-Cross-browser WebExtension with a shared core and per-browser packaging.
+*Minerva* is a cross-browser WebExtension to support users in online auctions on platforms such as biddr.com, numisbids.com or l5.com.
+It is named after [*Minerva*](https://en.wikipedia.org/wiki/Minerva), the Roman goddess of wisdom, reason, strategy and victory (among other aspects) and should help to make effective prices transparent and achieve a fair bargain.
+
+## Technical Architecture
+
+*Minerva* is a cross-browser WebExtension with a shared core and per-browser packaging.
 
 **Phase 1 scope:** while a configured URL is open, the extension reads the plain
 text price out of a configured element, adds 20% and appends the result as a
