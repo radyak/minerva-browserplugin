@@ -4,7 +4,8 @@ import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { CONTENT_SCRIPT_MATCHES } from "../src/core/config.js";
+import { PLATFORMS } from "../src/core/config.js";
+import { matchPatternFor } from "../src/core/url-matcher.js";
 
 /**
  * Builds one directory per browser target under dist/.
@@ -29,12 +30,15 @@ for (const target of targets) {
   }
 }
 
+/** Content script match patterns, one per platform (deduplicated). */
+const CONTENT_MATCHES = [...new Set(PLATFORMS.map((platform) => matchPatternFor(platform.platformUrl)))];
+
 const pkg = JSON.parse(await readFile(path.join(ROOT, "package.json"), "utf8"));
 
 /** Replace "$VERSION" / "$CONTENT_MATCHES" placeholders anywhere in the manifest. */
 function resolvePlaceholders(value) {
   if (typeof value === "string") {
-    if (value === "$CONTENT_MATCHES") return [...CONTENT_SCRIPT_MATCHES];
+    if (value === "$CONTENT_MATCHES") return [...CONTENT_MATCHES];
     return value.replaceAll("$VERSION", pkg.version);
   }
   if (Array.isArray(value)) return value.map(resolvePlaceholders);

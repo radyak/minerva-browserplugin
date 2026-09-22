@@ -41,28 +41,36 @@ can be unit tested with plain jsdom.
 
 ## Configuration
 
-Everything the extension acts on lives in [`src/core/config.js`](src/core/config.js):
+Everything the extension acts on lives in [`src/core/config.js`](src/core/config.js).
+
+`PLATFORMS` is an array with one entry per site:
+
+| Field | Example (biddr.com) | Meaning |
+| --- | --- | --- |
+| `platformUrl` | `https://www.biddr.com` | protocol + host (optionally a port), no path; `<protocol>//<host>/*` is baked into both manifests as the content script match pattern |
+| `platformPaths` | `["/*"]` | path globs on that host, e.g. `/live/g-m-auction` or `/live/*`; the extension only acts while the page path matches one of them (`*` = any characters, otherwise exact; query and hash are ignored) |
+| `targetSelectors` | `[".current-bid"]` | the elements whose text holds the price |
+| `defaultMarkupRate` | `0.2` | surcharge added to the parsed price (+20%) |
+
+On a given URL the first platform on the same origin with a matching
+`platformPaths` entry is used. The `example.com` entry (`/app/dashboard*`) is a leftover from the initial
+scaffolding; biddr.com is the live target.
+
+General values shared by all platforms:
 
 | Constant | Current value | Meaning |
 | --- | --- | --- |
-| `CONTENT_SCRIPT_MATCHES` | `https://www.biddr.com/*`, `https://example.com/*` | where the content script is injected; baked into both manifests at build time |
-| `TARGET_URL_PATTERN` | `https://www.biddr.com/*` | the extension only acts while the URL matches this glob (`*` = any characters) |
-| `TARGET_SELECTOR` | `.current-bid, #app-root .content-card[data-module="overview"]` | the element whose text holds the price |
-| `MARKUP_RATE` | `0.2` | surcharge added to the parsed price (+20%) |
 | `ANNOTATION_CLASS` | `xbp-price-markup` | class of the inserted sibling element |
 | `UNPARSABLE_TEXT` | `n/a` | shown when the element's text holds no price |
-| `STORAGE_KEY_PANEL_INPUT` | `panel.inputValue` | `storage.local` key for the side panel's note field |
-
-The `example.com` entries are leftovers from the initial scaffolding and are kept
-only as a second, harmless match pattern; biddr.com is the live target.
 
 Changing them in that one file is enough - the manifests, the content script and
 the background script all read from it.
 
-Note: `CONTENT_SCRIPT_MATCHES` entries must be valid
-[match patterns](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Match_patterns),
-which cannot contain a port. Put the port in `TARGET_URL_PATTERN` instead, it is
-matched by our own glob matcher.
+Note: a port in `platformUrl` is allowed.
+[Match patterns](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Match_patterns)
+cannot contain one, so the manifest entry drops it (the content script is then
+injected on every port of that host), but the runtime origin check still
+requires the exact port.
 
 ## Build
 

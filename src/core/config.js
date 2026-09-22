@@ -7,23 +7,39 @@
  */
 
 /**
- * Coarse host level match patterns. They decide where the content script is
- * injected at all and are baked into every manifest by scripts/build.mjs.
- * Must be valid WebExtension match patterns (no port numbers allowed).
+ * @typedef {object} Platform
+ * @property {string} platformUrl Protocol + host of the site, optionally with a
+ *   port, no path (e.g. "https://www.biddr.com"). scripts/build.mjs turns it
+ *   into the content script match pattern "<protocol>//<host>/*".
+ * @property {string[]} platformPaths Path globs on that host (e.g. "/live/*").
+ *   The content script only acts while the page path matches one of them;
+ *   query and hash are ignored. "*" matches any run of characters, without it
+ *   the path must match exactly.
+ * @property {string[]} targetSelectors CSS selectors of the elements whose text
+ *   content holds the price.
+ * @property {number} defaultMarkupRate Surcharge applied to the parsed price
+ *   (0.2 = +20%).
  */
-export const CONTENT_SCRIPT_MATCHES = ["https://www.biddr.com/*","https://example.com/*"];
 
 /**
- * Fine grained URL glob. The content script only acts while the page URL
- * matches this pattern. "*" matches any run of characters.
+ * Every site the extension acts on. On a given URL the first platform on the
+ * same origin with a matching entry in `platformPaths` wins.
+ * @type {Platform[]}
  */
-export const TARGET_URL_PATTERN = "https://www.biddr.com/*"; //"https://example.com/app/dashboard*";
-
-/** CSS selector of the element whose text content holds the price. */
-export const TARGET_SELECTOR = '.current-bid, #app-root .content-card[data-module="overview"]';
-
-/** Surcharge applied to the parsed price (0.2 = +20%). */
-export const MARKUP_RATE = 0.2;
+export const PLATFORMS = [
+  {
+    platformUrl: "https://www.biddr.com",
+    platformPaths: ["/*"],
+    targetSelectors: [".current-bid", ".lot-price div:last-child span:first-child"],
+    defaultMarkupRate: 0.2,
+  },
+  {
+    platformUrl: "https://www.numisbids.com",
+    platformPaths: ["/sale/*"],
+    targetSelectors: ['.rateclick'],
+    defaultMarkupRate: 0.2,
+  },
+];
 
 /** Class of the sibling element the extension inserts (see content/content.css). */
 export const ANNOTATION_CLASS = "xbp-price-markup";
@@ -31,5 +47,3 @@ export const ANNOTATION_CLASS = "xbp-price-markup";
 /** Shown in the sibling element when the target text holds no parsable price. */
 export const UNPARSABLE_TEXT = "n/a";
 
-/** Key used for the side panel draft text in browser.storage.local. */
-export const STORAGE_KEY_PANEL_INPUT = "panel.inputValue";

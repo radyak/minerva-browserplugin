@@ -33,10 +33,12 @@ There is no linter or formatter for the source itself — match the surrounding 
 - **Browser differences are confined to two places:** `platforms/<target>/manifest.json` and
   `src/platform/panel.js` (Chrome `sidePanel` vs. Firefox `sidebarAction`). Do not add a
   `TARGET === "chrome"` branch anywhere else; extend `src/platform/` instead.
-- **`src/core/config.js` is the single source of truth.** The manifests carry `$VERSION` and
-  `$CONTENT_MATCHES` placeholders that `scripts/build.mjs` resolves from `package.json` and from
-  `CONTENT_SCRIPT_MATCHES`. Changing what the extension targets should mean editing only
-  `config.js`.
+- **`src/core/config.js` is the single source of truth.** Sites are entries of the `PLATFORMS`
+  array (`platformUrl`, `platformPaths`, `targetSelectors`, `defaultMarkupRate`); the remaining
+  constants are plugin-wide. The manifests carry `$VERSION` and `$CONTENT_MATCHES` placeholders
+  that `scripts/build.mjs` resolves from `package.json` and from every platform's `platformUrl`
+  (via `matchPatternFor()`).
+  Changing what the extension targets should mean editing only `config.js`.
 - **`__TARGET__` is an esbuild `define`,** not a runtime variable. It only exists inside the three
   bundled entry points (`background`, `content`, `panel/panel`). Importing a module that reads it
   from a test will throw — that is another reason core code stays free of `src/platform/`.
@@ -51,15 +53,17 @@ There is no linter or formatter for the source itself — match the surrounding 
   `childList` **and** `characterData` on the whole document. An unconditional write turns into an
   infinite observer loop. Any new DOM write needs the same "only on change" guard.
 - **Never annotate our own output** — the loop skips elements carrying `ANNOTATION_CLASS`, which
-  matters because `TARGET_SELECTOR` is a site selector that may well match the sibling too.
-- **`CONTENT_SCRIPT_MATCHES` entries are WebExtension match patterns** and cannot contain a port
-  or glob syntax beyond what match patterns allow. Port-specific or fine-grained gating belongs in
-  `TARGET_URL_PATTERN`, which is matched by our own tiny glob matcher (`src/core/url-matcher.js`,
-  `*` only).
-- **`test/annotator.test.mjs` derives its target URL from the real `TARGET_URL_PATTERN`**
-  (`replaceAll("*", "")`). It uses its own `.price` selector so `TARGET_SELECTOR` can change
-  freely, but a `TARGET_URL_PATTERN` that does not reduce to a usable URL that way will break the
-  suite. Adjust the test rather than working around it in the source.
+  matters because `targetSelectors` are site selectors that may well match the sibling too.
+- **`platformUrl` is protocol + host only, `platformPaths` are path globs only.** A URL is on a
+  platform when its origin equals `platformUrl`'s origin and its *pathname* (query/hash ignored)
+  matches one of the paths via our tiny glob matcher (`src/core/url-matcher.js`, `*` only, exact
+  otherwise). `matchPatternFor()` derives the manifest match pattern `<protocol>//<host>/*` and
+  drops any port, since match patterns cannot carry one; the origin check still enforces it.
+- **`test/annotator.test.mjs` runs against its own `TEST_PLATFORMS`** (`findPlatform`,
+  `syncDocument` and `isTargetUrl` take an optional `platforms` argument defaulting to
+  `PLATFORMS`), so the real config can change freely. The real `PLATFORMS` only gets a shape
+  check (required fields, `platformUrl` without path, paths start with `/`, selectors parse as
+  CSS).
 - **Price formatting mirrors the input notation** (currency position, decimal/grouping separators,
   surrounding text). The one ambiguous rule: a single separator followed by exactly three digits
   is read as *grouping* (`1.359` = 1359), anything else as a decimal separator (`1.35` = 1.35).

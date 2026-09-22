@@ -1,4 +1,3 @@
-import { STORAGE_KEY_PANEL_INPUT } from "../core/config.js";
 import { MSG } from "../core/messages.js";
 import { ext, sendMessage, storageGet, storageSet } from "../platform/browser.js";
 
@@ -6,6 +5,9 @@ import { ext, sendMessage, storageGet, storageSet } from "../platform/browser.js
 
 const input = document.querySelector("#note");
 const status = document.querySelector("#status");
+
+/** Key used for the side panel draft text in browser.storage.local. */
+export const STORAGE_KEY_PANEL_INPUT = "panel.inputValue";
 
 function renderStatus(state) {
   const active = Boolean(state?.active);

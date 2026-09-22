@@ -1,12 +1,6 @@
-import {
-  ANNOTATION_CLASS,
-  MARKUP_RATE,
-  TARGET_SELECTOR,
-  TARGET_URL_PATTERN,
-  UNPARSABLE_TEXT,
-} from "./config.js";
+import { ANNOTATION_CLASS, PLATFORMS, UNPARSABLE_TEXT } from "./config.js";
 import { addMarkup } from "./price.js";
-import { urlMatches } from "./url-matcher.js";
+import { urlOnPlatform } from "./url-matcher.js";
 
 /**
  * Browser agnostic DOM logic: read the price out of the target element, add the
@@ -34,13 +28,17 @@ function createAnnotation(doc, element) {
  * Insert or refresh the surcharged price next to every matching element. An
  * element whose text holds no parsable price still gets its sibling, showing
  * UNPARSABLE_TEXT instead of an amount.
+ * @param {Document} doc
+ * @param {{selectors: string[], rate: number}} options
  * @returns {{annotated: number, unparsable: number}} counts after the run
  */
-export function annotateElements(doc, { selector = TARGET_SELECTOR, rate = MARKUP_RATE } = {}) {
+export function annotateElements(doc, { selectors, rate }) {
   let annotated = 0;
   let unparsable = 0;
 
-  for (const element of doc.querySelectorAll(selector)) {
+  // One combined query, so an element matched by several selectors is only
+  // visited once.
+  for (const element of doc.querySelectorAll(selectors.join(", "))) {
     // Never annotate our own output, even if the selector happens to match it.
     if (element.classList.contains(ANNOTATION_CLASS)) continue;
 
@@ -77,20 +75,45 @@ export function removeAnnotations(doc) {
   return annotations.length;
 }
 
+/**
+ * The platform the extension should act as on this URL: the first one whose
+ * `platformUrl` origin matches and that has a matching entry in `platformPaths`.
+ * @param {string | undefined | null} url
+ * @param {import("./config.js").Platform[]} [platforms]
+ * @returns {import("./config.js").Platform | null}
+ */
+export function findPlatform(url, platforms = PLATFORMS) {
+  return (
+    platforms.find((platform) =>
+      urlOnPlatform(url, platform.platformUrl, platform.platformPaths),
+    ) ?? null
+  );
+}
+
 /** Should the extension be active on this URL? */
-export function isTargetUrl(url) {
-  return urlMatches(url, TARGET_URL_PATTERN);
+export function isTargetUrl(url, platforms = PLATFORMS) {
+  return findPlatform(url, platforms) !== null;
 }
 
 /**
- * Bring the document in line with the current URL: annotate when the URL is a
- * target URL, clean up otherwise.
+ * Bring the document in line with the current URL: annotate with the matching
+ * platform's selectors and rate, clean up when no platform matches.
+ * @param {Document} doc
+ * @param {string} url
+ * @param {import("./config.js").Platform[]} [platforms]
  * @returns {{active: boolean, annotated: number, unparsable: number}}
  */
-export function syncDocument(doc, url) {
-  if (!isTargetUrl(url)) {
+export function syncDocument(doc, url, platforms = PLATFORMS) {
+  const platform = findPlatform(url, platforms);
+  if (!platform) {
     removeAnnotations(doc);
     return { active: false, annotated: 0, unparsable: 0 };
   }
-  return { active: true, ...annotateElements(doc) };
+  return {
+    active: true,
+    ...annotateElements(doc, {
+      selectors: platform.targetSelectors,
+      rate: platform.defaultMarkupRate,
+    }),
+  };
 }
