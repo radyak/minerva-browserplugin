@@ -10,15 +10,15 @@ It is named after [*Minerva*](https://en.wikipedia.org/wiki/Minerva), the Roman 
 **Phase 1 scope:** while a configured URL is open, the extension reads the plain
 text price out of a configured element, adds 20% and appends the result as a
 sibling element right after it - kept up to date when the price changes. A side
-panel with a single text input can be opened next to the page. The URL and the
-selector are **placeholders** - see [Configuration](#configuration).
+panel with a single text input can be opened next to the page. The target URL and
+the selector are configurable in one file - see [Configuration](#configuration).
 
 ## Layout
 
 ```
 src/
   core/        browser-agnostic logic
-    config.js      placeholders and the surcharge rate
+    config.js      target URL, selector and the surcharge rate
     price.js       price parsing, surcharge, re-formatting
     annotator.js   reads the element, inserts/updates the sibling
     url-matcher.js glob matching for URLs
@@ -41,16 +41,20 @@ can be unit tested with plain jsdom.
 
 ## Configuration
 
-All placeholders live in [`src/core/config.js`](src/core/config.js):
+Everything the extension acts on lives in [`src/core/config.js`](src/core/config.js):
 
-| Constant | Placeholder value | Meaning |
+| Constant | Current value | Meaning |
 | --- | --- | --- |
-| `CONTENT_SCRIPT_MATCHES` | `https://example.com/*` | where the content script is injected; baked into both manifests at build time |
-| `TARGET_URL_PATTERN` | `https://example.com/app/dashboard*` | the extension only acts while the URL matches this glob (`*` = any characters) |
-| `TARGET_SELECTOR` | `#app-root .content-card[data-module="overview"]` | the element whose text holds the price |
+| `CONTENT_SCRIPT_MATCHES` | `https://www.biddr.com/*`, `https://example.com/*` | where the content script is injected; baked into both manifests at build time |
+| `TARGET_URL_PATTERN` | `https://www.biddr.com/*` | the extension only acts while the URL matches this glob (`*` = any characters) |
+| `TARGET_SELECTOR` | `.current-bid, #app-root .content-card[data-module="overview"]` | the element whose text holds the price |
 | `MARKUP_RATE` | `0.2` | surcharge added to the parsed price (+20%) |
 | `ANNOTATION_CLASS` | `xbp-price-markup` | class of the inserted sibling element |
 | `UNPARSABLE_TEXT` | `n/a` | shown when the element's text holds no price |
+| `STORAGE_KEY_PANEL_INPUT` | `panel.inputValue` | `storage.local` key for the side panel's note field |
+
+The `example.com` entries are leftovers from the initial scaffolding and are kept
+only as a second, harmless match pattern; biddr.com is the live target.
 
 Changing them in that one file is enough - the manifests, the content script and
 the background script all read from it.
