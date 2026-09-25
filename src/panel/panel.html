@@ -3,30 +3,40 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Minerva - Online Auction Assistant</title>
+    <title>Minerva</title>
     <link rel="stylesheet" href="../vendor/bootstrap.min.css" />
     <link rel="stylesheet" href="panel.css" />
   </head>
   <body class="bg-body-tertiary">
-    <div class="d-flex flex-column gap-3 p-3">
+    <div class="d-flex flex-column gap-3 p-3 min-vh-100">
       <header class="d-flex align-items-center justify-content-between gap-2">
-        <h1 class="h6 mb-0">Minerva - Online Auction Assistant</h1>
-        <span id="status" class="badge text-bg-secondary">checking…</span>
       </header>
 
-      <div class="card shadow-sm">
-        <div class="card-body">
-          <label for="note" class="form-label">Note</label>
-          <input
-            type="text"
-            class="form-control"
-            id="note"
-            placeholder="Type something…"
-            autocomplete="off"
-          />
-          <div class="form-text">Saved locally while you type.</div>
+      <form>
+        <fieldset>
+            <label for="note" class="form-label">Note</label>
+            <input
+              type="text"
+              class="form-control"
+              id="note"
+              placeholder="Type something…"
+              autocomplete="off"
+            />
+            <div class="form-text">Saved locally while you type.</div>
+          </fieldset>
+      </form>
+
+      <!-- Plugin status section, pinned to the bottom of the panel. -->
+      <footer class="mt-auto">
+        <div class="card shadow-sm w-100">
+          <div class="card-header">
+            Plugin status
+          </div>
+          <div class="card-body d-flex align-items-center justify-content-between gap-2">
+            <span id="status" class="badge text-bg-secondary">checking…</span>
+          </div>
         </div>
-      </div>
+      </footer>
     </div>
 
     <script src="panel.js"></script>
