@@ -1,5 +1,5 @@
 import { MSG } from "../core/messages.js";
-import { fetchExchangeRates } from "../core/exchange-rates.js";
+import { EXCHANGE_RATES_STORAGE_KEY, fetchExchangeRates } from "../core/exchange-rates.js";
 import { readSettings, SETTINGS_STORAGE_KEYS } from "../core/settings.js";
 import { ext, sendMessage, storageGetMany, storageSet } from "../platform/browser.js";
 
@@ -51,7 +51,10 @@ function renderRates({ base, date, rates }) {
 }
 
 let ratesRequest = 0;
-/** Load and show the rates of `base`; only the latest request is rendered. */
+/**
+ * Load and show the rates of `base`; only the latest request is rendered.
+ * @returns {Promise<import("../core/exchange-rates.js").ExchangeRates | null>}
+ */
 async function loadRates(base) {
   const request = ++ratesRequest;
   ratesBody.replaceChildren();
@@ -60,17 +63,33 @@ async function loadRates(base) {
   try {
     const rates = await fetchExchangeRates(base);
     if (request === ratesRequest) renderRates(rates);
+    return rates;
   } catch {
-    if (request !== ratesRequest) return;
-    ratesInfo.textContent = "Exchange rates unavailable.";
-    ratesInfo.classList.add("text-danger");
+    if (request === ratesRequest) {
+      ratesInfo.textContent = "Exchange rates unavailable.";
+      ratesInfo.classList.add("text-danger");
+    }
+    return null;
   }
 }
+
+/** Rates of the currently selected currency, once loaded (null on failure). */
+let selectedRates = Promise.resolve(null);
 
 /** Follow a (new) currency: shipment hint and exchange rates. */
 function applyCurrency() {
   shipmentCurrency.textContent = currency.value;
-  loadRates(currency.value);
+  selectedRates = loadRates(currency.value);
+}
+
+/**
+ * Store the rates the page converts with - only when they belong to `code`,
+ * otherwise the stored ones stay (and are ignored by the page if they no
+ * longer match the saved currency).
+ */
+async function storeRates(code) {
+  const rates = await selectedRates;
+  if (rates?.base === code) await storageSet(EXCHANGE_RATES_STORAGE_KEY, rates);
 }
 
 currency.addEventListener("change", applyCurrency);
@@ -114,6 +133,7 @@ form.addEventListener("submit", async (event) => {
       .filter(([, input]) => input.value !== "")
       .map(([name, input]) => storageSet(SETTINGS_STORAGE_KEYS[name], input.valueAsNumber)),
     storageSet(SETTINGS_STORAGE_KEYS.currency, currency.value),
+    storeRates(currency.value),
   ]);
   await fillEmptyInputs();
   // Asking for the state makes the active tab re-read the settings and recalculate.
@@ -137,13 +157,17 @@ ext.tabs.onUpdated.addListener((_tabId, changeInfo) => {
   if (changeInfo.url || changeInfo.status === "complete") refreshStatus();
 });
 
-/** Select the stored currency (or the default) before anything is loaded. */
+/**
+ * Select the stored currency (or the default) and refresh the stored rates
+ * with the ones just loaded for it; open tabs recalculate via storage.onChanged.
+ */
 async function selectStoredCurrency() {
   const stored = await storageGetMany([SETTINGS_STORAGE_KEYS.currency]);
-  currency.value = readSettings(stored).currency;
+  const { currency: code } = readSettings(stored);
+  currency.value = code;
   applyCurrency();
+  await storeRates(code);
 }
 
 // Show what is stored, then bring the active tab in line with it.
-selectStoredCurrency();
-fillEmptyInputs().then(refreshStatus);
+Promise.all([selectStoredCurrency(), fillEmptyInputs()]).then(refreshStatus);

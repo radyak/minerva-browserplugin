@@ -17,7 +17,9 @@ import {
  * check at the end.
  */
 const SELECTOR = ".price";
-const SETTINGS = { auctionPremium: 0, shipment: 100 };
+const SETTINGS = { auctionPremium: 0, shipment: 100, currency: "EUR" };
+// Into EUR; GBP deliberately has no rate.
+const RATES = { EUR: 1, USD: 0.5 };
 const TARGET_URL = "https://shop.test/lot/1";
 const OTHER_URL = "https://not-the-target.invalid/";
 
@@ -43,7 +45,7 @@ function documentWithPrice(price = "500 EUR") {
   `).window.document;
 }
 
-const annotate = (doc) => annotateElements(doc, { selectors: [SELECTOR], settings: SETTINGS });
+const annotate = (doc) => annotateElements(doc, { selectors: [SELECTOR], settings: SETTINGS, rates: RATES });
 const annotations = (doc) => [...doc.querySelectorAll(`.${ANNOTATION_CLASS}`)];
 
 test("appends the effective price as a sibling of the target element", () => {
@@ -61,8 +63,18 @@ test("leaves the price element itself untouched", () => {
   const doc = documentWithPrice("USD 1.359");
   annotate(doc);
   assert.equal(doc.querySelector(SELECTOR).textContent, "USD 1.359");
-  assert.equal(annotations(doc)[0].textContent, "USD 1.459");
+  // 1359 USD * 0.5 + 100 EUR shipment, written in the input's notation.
+  assert.equal(annotations(doc)[0].textContent, "EUR 779,50");
 });
+
+for (const price of ["GBP 500", "500", "¥500"]) {
+  test(`shows n/a for "${price}", which has no known currency or rate`, () => {
+    const doc = documentWithPrice(price);
+    assert.deepEqual(annotate(doc), { annotated: 1, unparsable: 1 });
+    assert.equal(annotations(doc)[0].textContent, UNPARSABLE_TEXT);
+    assert.equal(annotations(doc)[0].dataset.xbpUnparsable, "true");
+  });
+}
 
 test("updates the sibling when the price changes", () => {
   const doc = documentWithPrice("500 EUR");
@@ -128,9 +140,52 @@ test("a custom calculation replaces the default one", () => {
   annotateElements(doc, {
     selectors: [SELECTOR],
     settings: SETTINGS,
-    calculate: (amount, settings) => amount * 2 + settings.shipment,
+    rates: RATES,
+    calculate: (amount, currency, settings, rates) => amount * rates[currency] * 2 + settings.shipment,
   });
   assert.equal(annotations(doc)[0].textContent, "1100 EUR");
+});
+
+test("nested matches: only the innermost element is annotated", () => {
+  const doc = new JSDOM(`
+    <div class="price"><span class="price"><span class="price">500 USD</span></span></div>
+  `).window.document;
+  assert.deepEqual(annotate(doc), { annotated: 1, unparsable: 0 });
+  assert.deepEqual(
+    annotations(doc).map((annotation) => annotation.textContent),
+    ["350 EUR"],
+  );
+  // Stable on re-runs, the inner annotation is never read back as a price.
+  assert.deepEqual(annotate(doc), { annotated: 1, unparsable: 0 });
+  assert.equal(annotations(doc).length, 1);
+});
+
+test("a wrapper's annotation from an earlier run is removed", () => {
+  const doc = documentWithPrice("500 USD");
+  annotate(doc);
+  // The page wraps the price into another matching element later on.
+  const price = doc.querySelector(SELECTOR);
+  const wrapper = doc.createElement("span");
+  wrapper.className = "price";
+  price.before(wrapper);
+  wrapper.append(price, price.nextElementSibling);
+  wrapper.insertAdjacentHTML("afterend", `<span class="${ANNOTATION_CLASS}">stale</span>`);
+
+  assert.deepEqual(annotate(doc), { annotated: 1, unparsable: 0 });
+  assert.deepEqual(
+    annotations(doc).map((annotation) => annotation.textContent),
+    ["350 EUR"],
+  );
+});
+
+test("our annotations inside a matched element are not part of its price", () => {
+  const doc = documentWithPrice("500 EUR");
+  doc.querySelector(SELECTOR).insertAdjacentHTML(
+    "beforeend",
+    `<span class="${ANNOTATION_CLASS}">999 USD</span>`,
+  );
+  annotate(doc);
+  assert.equal(doc.querySelector(SELECTOR).nextElementSibling.textContent, "600 EUR");
 });
 
 test("removeAnnotations cleans up everything", () => {
@@ -142,7 +197,11 @@ test("removeAnnotations cleans up everything", () => {
 
 test("an element matched by several selectors is annotated once", () => {
   const doc = documentWithPrice();
-  const result = annotateElements(doc, { selectors: [SELECTOR, "#root span"], settings: SETTINGS });
+  const result = annotateElements(doc, {
+    selectors: [SELECTOR, "#root span"],
+    settings: SETTINGS,
+    rates: RATES,
+  });
   assert.deepEqual(result, { annotated: 2, unparsable: 0 });
   assert.deepEqual(
     annotations(doc).map((annotation) => annotation.textContent),
@@ -166,7 +225,7 @@ test("findPlatform picks the platform whose paths match the url", () => {
 
 test("sync uses the selectors of the matching platform", () => {
   const doc = documentWithPrice();
-  assert.deepEqual(syncDocument(doc, "https://other.test/", SETTINGS, TEST_PLATFORMS), {
+  assert.deepEqual(syncDocument(doc, "https://other.test/", SETTINGS, RATES, TEST_PLATFORMS), {
     active: true,
     annotated: 1,
     unparsable: 0,
@@ -177,15 +236,15 @@ test("sync uses the selectors of the matching platform", () => {
 
 test("sync only runs on the configured url", () => {
   const doc = documentWithPrice();
-  assert.equal(syncDocument(doc, TARGET_URL, SETTINGS, TEST_PLATFORMS).active, true);
-  assert.equal(syncDocument(doc, OTHER_URL, SETTINGS, TEST_PLATFORMS).active, false);
+  assert.equal(syncDocument(doc, TARGET_URL, SETTINGS, RATES, TEST_PLATFORMS).active, true);
+  assert.equal(syncDocument(doc, OTHER_URL, SETTINGS, RATES, TEST_PLATFORMS).active, false);
 
   // Whatever an earlier run left behind is cleaned up off the target URL.
   doc.querySelector(SELECTOR).insertAdjacentHTML(
     "afterend",
     `<span class="${ANNOTATION_CLASS}">600 EUR</span>`,
   );
-  assert.deepEqual(syncDocument(doc, OTHER_URL, SETTINGS, TEST_PLATFORMS), {
+  assert.deepEqual(syncDocument(doc, OTHER_URL, SETTINGS, RATES, TEST_PLATFORMS), {
     active: false,
     annotated: 0,
     unparsable: 0,

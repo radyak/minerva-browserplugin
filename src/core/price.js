@@ -1,9 +1,12 @@
+import { currencyNotation, findCurrency } from "./currency.js";
+
 /**
  * Parsing, converting and re-formatting of prices found in page text.
  *
  * The goal is to give the result back in the same shape it came in: same
  * currency position, same decimal and grouping separators, same surrounding
  * text. With +20%: "500 EUR" -> "600 EUR", "USD 1.359" -> "USD 1.630,80".
+ * Only the currency itself is swapped when the result is in another one.
  */
 
 /** First number in the string, including grouping characters. */
@@ -49,8 +52,22 @@ function detectGroupSeparator(raw, decimalSeparator) {
  * @property {string | null} groupSeparator separator to use, null = no grouping
  * @property {string} prefix        text before the number ("USD ", "Preis: €")
  * @property {string} suffix        text after the number (" EUR")
+ * @property {PriceCurrency | null} currency currency found next to the number
  * @property {string} raw           the trimmed input
  */
+
+/**
+ * @typedef {import("./currency.js").CurrencyMatch & {side: "prefix" | "suffix"}} PriceCurrency
+ *   `index` is the position of the token inside `prefix` or `suffix`
+ */
+
+/** The currency closest to the number, before it or else after it. */
+function detectCurrency(prefix, suffix) {
+  const before = findCurrency(prefix, "before");
+  if (before) return { ...before, side: "prefix" };
+  const after = findCurrency(suffix, "after");
+  return after ? { ...after, side: "suffix" } : null;
+}
 
 /**
  * Parse a price out of arbitrary text.
@@ -75,6 +92,8 @@ export function parsePrice(text) {
   if (!Number.isFinite(amount)) return null;
 
   const decimals = decimalSeparator ? digits.length - digits.indexOf(".") - 1 : 0;
+  const prefix = raw.slice(0, match.index);
+  const suffix = raw.slice(match.index + rawNumber.length);
 
   return {
     amount,
@@ -83,8 +102,9 @@ export function parsePrice(text) {
     // German-ish, so its decimals are written with a comma.
     decimalSeparator: decimalSeparator ?? (groupSeparator === "." ? "," : "."),
     groupSeparator,
-    prefix: raw.slice(0, match.index),
-    suffix: raw.slice(match.index + rawNumber.length),
+    prefix,
+    suffix,
+    currency: detectCurrency(prefix, suffix),
     raw,
   };
 }
@@ -97,12 +117,38 @@ function group(integerPart, separator) {
   return sign + digits.replace(/\B(?=(\d{3})+(?!\d))/g, separator);
 }
 
+const isCode = (text) => /^[A-Z]{3}$/.test(text);
+
+/**
+ * Prefix and suffix of `price` with its currency replaced by `currency`.
+ * A symbol touching the number that turns into a code gets a space ("€5" ->
+ * "CHF 5"), everything else keeps its spacing.
+ */
+function swapCurrency(price, currency) {
+  let { prefix, suffix } = price;
+  if (!currency || !price.currency || price.currency.code === currency) return { prefix, suffix };
+
+  const { token, index, side } = price.currency;
+  let notation = currencyNotation(token, currency);
+  const spaced = isCode(notation) && !isCode(token);
+  if (side === "prefix") {
+    if (spaced && index + token.length === prefix.length) notation += " ";
+    prefix = prefix.slice(0, index) + notation + prefix.slice(index + token.length);
+  } else {
+    if (spaced && index === 0) notation = ` ${notation}`;
+    suffix = suffix.slice(0, index) + notation + suffix.slice(index + token.length);
+  }
+  return { prefix, suffix };
+}
+
 /**
  * Render a value the way the parsed price was written.
  * @param {number} value
  * @param {ParsedPrice} price
+ * @param {string} [currency] currency `value` is in, when it differs from the
+ *   one written in `price`
  */
-export function formatPrice(value, price) {
+export function formatPrice(value, price, currency) {
   const rounded = Math.round(value * 100) / 100;
   // Keep it integer only when the input was integer and nothing was lost.
   const decimals = price.decimals === 0 && Number.isInteger(rounded) ? 0 : 2;
@@ -110,18 +156,24 @@ export function formatPrice(value, price) {
 
   const number = group(integerPart, price.groupSeparator);
   const formatted = decimalPart ? number + price.decimalSeparator + decimalPart : number;
-  return price.prefix + formatted + price.suffix;
+  const { prefix, suffix } = swapCurrency(price, currency);
+  return prefix + formatted + suffix;
 }
 
 /**
- * Parse `text`, run its amount through `calculate` and render the result in the
- * same style.
+ * Parse `text`, run its amount and currency through `calculate` and render the
+ * result in the same style.
  * @param {string} text
- * @param {(amount: number) => number} calculate
- * @returns {string | null} null when `text` holds no price
+ * @param {(amount: number, currency: string | undefined) => number | undefined} calculate
+ *   `currency` is the ISO code found in `text`; returning undefined means the
+ *   result cannot be determined
+ * @param {string} [currency] currency the result of `calculate` is in
+ * @returns {string | null} null when `text` holds no price or there is no result
  */
-export function convertPrice(text, calculate) {
+export function convertPrice(text, calculate, currency) {
   const price = parsePrice(text);
   if (price === null) return null;
-  return formatPrice(calculate(price.amount), price);
+  const value = calculate(price.amount, price.currency?.code);
+  if (value === undefined || !Number.isFinite(value)) return null;
+  return formatPrice(value, price, currency);
 }

@@ -56,6 +56,10 @@ There is no linter or formatter for the source itself — match the surrounding 
   infinite observer loop. Any new DOM write needs the same "only on change" guard.
 - **Never annotate our own output** — the loop skips elements carrying `ANNOTATION_CLASS`, which
   matters because `targetSelectors` are site selectors that may well match the sibling too.
+  The same goes for the *text*: when matches are nested (`span:first-child` inside
+  `span:first-child`), only the innermost one is annotated and wrappers lose any annotation, and
+  the price text is read without our annotations (`priceText()`). Otherwise the wrapper reads
+  "750 GBP1207.72 USD" and shows the price repeatedly.
 - **`platformUrl` is protocol + host only, `platformPaths` are path globs only.** A URL is on a
   platform when its origin equals `platformUrl`'s origin and its *pathname* (query/hash ignored)
   matches one of the paths via our tiny glob matcher (`src/core/url-matcher.js`, `*` only, exact
@@ -69,7 +73,9 @@ There is no linter or formatter for the source itself — match the surrounding 
 - **Price formatting mirrors the input notation** (currency position, decimal/grouping separators,
   surrounding text). The one ambiguous rule: a single separator followed by exactly three digits
   is read as *grouping* (`1.359` = 1359), anything else as a decimal separator (`1.35` = 1.35).
-  Change `src/core/price.js` only with a matching case added to `test/price.test.mjs`.
+  The currency token closest to the number (`src/core/currency.js`) is the input currency and is
+  the only part swapped on output. Change `src/core/price.js` or `currency.js` only with a
+  matching case added to `test/price.test.mjs`.
 - `dist/`, `build/` and `.poc/` are gitignored. `.poc/` holds unrelated reference extensions
   (Mozilla samples etc.) — not part of the build, safe to ignore.
 
@@ -82,10 +88,17 @@ There is no linter or formatter for the source itself — match the surrounding 
   the channel: after saving, the panel sends `GET_ACTIVE_STATE`, the background forwards
   `SYNC_REQUEST`, and the content script **re-reads the settings on every `SYNC_REQUEST`** before
   syncing. `storage.onChanged` additionally updates the other open tabs.
-- The calculation lives in `calculateEffectivePrice(amount, settings)`
+- The calculation lives in `calculateEffectivePrice(amount, currency, settings, rates)`
   (`src/core/effective-price.js`) and is passed to `annotateElements()` as `calculate`, so it can
-  later be made per-platform. Currently `amount * (1 + auctionPremium / 100) + shipment`;
-  `currency` is stored but not used in the calculation.
+  later be made per-platform: `amount * rates[currency] * (1 + auctionPremium / 100) + shipment`,
+  in `settings.currency`. `currency` is the input currency read from the price text, `rates` is a
+  `ConversionRates` map (input currency → factor into the output currency). A missing currency
+  or rate returns `undefined`, which `convertPrice()` turns into `null` and the annotator into
+  `n/a` — no guessing, no fallback rate.
+- `rates` comes from `conversionRates(storedExchangeRates, settings.currency)`: the panel stores
+  the fetched `ExchangeRates` (for base = selected currency) under `EXCHANGE_RATES_STORAGE_KEY`
+  on Save and whenever it opens; the content script inverts them. Stored rates for another base
+  are ignored, so only the output currency itself (1:1) is known until matching rates exist.
 - Exchange rates are fetched by the panel only (`src/core/exchange-rates.js`, plain `fetch` with
   an injectable fetch function for tests) from Frankfurter (`EXCHANGE_RATES_URL` in
   `config.js`). It sends `Access-Control-Allow-Origin: *`, so no `host_permissions` are needed.

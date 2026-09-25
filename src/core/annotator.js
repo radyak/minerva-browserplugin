@@ -16,6 +16,35 @@ function annotationOf(element) {
   return sibling?.classList.contains(ANNOTATION_CLASS) ? sibling : null;
 }
 
+/**
+ * The text of `element` without any of our annotations inside it - otherwise
+ * our own output would be read back as part of the price.
+ */
+function priceText(element) {
+  if (!element.querySelector(`.${ANNOTATION_CLASS}`)) return element.textContent.trim();
+  const copy = element.cloneNode(true);
+  for (const annotation of copy.querySelectorAll(`.${ANNOTATION_CLASS}`)) annotation.remove();
+  return copy.textContent.trim();
+}
+
+/**
+ * The matches that wrap another match. Only the innermost element holds the
+ * price itself; annotating the wrapper too would show the price twice (and
+ * read the inner annotation back as part of its text).
+ * @param {Element[]} matches
+ * @returns {Set<Element>}
+ */
+function findWrappers(matches) {
+  const matched = new Set(matches);
+  const wrappers = new Set();
+  for (const element of matches) {
+    for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+      if (matched.has(parent)) wrappers.add(parent);
+    }
+  }
+  return wrappers;
+}
+
 function createAnnotation(doc, element) {
   // Mirror the tag so the annotation flows the same way as the price itself.
   const annotation = doc.createElement(element.tagName);
@@ -27,30 +56,45 @@ function createAnnotation(doc, element) {
 
 /**
  * Insert or refresh the effective price next to every matching element. An
- * element whose text holds no parsable price still gets its sibling, showing
- * UNPARSABLE_TEXT instead of an amount.
+ * element whose text holds no parsable price - or one in a currency that is
+ * unknown or has no rate - still gets its sibling, showing UNPARSABLE_TEXT
+ * instead of an amount.
  * @param {Document} doc
  * @param {object} options
  * @param {string[]} options.selectors
  * @param {import("./settings.js").Settings} options.settings
+ * @param {import("./exchange-rates.js").ConversionRates} options.rates into `settings.currency`
  * @param {typeof calculateEffectivePrice} [options.calculate]
  * @returns {{annotated: number, unparsable: number}} counts after the run
  */
 export function annotateElements(
   doc,
-  { selectors, settings, calculate = calculateEffectivePrice },
+  { selectors, settings, rates, calculate = calculateEffectivePrice },
 ) {
   let annotated = 0;
   let unparsable = 0;
 
   // One combined query, so an element matched by several selectors is only
-  // visited once.
-  for (const element of doc.querySelectorAll(selectors.join(", "))) {
-    // Never annotate our own output, even if the selector happens to match it.
-    if (element.classList.contains(ANNOTATION_CLASS)) continue;
+  // visited once. Never annotate our own output, even if a selector happens
+  // to match it.
+  const matches = [...doc.querySelectorAll(selectors.join(", "))].filter(
+    (element) => !element.closest(`.${ANNOTATION_CLASS}`),
+  );
+  const wrappers = findWrappers(matches);
 
-    const source = element.textContent.trim();
-    const converted = convertPrice(source, (amount) => calculate(amount, settings));
+  for (const element of matches) {
+    if (wrappers.has(element)) {
+      // Drop what an earlier run may have put next to it (only on change).
+      annotationOf(element)?.remove();
+      continue;
+    }
+
+    const source = priceText(element);
+    const converted = convertPrice(
+      source,
+      (amount, currency) => calculate(amount, currency, settings, rates),
+      settings.currency,
+    );
     const text = converted ?? UNPARSABLE_TEXT;
 
     const annotation = annotationOf(element) ?? createAnnotation(doc, element);
@@ -109,10 +153,11 @@ export function isTargetUrl(url, platforms = PLATFORMS) {
  * @param {Document} doc
  * @param {string} url
  * @param {import("./settings.js").Settings} settings
+ * @param {import("./exchange-rates.js").ConversionRates} rates into `settings.currency`
  * @param {import("./config.js").Platform[]} [platforms]
  * @returns {{active: boolean, annotated: number, unparsable: number}}
  */
-export function syncDocument(doc, url, settings, platforms = PLATFORMS) {
+export function syncDocument(doc, url, settings, rates, platforms = PLATFORMS) {
   const platform = findPlatform(url, platforms);
   if (!platform) {
     removeAnnotations(doc);
@@ -123,6 +168,7 @@ export function syncDocument(doc, url, settings, platforms = PLATFORMS) {
     ...annotateElements(doc, {
       selectors: platform.targetSelectors,
       settings,
+      rates,
     }),
   };
 }

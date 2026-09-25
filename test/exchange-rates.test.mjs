@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  conversionRates,
   exchangeRatesUrl,
   fetchExchangeRates,
   parseExchangeRates,
@@ -47,4 +48,16 @@ test("fetchExchangeRates requests and parses the rates", async () => {
 
 test("fetchExchangeRates fails on an HTTP error", async () => {
   await assert.rejects(fetchExchangeRates("EUR", fakeFetch({}, 503)), /HTTP 503/);
+});
+
+test("conversionRates inverts the rates published for the output currency", () => {
+  const rates = conversionRates({ base: "EUR", date: "", rates: { USD: 1.25, GBP: 0.8 } }, "EUR");
+  assert.deepEqual(rates, { EUR: 1, USD: 0.8, GBP: 1.25 });
+});
+
+test("conversionRates only knows the output currency without matching rates", () => {
+  const usd = { base: "USD", date: "", rates: { EUR: 0.9 } };
+  assert.deepEqual(conversionRates(usd, "EUR"), { EUR: 1 });
+  assert.deepEqual(conversionRates(undefined, "CHF"), { CHF: 1 });
+  assert.deepEqual(conversionRates({ base: "EUR", rates: { USD: 0, GBP: "x" } }, "EUR"), { EUR: 1 });
 });

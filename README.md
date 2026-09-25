@@ -8,11 +8,11 @@ It is named after [*Minerva*](https://en.wikipedia.org/wiki/Minerva), the Roman 
 *Minerva* is a cross-browser WebExtension with a shared core and per-browser packaging.
 
 **Phase 1 scope:** while a configured URL is open, the extension reads the plain
-text price out of a configured element, adds the auction premium and shipping
-cost entered in the side panel and appends the resulting effective price as a
-sibling element right after it - kept up to date when the price or the settings
-change. The side panel also holds a currency selection and shows the current
-exchange rates (not yet applied to the price). The target URL and
+text price and its currency out of a configured element, converts it into the
+currency selected in the side panel, adds the auction premium and shipping cost
+entered there and appends the resulting effective price as a sibling element
+right after it - kept up to date when the price or the settings change. The
+side panel also shows the current exchange rates. The target URL and
 the selector are configurable in one file - see [Configuration](#configuration).
 
 ## Layout
@@ -24,6 +24,7 @@ src/
     settings.js    storage keys + validation of the panel settings
     effective-price.js  the effective price calculation
     exchange-rates.js   fetching exchange rates (Frankfurter / ECB)
+    currency.js    currency detection in the price text, output notation
     price.js       price parsing, conversion, re-formatting
     annotator.js   reads the element, inserts/updates the sibling
     url-matcher.js glob matching for URLs
@@ -118,27 +119,35 @@ loaded (via `web-ext`), `npm run lint:firefox` runs the AMO validator.
   caught) or the background script reports a URL change.
 - For every match, the element's text is parsed by `src/core/price.js`, the
   effective price is calculated by `calculateEffectivePrice()` in
-  `src/core/effective-price.js` (currently: price + shipment), and the result is inserted as a sibling right after the
+  `src/core/effective-price.js` (price converted into the selected currency,
+  plus premium, plus shipment), and the result is inserted as a sibling right
+  after the
   price element (same tag, class `xbp-price-markup`, `aria-live="polite"`). The
   price element itself is never modified. Re-running is idempotent: the
   annotation is only written when its text actually changes, so the extension's
   own DOM writes cannot drive the observer in circles.
+- The input currency is read from the price text: `EUR`/`USD`/`GBP`/`CHF` as a
+  standalone code, or `€`, `$`, `US$`, `£`, `Fr.`, `SFr.`; the one closest to
+  the number wins (prefix before suffix).
 - When the text holds no parsable price (`sold out`, an empty element, a value
-  the page has not filled in yet), the sibling is still inserted and shows
+  the page has not filled in yet), or its currency is missing, unsupported or
+  has no exchange rate (`500`, `¥500`, foreign prices before any rates were
+  saved), the sibling is still inserted and shows
   `UNPARSABLE_TEXT` (`n/a`), flagged with `data-xbp-unparsable` and greyed out by
   `content.css`. It turns back into a real amount as soon as the text becomes a
   price again, and vice versa. Annotations are only dropped when the URL stops
   matching.
 - Prices are given back in the notation they came in - currency position,
-  decimal and grouping separators and surrounding text are preserved:
+  decimal and grouping separators and surrounding text are preserved; only the
+  currency is swapped (a symbol for a symbol, a code for a code):
 
-  | in | out (+100 shipment) |
+  | in | out (EUR, 1 USD = 0.5 EUR, +100 shipment) |
   | --- | --- |
   | `500 EUR` | `600 EUR` |
-  | `USD 1.359` | `USD 1.459` |
-  | `€49.99` | `€149.99` |
+  | `USD 1.359` | `EUR 779,50` |
+  | `$49.99` | `€125.00` |
   | `1.234,56 EUR` | `1.334,56 EUR` |
-  | `CHF 1'200` | `CHF 1'300` |
+  | `500` | `n/a` (no currency) |
 
   A single separator followed by exactly three digits is read as grouping
   (`1.359` = 1359), anything else as a decimal separator (`1.35` = 1.35).
@@ -147,13 +156,15 @@ loaded (via `web-ext`), `npm run lint:firefox` runs the AMO validator.
 - The panel is one HTML file used by both browsers - Chrome shows it via
   `chrome.sidePanel`, Firefox via `sidebar_action`. *Save* persists its inputs to
   `storage.local` (`settings.auctionPremium`, `settings.shipment`,
-  `settings.currency`) and makes the active tab recalculate right away; other
-  open tabs follow via `storage.onChanged`. Empty inputs keep, and are filled
-  with, the stored value.
+  `settings.currency`, `settings.exchangeRates`) and makes the active tab
+  recalculate right away; other open tabs follow via `storage.onChanged`. Empty
+  inputs keep, and are filled with, the stored value.
 - Selecting a currency (EUR, USD, GBP, CHF; default EUR) immediately updates the
   shipment's currency hint and loads the rates against the other three from the
-  Frankfurter API; they are listed in the *Plugin status* card. The currency and
-  the rates do not affect the effective price yet.
+  Frankfurter API; they are listed in the *Plugin status* card and saved with
+  the currency. Opening the panel refreshes the saved rates. Until rates for the
+  saved currency have been stored once, only prices already in that currency
+  are converted; all others show `n/a`.
 
 ## Verified
 
