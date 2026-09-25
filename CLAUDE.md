@@ -3,7 +3,8 @@
 Minerva — a cross-browser (Chrome + Firefox) MV3 WebExtension that reads the price out of a
 configured element on a configured auction site, calculates the effective price from the
 settings entered in the side panel and inserts the result as a sibling element next to it. The
-side panel shows status and holds the persisted auction premium and shipment inputs.
+side panel shows status and exchange rates and holds the persisted auction premium, shipment
+and currency inputs.
 
 `README.md` documents the user-facing behaviour, the price-format table and the install steps.
 This file covers what is needed to change the code safely.
@@ -83,8 +84,12 @@ There is no linter or formatter for the source itself — match the surrounding 
   syncing. `storage.onChanged` additionally updates the other open tabs.
 - The calculation lives in `calculateEffectivePrice(amount, settings)`
   (`src/core/effective-price.js`) and is passed to `annotateElements()` as `calculate`, so it can
-  later be made per-platform. Currently it only adds `shipment`; `auctionPremium` is stored but
-  unused.
+  later be made per-platform. Currently `amount * (1 + auctionPremium / 100) + shipment`;
+  `currency` is stored but not used in the calculation.
+- Exchange rates are fetched by the panel only (`src/core/exchange-rates.js`, plain `fetch` with
+  an injectable fetch function for tests) from Frankfurter (`EXCHANGE_RATES_URL` in
+  `config.js`). It sends `Access-Control-Allow-Origin: *`, so no `host_permissions` are needed.
+  The panel renders only the latest request, so fast currency switches cannot show stale rates.
 
 ## Message flow
 

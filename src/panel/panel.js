@@ -1,5 +1,6 @@
 import { MSG } from "../core/messages.js";
-import { SETTINGS_STORAGE_KEYS } from "../core/settings.js";
+import { fetchExchangeRates } from "../core/exchange-rates.js";
+import { readSettings, SETTINGS_STORAGE_KEYS } from "../core/settings.js";
 import { ext, sendMessage, storageGetMany, storageSet } from "../platform/browser.js";
 
 /** Side panel (Chrome) / sidebar (Firefox) UI. Identical on both browsers. */
@@ -7,8 +8,12 @@ import { ext, sendMessage, storageGetMany, storageSet } from "../platform/browse
 const status = document.querySelector("#status");
 const form = document.querySelector("#settings");
 const saved = document.querySelector("#saved");
+const currency = document.querySelector("#currency");
+const shipmentCurrency = document.querySelector("#shipment-currency");
+const ratesBody = document.querySelector("#rates");
+const ratesInfo = document.querySelector("#rates-info");
 
-/** The input of every setting; the content script picks the stored values up. */
+/** The numeric input of every setting; the content script picks the stored values up. */
 const inputs = {
   auctionPremium: document.querySelector("#auction-premium"),
   shipment: document.querySelector("#shipment"),
@@ -26,6 +31,49 @@ function renderStatus(state) {
 async function refreshStatus() {
   renderStatus(await sendMessage({ type: MSG.GET_ACTIVE_STATE }));
 }
+
+/** Show the rates of `rates.base` against the other currencies. */
+function renderRates({ base, date, rates }) {
+  ratesBody.replaceChildren(
+    ...Object.entries(rates).map(([code, rate]) => {
+      const row = document.createElement("tr");
+      const pair = document.createElement("td");
+      const value = document.createElement("td");
+      pair.textContent = `1 ${base} =`;
+      value.textContent = `${rate.toLocaleString(undefined, { maximumFractionDigits: 4 })} ${code}`;
+      value.className = "text-end";
+      row.append(pair, value);
+      return row;
+    }),
+  );
+  ratesInfo.textContent = `ECB reference rates of ${date}`;
+  ratesInfo.classList.remove("text-danger");
+}
+
+let ratesRequest = 0;
+/** Load and show the rates of `base`; only the latest request is rendered. */
+async function loadRates(base) {
+  const request = ++ratesRequest;
+  ratesBody.replaceChildren();
+  ratesInfo.textContent = "Loading…";
+  ratesInfo.classList.remove("text-danger");
+  try {
+    const rates = await fetchExchangeRates(base);
+    if (request === ratesRequest) renderRates(rates);
+  } catch {
+    if (request !== ratesRequest) return;
+    ratesInfo.textContent = "Exchange rates unavailable.";
+    ratesInfo.classList.add("text-danger");
+  }
+}
+
+/** Follow a (new) currency: shipment hint and exchange rates. */
+function applyCurrency() {
+  shipmentCurrency.textContent = currency.value;
+  loadRates(currency.value);
+}
+
+currency.addEventListener("change", applyCurrency);
 
 /** Put the stored value into every input that is empty. */
 async function fillEmptyInputs() {
@@ -61,11 +109,12 @@ form.addEventListener("submit", async (event) => {
   if (!validate()) return;
 
   // Empty inputs are skipped, so they keep the stored value.
-  await Promise.all(
-    Object.entries(inputs)
+  await Promise.all([
+    ...Object.entries(inputs)
       .filter(([, input]) => input.value !== "")
       .map(([name, input]) => storageSet(SETTINGS_STORAGE_KEYS[name], input.valueAsNumber)),
-  );
+    storageSet(SETTINGS_STORAGE_KEYS.currency, currency.value),
+  ]);
   await fillEmptyInputs();
   // Asking for the state makes the active tab re-read the settings and recalculate.
   await refreshStatus();
@@ -88,5 +137,13 @@ ext.tabs.onUpdated.addListener((_tabId, changeInfo) => {
   if (changeInfo.url || changeInfo.status === "complete") refreshStatus();
 });
 
+/** Select the stored currency (or the default) before anything is loaded. */
+async function selectStoredCurrency() {
+  const stored = await storageGetMany([SETTINGS_STORAGE_KEYS.currency]);
+  currency.value = readSettings(stored).currency;
+  applyCurrency();
+}
+
 // Show what is stored, then bring the active tab in line with it.
+selectStoredCurrency();
 fillEmptyInputs().then(refreshStatus);

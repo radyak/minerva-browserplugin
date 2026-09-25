@@ -15,6 +15,19 @@
       <form id="settings" novalidate>
         <fieldset class="d-flex flex-column gap-3">
           <div>
+            <label for="currency" class="form-label">Currency</label>
+            <select class="form-select" id="currency" aria-describedby="currency-help">
+              <option value="EUR" selected>EUR</option>
+              <option value="USD">USD</option>
+              <option value="GBP">GBP</option>
+              <option value="CHF">CHF</option>
+            </select>
+            <div id="currency-help" class="form-text">
+              Currency you pay in; the current exchange rates are shown below.
+            </div>
+          </div>
+
+          <div>
             <label for="auction-premium" class="form-label">Auction premium</label>
             <div class="input-group has-validation">
               <input
@@ -51,7 +64,7 @@
                 autocomplete="off"
                 aria-describedby="shipment-help"
               />
-              <span class="input-group-text">EUR</span>
+              <span id="shipment-currency" class="input-group-text">EUR</span>
               <div class="invalid-feedback">Enter an amount of 0 or more.</div>
             </div>
             <div id="shipment-help" class="form-text">
@@ -74,8 +87,17 @@
           <div class="card-header">
             Plugin status
           </div>
-          <div class="card-body d-flex align-items-center justify-content-between gap-2">
-            <span id="status" class="badge text-bg-secondary">checking…</span>
+          <div class="card-body d-flex flex-column gap-2">
+            <div>
+              <span id="status" class="badge text-bg-secondary">checking…</span>
+            </div>
+            <div>
+              <div class="small fw-semibold">Exchange rates</div>
+              <table class="table table-sm small mb-0">
+                <tbody id="rates"></tbody>
+              </table>
+              <div id="rates-info" class="form-text mt-1">Loading…</div>
+            </div>
           </div>
         </div>
       </footer>

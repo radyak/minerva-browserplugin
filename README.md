@@ -8,11 +8,11 @@ It is named after [*Minerva*](https://en.wikipedia.org/wiki/Minerva), the Roman 
 *Minerva* is a cross-browser WebExtension with a shared core and per-browser packaging.
 
 **Phase 1 scope:** while a configured URL is open, the extension reads the plain
-text price out of a configured element, adds the shipping cost entered in the
-side panel and appends the resulting effective price as a sibling element right
-after it - kept up to date when the price or the settings change. The side panel
-holds the auction premium and shipment inputs (the premium is stored but not
-applied yet). The target URL and
+text price out of a configured element, adds the auction premium and shipping
+cost entered in the side panel and appends the resulting effective price as a
+sibling element right after it - kept up to date when the price or the settings
+change. The side panel also holds a currency selection and shows the current
+exchange rates (not yet applied to the price). The target URL and
 the selector are configurable in one file - see [Configuration](#configuration).
 
 ## Layout
@@ -23,6 +23,7 @@ src/
     config.js      target URLs and selectors per platform
     settings.js    storage keys + validation of the panel settings
     effective-price.js  the effective price calculation
+    exchange-rates.js   fetching exchange rates (Frankfurter / ECB)
     price.js       price parsing, conversion, re-formatting
     annotator.js   reads the element, inserts/updates the sibling
     url-matcher.js glob matching for URLs
@@ -65,6 +66,7 @@ General values shared by all platforms:
 | --- | --- | --- |
 | `ANNOTATION_CLASS` | `xbp-price-markup` | class of the inserted sibling element |
 | `UNPARSABLE_TEXT` | `n/a` | shown when the element's text holds no price |
+| `EXCHANGE_RATES_URL` | `https://api.frankfurter.dev/v1/latest` | exchange rates API (ECB reference rates, no key, CORS enabled) |
 
 Changing them in that one file is enough - the manifests, the content script and
 the background script all read from it.
@@ -144,9 +146,14 @@ loaded (via `web-ext`), `npm run lint:firefox` runs the AMO validator.
   navigation), sets a badge on the toolbar icon and relays sync requests.
 - The panel is one HTML file used by both browsers - Chrome shows it via
   `chrome.sidePanel`, Firefox via `sidebar_action`. *Save* persists its inputs to
-  `storage.local` (`settings.auctionPremium`, `settings.shipment`) and makes the
-  active tab recalculate right away; other open tabs follow via
-  `storage.onChanged`. Empty inputs keep, and are filled with, the stored value.
+  `storage.local` (`settings.auctionPremium`, `settings.shipment`,
+  `settings.currency`) and makes the active tab recalculate right away; other
+  open tabs follow via `storage.onChanged`. Empty inputs keep, and are filled
+  with, the stored value.
+- Selecting a currency (EUR, USD, GBP, CHF; default EUR) immediately updates the
+  shipment's currency hint and loads the rates against the other three from the
+  Frankfurter API; they are listed in the *Plugin status* card. The currency and
+  the rates do not affect the effective price yet.
 
 ## Verified
 

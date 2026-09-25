@@ -43,3 +43,9 @@ export const ANNOTATION_CLASS = "xbp-price-markup";
 /** Shown in the sibling element when the target text holds no parsable price. */
 export const UNPARSABLE_TEXT = "n/a";
 
+
+/**
+ * Exchange rates API (Frankfurter, ECB reference rates, no key, CORS enabled).
+ * Queried as `${EXCHANGE_RATES_URL}?base=EUR&symbols=USD,GBP`.
+ */
+export const EXCHANGE_RATES_URL = "https://api.frankfurter.dev/v1/latest";

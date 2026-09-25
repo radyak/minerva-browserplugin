@@ -62,25 +62,32 @@ test("the effective price adds the shipment", () => {
   assert.equal(calculateEffectivePrice(500, DEFAULT_SETTINGS), 500);
 });
 
-test("the auction premium is not applied yet", () => {
-  assert.equal(calculateEffectivePrice(500, { auctionPremium: 20, shipment: 0 }), 500);
+test("the effective price adds the auction premium before the shipment", () => {
+  assert.equal(calculateEffectivePrice(500, { auctionPremium: 20, shipment: 0 }), 600);
+  assert.equal(calculateEffectivePrice(500, { auctionPremium: 20, shipment: 10 }), 610);
 });
 
-test("readSettings turns stored values into numbers", () => {
-  const { auctionPremium, shipment } = SETTINGS_STORAGE_KEYS;
-  assert.deepEqual(readSettings({ [auctionPremium]: "15.5", [shipment]: "7" }), {
+test("readSettings turns stored values into settings", () => {
+  const { auctionPremium, shipment, currency } = SETTINGS_STORAGE_KEYS;
+  assert.deepEqual(readSettings({ [auctionPremium]: "15.5", [shipment]: 7, [currency]: "CHF" }), {
     auctionPremium: 15.5,
     shipment: 7,
+    currency: "CHF",
   });
   assert.deepEqual(readSettings(undefined), DEFAULT_SETTINGS);
   assert.deepEqual(readSettings({}), DEFAULT_SETTINGS);
 });
 
 test("readSettings falls back to the defaults for unusable values", () => {
-  const { auctionPremium, shipment } = SETTINGS_STORAGE_KEYS;
-  for (const [premium, ship] of [["", ""], [null, null], ["abc", "-1"], ["101", "-0.01"]]) {
+  const { auctionPremium, shipment, currency } = SETTINGS_STORAGE_KEYS;
+  for (const [premium, ship, code] of [
+    ["", "", ""],
+    [null, null, null],
+    ["abc", "-1", "eur"],
+    ["101", "-0.01", "JPY"],
+  ]) {
     assert.deepEqual(
-      readSettings({ [auctionPremium]: premium, [shipment]: ship }),
+      readSettings({ [auctionPremium]: premium, [shipment]: ship, [currency]: code }),
       DEFAULT_SETTINGS,
       `${premium} / ${ship}`,
     );
