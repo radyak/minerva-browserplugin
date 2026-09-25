@@ -2,7 +2,8 @@
 
 Minerva — a cross-browser (Chrome + Firefox) MV3 WebExtension that reads the price out of a
 configured element on a configured auction site, adds a surcharge (+20%) and inserts the result
-as a sibling element next to it. A side panel shows status and holds a persisted note field.
+as a sibling element next to it. A side panel shows status and holds the persisted auction
+premium and shipment inputs.
 
 `README.md` documents the user-facing behaviour, the price-format table and the install steps.
 This file covers what is needed to change the code safely.

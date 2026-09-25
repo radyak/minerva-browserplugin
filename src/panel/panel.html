@@ -13,17 +13,52 @@
       </header>
 
       <form>
-        <fieldset>
-            <label for="note" class="form-label">Note</label>
-            <input
-              type="text"
-              class="form-control"
-              id="note"
-              placeholder="Type something…"
-              autocomplete="off"
-            />
-            <div class="form-text">Saved locally while you type.</div>
-          </fieldset>
+        <fieldset class="d-flex flex-column gap-3">
+          <div>
+            <label for="auction-premium" class="form-label">Auction premium</label>
+            <div class="input-group has-validation">
+              <input
+                type="number"
+                class="form-control"
+                id="auction-premium"
+                min="0"
+                max="100"
+                step="0.1"
+                inputmode="decimal"
+                placeholder="0"
+                autocomplete="off"
+                aria-describedby="auction-premium-help"
+              />
+              <span class="input-group-text">%</span>
+              <div class="invalid-feedback">Enter a percentage between 0 and 100.</div>
+            </div>
+            <div id="auction-premium-help" class="form-text">
+              Buyer's premium the auction house adds on top of the hammer price.
+            </div>
+          </div>
+
+          <div>
+            <label for="shipment" class="form-label">Shipment</label>
+            <div class="input-group has-validation">
+              <input
+                type="number"
+                class="form-control"
+                id="shipment"
+                min="0"
+                step="0.01"
+                inputmode="decimal"
+                placeholder="0.00"
+                autocomplete="off"
+                aria-describedby="shipment-help"
+              />
+              <span class="input-group-text">EUR</span>
+              <div class="invalid-feedback">Enter an amount of 0 or more.</div>
+            </div>
+            <div id="shipment-help" class="form-text">
+              Flat shipping cost per item. Both values are saved locally while you type.
+            </div>
+          </div>
+        </fieldset>
       </form>
 
       <!-- Plugin status section, pinned to the bottom of the panel. -->

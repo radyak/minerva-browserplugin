@@ -3,11 +3,13 @@ import { ext, sendMessage, storageGet, storageSet } from "../platform/browser.js
 
 /** Side panel (Chrome) / sidebar (Firefox) UI. Identical on both browsers. */
 
-const input = document.querySelector("#note");
 const status = document.querySelector("#status");
 
-/** Key used for the side panel draft text in browser.storage.local. */
-export const STORAGE_KEY_PANEL_INPUT = "panel.inputValue";
+/** Keys used for the side panel inputs in browser.storage.local, by input id. */
+export const STORAGE_KEYS = {
+  "auction-premium": "panel.auctionPremium",
+  shipment: "panel.shipment",
+};
 
 function renderStatus(state) {
   const active = Boolean(state?.active);
@@ -30,13 +32,21 @@ function debounce(fn, delay) {
   };
 }
 
-const persist = debounce((value) => storageSet(STORAGE_KEY_PANEL_INPUT, value), 250);
+// Each input is persisted on its own; out-of-range values are flagged and not stored.
+for (const [id, key] of Object.entries(STORAGE_KEYS)) {
+  const input = document.getElementById(id);
+  const persist = debounce((value) => storageSet(key, value), 250);
 
-input.addEventListener("input", (event) => persist(event.target.value));
+  input.addEventListener("input", () => {
+    const valid = input.checkValidity();
+    input.classList.toggle("is-invalid", !valid);
+    if (valid) persist(input.value);
+  });
 
-storageGet(STORAGE_KEY_PANEL_INPUT, "").then((value) => {
-  input.value = value;
-});
+  storageGet(key, "").then((value) => {
+    input.value = value;
+  });
+}
 
 // Keep the status in sync: the content script pushes changes, tab switches and
 // navigations are picked up from the tabs API.
