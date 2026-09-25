@@ -1,10 +1,11 @@
 import { ANNOTATION_CLASS, PLATFORMS, UNPARSABLE_TEXT } from "./config.js";
-import { addMarkup } from "./price.js";
+import { calculateEffectivePrice } from "./effective-price.js";
+import { convertPrice } from "./price.js";
 import { urlOnPlatform } from "./url-matcher.js";
 
 /**
- * Browser agnostic DOM logic: read the price out of the target element, add the
- * surcharge and keep a sibling element next to it in sync. Everything works
+ * Browser agnostic DOM logic: read the price out of the target element, work
+ * out the effective price and keep a sibling element next to it in sync. Everything works
  * against a plain Document, which keeps it unit testable and identical on every
  * browser.
  */
@@ -25,14 +26,20 @@ function createAnnotation(doc, element) {
 }
 
 /**
- * Insert or refresh the surcharged price next to every matching element. An
+ * Insert or refresh the effective price next to every matching element. An
  * element whose text holds no parsable price still gets its sibling, showing
  * UNPARSABLE_TEXT instead of an amount.
  * @param {Document} doc
- * @param {{selectors: string[], rate: number}} options
+ * @param {object} options
+ * @param {string[]} options.selectors
+ * @param {import("./settings.js").Settings} options.settings
+ * @param {typeof calculateEffectivePrice} [options.calculate]
  * @returns {{annotated: number, unparsable: number}} counts after the run
  */
-export function annotateElements(doc, { selectors, rate }) {
+export function annotateElements(
+  doc,
+  { selectors, settings, calculate = calculateEffectivePrice },
+) {
   let annotated = 0;
   let unparsable = 0;
 
@@ -43,8 +50,8 @@ export function annotateElements(doc, { selectors, rate }) {
     if (element.classList.contains(ANNOTATION_CLASS)) continue;
 
     const source = element.textContent.trim();
-    const withMarkup = addMarkup(source, rate);
-    const text = withMarkup ?? UNPARSABLE_TEXT;
+    const converted = convertPrice(source, (amount) => calculate(amount, settings));
+    const text = converted ?? UNPARSABLE_TEXT;
 
     const annotation = annotationOf(element) ?? createAnnotation(doc, element);
     // Only touch the DOM on a real change, otherwise the MutationObserver in
@@ -52,14 +59,14 @@ export function annotateElements(doc, { selectors, rate }) {
     if (annotation.textContent !== text) annotation.textContent = text;
     if (annotation.dataset.xbpSource !== source) annotation.dataset.xbpSource = source;
     // A styling hook, and what tells "no price here" apart from a real result.
-    const unresolved = withMarkup === null ? "true" : undefined;
+    const unresolved = converted === null ? "true" : undefined;
     if (annotation.dataset.xbpUnparsable !== unresolved) {
       if (unresolved) annotation.dataset.xbpUnparsable = unresolved;
       else delete annotation.dataset.xbpUnparsable;
     }
 
     annotated += 1;
-    if (withMarkup === null) unparsable += 1;
+    if (converted === null) unparsable += 1;
   }
 
   return { annotated, unparsable };
@@ -97,13 +104,15 @@ export function isTargetUrl(url, platforms = PLATFORMS) {
 
 /**
  * Bring the document in line with the current URL: annotate with the matching
- * platform's selectors and rate, clean up when no platform matches.
+ * platform's selectors and the user's settings, clean up when no platform
+ * matches.
  * @param {Document} doc
  * @param {string} url
+ * @param {import("./settings.js").Settings} settings
  * @param {import("./config.js").Platform[]} [platforms]
  * @returns {{active: boolean, annotated: number, unparsable: number}}
  */
-export function syncDocument(doc, url, platforms = PLATFORMS) {
+export function syncDocument(doc, url, settings, platforms = PLATFORMS) {
   const platform = findPlatform(url, platforms);
   if (!platform) {
     removeAnnotations(doc);
@@ -113,7 +122,7 @@ export function syncDocument(doc, url, platforms = PLATFORMS) {
     active: true,
     ...annotateElements(doc, {
       selectors: platform.targetSelectors,
-      rate: platform.defaultMarkupRate,
+      settings,
     }),
   };
 }

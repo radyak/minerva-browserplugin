@@ -41,6 +41,11 @@ export async function storageGet(key, fallback = undefined) {
   return result?.[key] ?? fallback;
 }
 
+/** @returns {Promise<Record<string, unknown>>} the stored values of `keys` */
+export async function storageGetMany(keys) {
+  return (await ext.storage.local.get(keys)) ?? {};
+}
+
 export async function storageSet(key, value) {
   await ext.storage.local.set({ [key]: value });
 }

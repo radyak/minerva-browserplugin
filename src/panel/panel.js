@@ -1,14 +1,17 @@
 import { MSG } from "../core/messages.js";
-import { ext, sendMessage, storageGet, storageSet } from "../platform/browser.js";
+import { SETTINGS_STORAGE_KEYS } from "../core/settings.js";
+import { ext, sendMessage, storageGetMany, storageSet } from "../platform/browser.js";
 
 /** Side panel (Chrome) / sidebar (Firefox) UI. Identical on both browsers. */
 
 const status = document.querySelector("#status");
+const form = document.querySelector("#settings");
+const saved = document.querySelector("#saved");
 
-/** Keys used for the side panel inputs in browser.storage.local, by input id. */
-export const STORAGE_KEYS = {
-  "auction-premium": "panel.auctionPremium",
-  shipment: "panel.shipment",
+/** The input of every setting; the content script picks the stored values up. */
+const inputs = {
+  auctionPremium: document.querySelector("#auction-premium"),
+  shipment: document.querySelector("#shipment"),
 };
 
 function renderStatus(state) {
@@ -24,28 +27,53 @@ async function refreshStatus() {
   renderStatus(await sendMessage({ type: MSG.GET_ACTIVE_STATE }));
 }
 
-function debounce(fn, delay) {
-  let timer;
-  return (...args) => {
-    clearTimeout(timer);
-    timer = setTimeout(() => fn(...args), delay);
-  };
+/** Put the stored value into every input that is empty. */
+async function fillEmptyInputs() {
+  const stored = await storageGetMany(Object.values(SETTINGS_STORAGE_KEYS));
+  for (const [name, input] of Object.entries(inputs)) {
+    const value = stored[SETTINGS_STORAGE_KEYS[name]];
+    if (input.value === "" && value != null && value !== "") input.value = String(value);
+  }
 }
 
-// Each input is persisted on its own; out-of-range values are flagged and not stored.
-for (const [id, key] of Object.entries(STORAGE_KEYS)) {
-  const input = document.getElementById(id);
-  const persist = debounce((value) => storageSet(key, value), 250);
+/** Flag invalid inputs; true when every input may be saved. */
+function validate() {
+  let valid = true;
+  for (const input of Object.values(inputs)) {
+    const ok = input.checkValidity();
+    input.classList.toggle("is-invalid", !ok);
+    valid &&= ok;
+  }
+  return valid;
+}
 
-  input.addEventListener("input", () => {
-    const valid = input.checkValidity();
-    input.classList.toggle("is-invalid", !valid);
-    if (valid) persist(input.value);
-  });
+let savedTimer;
+function showSaved() {
+  saved.hidden = false;
+  clearTimeout(savedTimer);
+  savedTimer = setTimeout(() => {
+    saved.hidden = true;
+  }, 2000);
+}
 
-  storageGet(key, "").then((value) => {
-    input.value = value;
-  });
+form.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!validate()) return;
+
+  // Empty inputs are skipped, so they keep the stored value.
+  await Promise.all(
+    Object.entries(inputs)
+      .filter(([, input]) => input.value !== "")
+      .map(([name, input]) => storageSet(SETTINGS_STORAGE_KEYS[name], input.valueAsNumber)),
+  );
+  await fillEmptyInputs();
+  // Asking for the state makes the active tab re-read the settings and recalculate.
+  await refreshStatus();
+  showSaved();
+});
+
+for (const input of Object.values(inputs)) {
+  input.addEventListener("input", () => input.classList.remove("is-invalid"));
 }
 
 // Keep the status in sync: the content script pushes changes, tab switches and
@@ -60,4 +88,5 @@ ext.tabs.onUpdated.addListener((_tabId, changeInfo) => {
   if (changeInfo.url || changeInfo.status === "complete") refreshStatus();
 });
 
-refreshStatus();
+// Show what is stored, then bring the active tab in line with it.
+fillEmptyInputs().then(refreshStatus);

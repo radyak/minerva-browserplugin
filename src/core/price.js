@@ -1,9 +1,9 @@
 /**
- * Parsing, surcharging and re-formatting of prices found in page text.
+ * Parsing, converting and re-formatting of prices found in page text.
  *
  * The goal is to give the result back in the same shape it came in: same
  * currency position, same decimal and grouping separators, same surrounding
- * text. "500 EUR" -> "600 EUR", "USD 1.359" -> "USD 1.630,80".
+ * text. With +20%: "500 EUR" -> "600 EUR", "USD 1.359" -> "USD 1.630,80".
  */
 
 /** First number in the string, including grouping characters. */
@@ -114,13 +114,14 @@ export function formatPrice(value, price) {
 }
 
 /**
- * Parse `text`, add `rate` on top and render the result in the same style.
+ * Parse `text`, run its amount through `calculate` and render the result in the
+ * same style.
  * @param {string} text
- * @param {number} rate 0.2 adds 20%
+ * @param {(amount: number) => number} calculate
  * @returns {string | null} null when `text` holds no price
  */
-export function addMarkup(text, rate) {
+export function convertPrice(text, calculate) {
   const price = parsePrice(text);
   if (price === null) return null;
-  return formatPrice(price.amount * (1 + rate), price);
+  return formatPrice(calculate(price.amount), price);
 }

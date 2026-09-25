@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { addMarkup, parsePrice } from "../src/core/price.js";
+import { calculateEffectivePrice } from "../src/core/effective-price.js";
+import { convertPrice, parsePrice } from "../src/core/price.js";
+import { DEFAULT_SETTINGS, readSettings, SETTINGS_STORAGE_KEYS } from "../src/core/settings.js";
 
-const plus20 = (text) => addMarkup(text, 0.2);
+// The formatting cases are independent of the actual calculation.
+const plus20 = (text) => convertPrice(text, (amount) => amount * 1.2);
 
 test("parses the plain cases from the ticket", () => {
   assert.equal(parsePrice("500 EUR").amount, 500);
@@ -50,4 +53,36 @@ test("returns null when there is no price", () => {
 test("rounds to two decimals", () => {
   assert.equal(plus20("0,01 EUR"), "0,01 EUR"); // 0.012 -> 0.01
   assert.equal(plus20("10,55 EUR"), "12,66 EUR");
+});
+
+test("the effective price adds the shipment", () => {
+  const settings = { auctionPremium: 0, shipment: 12.5 };
+  assert.equal(calculateEffectivePrice(500, settings), 512.5);
+  assert.equal(convertPrice("500 EUR", (amount) => calculateEffectivePrice(amount, settings)), "512.50 EUR");
+  assert.equal(calculateEffectivePrice(500, DEFAULT_SETTINGS), 500);
+});
+
+test("the auction premium is not applied yet", () => {
+  assert.equal(calculateEffectivePrice(500, { auctionPremium: 20, shipment: 0 }), 500);
+});
+
+test("readSettings turns stored values into numbers", () => {
+  const { auctionPremium, shipment } = SETTINGS_STORAGE_KEYS;
+  assert.deepEqual(readSettings({ [auctionPremium]: "15.5", [shipment]: "7" }), {
+    auctionPremium: 15.5,
+    shipment: 7,
+  });
+  assert.deepEqual(readSettings(undefined), DEFAULT_SETTINGS);
+  assert.deepEqual(readSettings({}), DEFAULT_SETTINGS);
+});
+
+test("readSettings falls back to the defaults for unusable values", () => {
+  const { auctionPremium, shipment } = SETTINGS_STORAGE_KEYS;
+  for (const [premium, ship] of [["", ""], [null, null], ["abc", "-1"], ["101", "-0.01"]]) {
+    assert.deepEqual(
+      readSettings({ [auctionPremium]: premium, [shipment]: ship }),
+      DEFAULT_SETTINGS,
+      `${premium} / ${ship}`,
+    );
+  }
 });

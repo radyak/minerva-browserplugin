@@ -17,8 +17,6 @@
  *   the path must match exactly.
  * @property {string[]} targetSelectors CSS selectors of the elements whose text
  *   content holds the price.
- * @property {number} defaultMarkupRate Surcharge applied to the parsed price
- *   (0.2 = +20%).
  */
 
 /**
@@ -31,13 +29,11 @@ export const PLATFORMS = [
     platformUrl: "https://www.biddr.com",
     platformPaths: ["/*"],
     targetSelectors: [".current-bid", ".lot-price div:last-child span:first-child"],
-    defaultMarkupRate: 0.2,
   },
   {
     platformUrl: "https://www.numisbids.com",
     platformPaths: ["/sale/*"],
     targetSelectors: ['.rateclick'],
-    defaultMarkupRate: 0.2,
   },
 ];
 

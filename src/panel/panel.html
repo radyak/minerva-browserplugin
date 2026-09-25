@@ -12,7 +12,7 @@
       <header class="d-flex align-items-center justify-content-between gap-2">
       </header>
 
-      <form>
+      <form id="settings" novalidate>
         <fieldset class="d-flex flex-column gap-3">
           <div>
             <label for="auction-premium" class="form-label">Auction premium</label>
@@ -55,7 +55,14 @@
               <div class="invalid-feedback">Enter an amount of 0 or more.</div>
             </div>
             <div id="shipment-help" class="form-text">
-              Flat shipping cost per item. Both values are saved locally while you type.
+              Flat shipping cost per item, added to every price on the page.
+            </div>
+          </div>
+
+          <div>
+            <div class="d-flex align-items-center gap-2">
+              <button type="submit" class="btn btn-primary">Save</button>
+              <span id="saved" class="text-success small" role="status" hidden>Saved.</span>
             </div>
           </div>
         </fieldset>

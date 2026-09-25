@@ -8,9 +8,11 @@ It is named after [*Minerva*](https://en.wikipedia.org/wiki/Minerva), the Roman 
 *Minerva* is a cross-browser WebExtension with a shared core and per-browser packaging.
 
 **Phase 1 scope:** while a configured URL is open, the extension reads the plain
-text price out of a configured element, adds 20% and appends the result as a
-sibling element right after it - kept up to date when the price changes. A side
-panel with a single text input can be opened next to the page. The target URL and
+text price out of a configured element, adds the shipping cost entered in the
+side panel and appends the resulting effective price as a sibling element right
+after it - kept up to date when the price or the settings change. The side panel
+holds the auction premium and shipment inputs (the premium is stored but not
+applied yet). The target URL and
 the selector are configurable in one file - see [Configuration](#configuration).
 
 ## Layout
@@ -18,8 +20,10 @@ the selector are configurable in one file - see [Configuration](#configuration).
 ```
 src/
   core/        browser-agnostic logic
-    config.js      target URL, selector and the surcharge rate
-    price.js       price parsing, surcharge, re-formatting
+    config.js      target URLs and selectors per platform
+    settings.js    storage keys + validation of the panel settings
+    effective-price.js  the effective price calculation
+    price.js       price parsing, conversion, re-formatting
     annotator.js   reads the element, inserts/updates the sibling
     url-matcher.js glob matching for URLs
     messages.js    message types
@@ -50,7 +54,6 @@ Everything the extension acts on lives in [`src/core/config.js`](src/core/config
 | `platformUrl` | `https://www.biddr.com` | protocol + host (optionally a port), no path; `<protocol>//<host>/*` is baked into both manifests as the content script match pattern |
 | `platformPaths` | `["/*"]` | path globs on that host, e.g. `/live/g-m-auction` or `/live/*`; the extension only acts while the page path matches one of them (`*` = any characters, otherwise exact; query and hash are ignored) |
 | `targetSelectors` | `[".current-bid"]` | the elements whose text holds the price |
-| `defaultMarkupRate` | `0.2` | surcharge added to the parsed price (+20%) |
 
 On a given URL the first platform on the same origin with a matching
 `platformPaths` entry is used. The `example.com` entry (`/app/dashboard*`) is a leftover from the initial
@@ -112,7 +115,8 @@ loaded (via `web-ext`), `npm run lint:firefox` runs the AMO validator.
   `characterData`, so late-rendered elements and in-place price edits are both
   caught) or the background script reports a URL change.
 - For every match, the element's text is parsed by `src/core/price.js`, the
-  surcharge is applied, and the result is inserted as a sibling right after the
+  effective price is calculated by `calculateEffectivePrice()` in
+  `src/core/effective-price.js` (currently: price + shipment), and the result is inserted as a sibling right after the
   price element (same tag, class `xbp-price-markup`, `aria-live="polite"`). The
   price element itself is never modified. Re-running is idempotent: the
   annotation is only written when its text actually changes, so the extension's
@@ -126,25 +130,28 @@ loaded (via `web-ext`), `npm run lint:firefox` runs the AMO validator.
 - Prices are given back in the notation they came in - currency position,
   decimal and grouping separators and surrounding text are preserved:
 
-  | in | out (+20%) |
+  | in | out (+100 shipment) |
   | --- | --- |
   | `500 EUR` | `600 EUR` |
-  | `USD 1.359` | `USD 1.630,80` |
-  | `€49.99` | `€59.99` |
-  | `1.234,56 EUR` | `1.481,47 EUR` |
-  | `CHF 1'200` | `CHF 1'440` |
+  | `USD 1.359` | `USD 1.459` |
+  | `€49.99` | `€149.99` |
+  | `1.234,56 EUR` | `1.334,56 EUR` |
+  | `CHF 1'200` | `CHF 1'300` |
 
   A single separator followed by exactly three digits is read as grouping
   (`1.359` = 1359), anything else as a decimal separator (`1.35` = 1.35).
 - The background script watches `tabs.onUpdated` (covers SPA `pushState`
   navigation), sets a badge on the toolbar icon and relays sync requests.
 - The panel is one HTML file used by both browsers - Chrome shows it via
-  `chrome.sidePanel`, Firefox via `sidebar_action`. Its input is persisted to
-  `storage.local`.
+  `chrome.sidePanel`, Firefox via `sidebar_action`. *Save* persists its inputs to
+  `storage.local` (`settings.auctionPremium`, `settings.shipment`) and makes the
+  active tab recalculate right away; other open tabs follow via
+  `storage.onChanged`. Empty inputs keep, and are filled with, the stored value.
 
 ## Verified
 
-Built artifacts were smoke tested against a local fixture page in real browsers
+Before the switch from the +20% surcharge to the shipment setting, built
+artifacts were smoke tested against a local fixture page in real browsers
 (Firefox via geckodriver, Chrome 145 via CDP), with identical results in both:
 `500 EUR` gets a `600 EUR` sibling and a late-rendered `USD 1.359` gets
 `USD 1.630,80`; changing the price text in place to `1.234,56 EUR` updates the

@@ -1,6 +1,7 @@
 import { MSG } from "../core/messages.js";
 import { syncDocument } from "../core/annotator.js";
-import { ext, sendMessage } from "../platform/browser.js";
+import { readSettings, SETTINGS_STORAGE_KEYS } from "../core/settings.js";
+import { ext, sendMessage, storageGetMany } from "../platform/browser.js";
 
 /**
  * Content script: keeps the page in sync with the core rules.
@@ -8,9 +9,14 @@ import { ext, sendMessage } from "../platform/browser.js";
  */
 
 let lastState = null;
+let settings = readSettings(undefined);
+
+async function loadSettings() {
+  settings = readSettings(await storageGetMany(Object.values(SETTINGS_STORAGE_KEYS)));
+}
 
 function sync(reason) {
-  const state = syncDocument(document, location.href);
+  const state = syncDocument(document, location.href, settings);
   const changed =
     !lastState ||
     lastState.active !== state.active ||
@@ -47,16 +53,36 @@ function observeDom() {
   });
 }
 
-ext.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message?.type !== MSG.SYNC_REQUEST) return false;
-  sendResponse({ url: location.href, ...sync("request") });
-  return true;
-});
+/** Recalculate the prices in every other open tab when settings are saved. */
+function watchSettings() {
+  const keys = Object.values(SETTINGS_STORAGE_KEYS);
+  ext.storage.onChanged.addListener(async (changes, area) => {
+    if (area !== "local" || !keys.some((key) => key in changes)) return;
+    await loadSettings();
+    sync("settings");
+  });
+}
 
-// Single page apps swap the URL without reloading; the background script
-// notices and sends SYNC_REQUEST, these two cover the in-page cases.
-window.addEventListener("popstate", () => sync("popstate"));
-window.addEventListener("hashchange", () => sync("hashchange"));
+async function start() {
+  // Settings first, so the page never shows an amount computed without them.
+  await loadSettings();
 
-sync("load");
-observeDom();
+  ext.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message?.type !== MSG.SYNC_REQUEST) return false;
+    // Re-read the settings: the panel sends this right after saving them, and
+    // must not depend on storage.onChanged having arrived first.
+    loadSettings().then(() => sendResponse({ url: location.href, ...sync("request") }));
+    return true; // keep the message channel open for the async response
+  });
+
+  // Single page apps swap the URL without reloading; the background script
+  // notices and sends SYNC_REQUEST, these two cover the in-page cases.
+  window.addEventListener("popstate", () => sync("popstate"));
+  window.addEventListener("hashchange", () => sync("hashchange"));
+
+  watchSettings();
+  sync("load");
+  observeDom();
+}
+
+start();

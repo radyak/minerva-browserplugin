@@ -1,9 +1,9 @@
 # CLAUDE.md
 
 Minerva — a cross-browser (Chrome + Firefox) MV3 WebExtension that reads the price out of a
-configured element on a configured auction site, adds a surcharge (+20%) and inserts the result
-as a sibling element next to it. A side panel shows status and holds the persisted auction
-premium and shipment inputs.
+configured element on a configured auction site, calculates the effective price from the
+settings entered in the side panel and inserts the result as a sibling element next to it. The
+side panel shows status and holds the persisted auction premium and shipment inputs.
 
 `README.md` documents the user-facing behaviour, the price-format table and the install steps.
 This file covers what is needed to change the code safely.
@@ -35,7 +35,7 @@ There is no linter or formatter for the source itself — match the surrounding 
   `src/platform/panel.js` (Chrome `sidePanel` vs. Firefox `sidebarAction`). Do not add a
   `TARGET === "chrome"` branch anywhere else; extend `src/platform/` instead.
 - **`src/core/config.js` is the single source of truth.** Sites are entries of the `PLATFORMS`
-  array (`platformUrl`, `platformPaths`, `targetSelectors`, `defaultMarkupRate`); the remaining
+  array (`platformUrl`, `platformPaths`, `targetSelectors`); the remaining
   constants are plugin-wide. The manifests carry `$VERSION` and `$CONTENT_MATCHES` placeholders
   that `scripts/build.mjs` resolves from `package.json` and from every platform's `platformUrl`
   (via `matchPatternFor()`).
@@ -71,6 +71,20 @@ There is no linter or formatter for the source itself — match the surrounding 
   Change `src/core/price.js` only with a matching case added to `test/price.test.mjs`.
 - `dist/`, `build/` and `.poc/` are gitignored. `.poc/` holds unrelated reference extensions
   (Mozilla samples etc.) — not part of the build, safe to ignore.
+
+## Settings and the effective price
+
+- The panel writes its inputs to `storage.local` under `SETTINGS_STORAGE_KEYS`
+  (`src/core/settings.js`) only when Save is clicked; empty inputs are skipped (they keep and
+  show the stored value). The content script reads them with `readSettings()` (which falls back
+  to `DEFAULT_SETTINGS` for empty/invalid values). There is no message for settings — storage is
+  the channel: after saving, the panel sends `GET_ACTIVE_STATE`, the background forwards
+  `SYNC_REQUEST`, and the content script **re-reads the settings on every `SYNC_REQUEST`** before
+  syncing. `storage.onChanged` additionally updates the other open tabs.
+- The calculation lives in `calculateEffectivePrice(amount, settings)`
+  (`src/core/effective-price.js`) and is passed to `annotateElements()` as `calculate`, so it can
+  later be made per-platform. Currently it only adds `shipment`; `auctionPremium` is stored but
+  unused.
 
 ## Message flow
 
