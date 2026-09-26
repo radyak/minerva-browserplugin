@@ -177,3 +177,13 @@ sibling to `1.481,47 EUR`; an element reading `sold out` gets an `n/a` sibling,
 and swapping the two texts swaps the siblings accordingly, with zero DOM churn
 once settled; the annotations disappear on a non-matching URL and come back
 after a `history.pushState` into the target URL.
+
+## Plans & Next Steps
+* Clean up and design consolidation
+* Logo
+* Disclaimer and Bug reporting link
+* Persistence
+* Clearer distinction of effective price
+* URL-based auction detection & persistence in auction scope
+* Backend: Auction database
+* Tweak "your bid" price, too
