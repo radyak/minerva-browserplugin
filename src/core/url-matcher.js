@@ -7,10 +7,7 @@ const ESCAPE_RE = /[.+?^${}()|[\]\\]/g;
 
 /** Compile a glob such as "https://example.com/app/*" into a RegExp. */
 export function globToRegExp(pattern) {
-  const source = pattern
-    .replace(ESCAPE_RE, "\\$&")
-    .split("*")
-    .join(".*");
+  const source = pattern.replace(ESCAPE_RE, "\\$&").split("*").join(".*");
   return new RegExp(`^${source}$`);
 }
 

@@ -8,10 +8,20 @@ import {
   parseExchangeRates,
 } from "../src/core/exchange-rates.js";
 
-const fakeFetch = (body, status = 200) => async (url) => {
-  fakeFetch.lastUrl = url;
-  return { ok: status >= 200 && status < 300, status, json: async () => body };
-};
+/** URL of the last request made through fakeFetch. */
+let lastUrl;
+
+/**
+ * Stand-in for `fetch` that answers every request with `body`.
+ * @returns {typeof fetch}
+ */
+const fakeFetch = (body, status = 200) =>
+  /** @type {any} */ (
+    async (url) => {
+      lastUrl = url;
+      return { ok: status >= 200 && status < 300, status, json: async () => body };
+    }
+  );
 
 test("asks for the other supported currencies only", () => {
   const url = new URL(exchangeRatesUrl("USD"));
@@ -42,7 +52,7 @@ test("rejects a response for another base or without rates", () => {
 test("fetchExchangeRates requests and parses the rates", async () => {
   const body = { base: "GBP", date: "2026-09-25", rates: { EUR: 1.16, USD: 1.32, CHF: 1.09 } };
   const rates = await fetchExchangeRates("GBP", fakeFetch(body));
-  assert.equal(new URL(fakeFetch.lastUrl).searchParams.get("base"), "GBP");
+  assert.equal(new URL(lastUrl).searchParams.get("base"), "GBP");
   assert.deepEqual(rates.rates, { EUR: 1.16, USD: 1.32, CHF: 1.09 });
 });
 
@@ -59,5 +69,7 @@ test("conversionRates only knows the output currency without matching rates", ()
   const usd = { base: "USD", date: "", rates: { EUR: 0.9 } };
   assert.deepEqual(conversionRates(usd, "EUR"), { EUR: 1 });
   assert.deepEqual(conversionRates(undefined, "CHF"), { CHF: 1 });
-  assert.deepEqual(conversionRates({ base: "EUR", rates: { USD: 0, GBP: "x" } }, "EUR"), { EUR: 1 });
+  assert.deepEqual(conversionRates({ base: "EUR", rates: { USD: 0, GBP: "x" } }, "EUR"), {
+    EUR: 1,
+  });
 });

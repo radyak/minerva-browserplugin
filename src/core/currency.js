@@ -7,6 +7,7 @@
  * Tokens recognised as a currency, longest first so "US$" wins over "$".
  * Codes must stand on their own ("EURO" is no match), symbols may touch the
  * number ("€49.99", "500EUR").
+ * @type {[token: string, code: string][]}
  */
 const TOKENS = [
   ["US$", "USD"],
@@ -26,8 +27,9 @@ const SYMBOLS = { EUR: "€", USD: "$", GBP: "£", CHF: "CHF" };
 
 const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const TOKEN_RE = new RegExp(
-  TOKENS.map(([token]) => (/^[A-Z]{3}$/.test(token) ? `(?<![A-Za-z])${token}(?![A-Za-z])` : escape(token)))
-    .join("|"),
+  TOKENS.map(([token]) =>
+    /^[A-Z]{3}$/.test(token) ? `(?<![A-Za-z])${token}(?![A-Za-z])` : escape(token),
+  ).join("|"),
   "g",
 );
 const CODE_OF = new Map(TOKENS);

@@ -45,7 +45,8 @@ function documentWithPrice(price = "500 EUR") {
   `).window.document;
 }
 
-const annotate = (doc) => annotateElements(doc, { selectors: [SELECTOR], settings: SETTINGS, rates: RATES });
+const annotate = (doc) =>
+  annotateElements(doc, { selectors: [SELECTOR], settings: SETTINGS, rates: RATES });
 const annotations = (doc) => [...doc.querySelectorAll(`.${ANNOTATION_CLASS}`)];
 
 test("appends the effective price as a sibling of the target element", () => {
@@ -141,7 +142,8 @@ test("a custom calculation replaces the default one", () => {
     selectors: [SELECTOR],
     settings: SETTINGS,
     rates: RATES,
-    calculate: (amount, currency, settings, rates) => amount * rates[currency] * 2 + settings.shipment,
+    calculate: (amount, currency, settings, rates) =>
+      amount * rates[currency] * 2 + settings.shipment,
   });
   assert.equal(annotations(doc)[0].textContent, "1100 EUR");
 });
@@ -180,10 +182,9 @@ test("a wrapper's annotation from an earlier run is removed", () => {
 
 test("our annotations inside a matched element are not part of its price", () => {
   const doc = documentWithPrice("500 EUR");
-  doc.querySelector(SELECTOR).insertAdjacentHTML(
-    "beforeend",
-    `<span class="${ANNOTATION_CLASS}">999 USD</span>`,
-  );
+  doc
+    .querySelector(SELECTOR)
+    .insertAdjacentHTML("beforeend", `<span class="${ANNOTATION_CLASS}">999 USD</span>`);
   annotate(doc);
   assert.equal(doc.querySelector(SELECTOR).nextElementSibling.textContent, "600 EUR");
 });
@@ -212,7 +213,10 @@ test("an element matched by several selectors is annotated once", () => {
 test("findPlatform picks the platform whose paths match the url", () => {
   assert.equal(findPlatform(TARGET_URL, TEST_PLATFORMS), TEST_PLATFORMS[0]);
   // Query and hash are not part of the path.
-  assert.equal(findPlatform("https://shop.test/search?q=coin#top", TEST_PLATFORMS), TEST_PLATFORMS[0]);
+  assert.equal(
+    findPlatform("https://shop.test/search?q=coin#top", TEST_PLATFORMS),
+    TEST_PLATFORMS[0],
+  );
   assert.equal(findPlatform("https://shop.test/search/saved", TEST_PLATFORMS), null);
   assert.equal(findPlatform("https://other.test/x", TEST_PLATFORMS), TEST_PLATFORMS[1]);
   // Inside platformUrl, but outside every platformPaths entry.
@@ -240,10 +244,9 @@ test("sync only runs on the configured url", () => {
   assert.equal(syncDocument(doc, OTHER_URL, SETTINGS, RATES, TEST_PLATFORMS).active, false);
 
   // Whatever an earlier run left behind is cleaned up off the target URL.
-  doc.querySelector(SELECTOR).insertAdjacentHTML(
-    "afterend",
-    `<span class="${ANNOTATION_CLASS}">600 EUR</span>`,
-  );
+  doc
+    .querySelector(SELECTOR)
+    .insertAdjacentHTML("afterend", `<span class="${ANNOTATION_CLASS}">600 EUR</span>`);
   assert.deepEqual(syncDocument(doc, OTHER_URL, SETTINGS, RATES, TEST_PLATFORMS), {
     active: false,
     annotated: 0,

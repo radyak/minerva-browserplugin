@@ -60,7 +60,8 @@ const INTO_EUR = { EUR: 1, USD: 0.5 };
 
 test("the effective price adds the shipment", () => {
   const settings = { ...EUR_SETTINGS, shipment: 12.5 };
-  const effective = (amount, currency) => calculateEffectivePrice(amount, currency, settings, INTO_EUR);
+  const effective = (amount, currency) =>
+    calculateEffectivePrice(amount, currency, settings, INTO_EUR);
   assert.equal(calculateEffectivePrice(500, "EUR", settings, INTO_EUR), 512.5);
   assert.equal(convertPrice("500 EUR", effective, "EUR"), "512.50 EUR");
   assert.equal(calculateEffectivePrice(500, "EUR", DEFAULT_SETTINGS, { EUR: 1 }), 500);
@@ -82,7 +83,10 @@ test("the effective price is undefined without currency or rate", () => {
   assert.equal(calculateEffectivePrice(500, undefined, EUR_SETTINGS, INTO_EUR), undefined);
   assert.equal(calculateEffectivePrice(500, "GBP", EUR_SETTINGS, INTO_EUR), undefined);
   assert.equal(calculateEffectivePrice(500, "EUR", EUR_SETTINGS, undefined), undefined);
-  assert.equal(convertPrice("500 GBP", () => undefined, "EUR"), null);
+  assert.equal(
+    convertPrice("500 GBP", () => undefined, "EUR"),
+    null,
+  );
 });
 
 test("detects the currency next to the number", () => {

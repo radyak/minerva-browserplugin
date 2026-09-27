@@ -45,6 +45,6 @@ export function readSettings(stored) {
     if (Number.isFinite(value) && value >= min && value <= max) settings[name] = value;
   }
   const currency = stored?.[SETTINGS_STORAGE_KEYS.currency];
-  if (CURRENCIES.includes(currency)) settings.currency = currency;
+  if (typeof currency === "string" && CURRENCIES.includes(currency)) settings.currency = currency;
   return settings;
 }

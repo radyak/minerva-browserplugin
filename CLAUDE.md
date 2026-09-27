@@ -13,7 +13,11 @@ This file covers what is needed to change the code safely.
 
 ```bash
 npm install
-npm test                 # node:test + jsdom, src/core only — fast, run this after any core change
+npm test                 # lint + typecheck + unit tests — run this after any change
+npm run test:unit        # node:test + jsdom, src/core only — fast
+npm run lint             # ESLint + Prettier check
+npm run format           # Prettier + ESLint --fix
+npm run typecheck        # tsc checkJs over the JSDoc types (non-strict, jsconfig.json)
 npm run build            # -> dist/chrome and dist/firefox
 npm run build:chrome     # or :firefox
 npm run watch            # rebuild on change, unminified + inline sourcemaps
@@ -23,8 +27,10 @@ npm run dev:firefox      # web-ext run against dist/firefox (throwaway profile)
 npm run lint:firefox     # AMO validator
 ```
 
-There is no linter or formatter for the source itself — match the surrounding style
-(2-space indent, double quotes, semicolons, JSDoc block comments on every exported function).
+Formatting is Prettier (`.prettierrc.json`, width 100; Markdown is excluded and formatted by
+hand), linting is ESLint's recommended set (`eslint.config.js`). Types are the JSDoc comments,
+checked by `tsc` via `jsconfig.json`; build-time globals such as `__TARGET__` are declared in
+`src/types/globals.d.ts`. Keep JSDoc block comments on every exported function.
 
 ## Architecture invariants
 

@@ -38,7 +38,12 @@ ext.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (!tab) return { active: false, url: null };
         const state = await sendMessageToTab(tab.id, { type: MSG.SYNC_REQUEST });
         return (
-          state ?? { active: isTargetUrl(tab.url), url: tab.url ?? null, annotated: 0, unparsable: 0 }
+          state ?? {
+            active: isTargetUrl(tab.url),
+            url: tab.url ?? null,
+            annotated: 0,
+            unparsable: 0,
+          }
         );
       })
       .then(sendResponse);

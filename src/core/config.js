@@ -33,7 +33,7 @@ export const PLATFORMS = [
   {
     platformUrl: "https://www.numisbids.com",
     platformPaths: ["/sale/*"],
-    targetSelectors: ['.rateclick'],
+    targetSelectors: [".rateclick"],
   },
 ];
 
@@ -42,7 +42,6 @@ export const ANNOTATION_CLASS = "xbp-price-markup";
 
 /** Shown in the sibling element when the target text holds no parsable price. */
 export const UNPARSABLE_TEXT = "n/a";
-
 
 /**
  * Exchange rates API (Frankfurter, ECB reference rates, no key, CORS enabled).

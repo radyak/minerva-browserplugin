@@ -31,7 +31,9 @@ for (const target of targets) {
 }
 
 /** Content script match patterns, one per platform (deduplicated). */
-const CONTENT_MATCHES = [...new Set(PLATFORMS.map((platform) => matchPatternFor(platform.platformUrl)))];
+const CONTENT_MATCHES = [
+  ...new Set(PLATFORMS.map((platform) => matchPatternFor(platform.platformUrl))),
+];
 
 const pkg = JSON.parse(await readFile(path.join(ROOT, "package.json"), "utf8"));
 

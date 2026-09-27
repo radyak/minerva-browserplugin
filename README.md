@@ -85,7 +85,8 @@ npm install
 npm run build            # both targets -> dist/chrome, dist/firefox
 npm run build:chrome     # one target only
 npm run watch            # rebuild on change (unminified, inline source maps)
-npm test                 # unit tests for src/core
+npm test                 # lint + typecheck + unit tests for src/core
+npm run format           # apply Prettier and ESLint fixes
 npm run package          # zips dist/<target> -> build/<name>-<version>-<target>.zip
 ```
 

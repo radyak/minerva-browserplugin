@@ -7,17 +7,17 @@ import { ext, sendMessage, storageGetMany, storageSet } from "../platform/browse
 
 const status = document.querySelector("#status");
 const form = document.querySelector("#settings");
-const saved = document.querySelector("#saved");
-const currency = document.querySelector("#currency");
+const saved = /** @type {HTMLElement} */ (document.querySelector("#saved"));
+const currency = /** @type {HTMLSelectElement} */ (document.querySelector("#currency"));
 const shipmentCurrency = document.querySelector("#shipment-currency");
 const ratesBody = document.querySelector("#rates");
 const ratesInfo = document.querySelector("#rates-info");
 
 /** The numeric input of every setting; the content script picks the stored values up. */
-const inputs = {
+const inputs = /** @type {Record<"auctionPremium" | "shipment", HTMLInputElement>} */ ({
   auctionPremium: document.querySelector("#auction-premium"),
   shipment: document.querySelector("#shipment"),
-};
+});
 
 function renderStatus(state) {
   const active = Boolean(state?.active);

@@ -42,15 +42,19 @@ export function exchangeRatesUrl(base) {
  * @throws {Error} when the response does not hold rates for `base`
  */
 export function parseExchangeRates(json, base) {
-  if (json?.base !== base || typeof json.rates !== "object" || json.rates === null) {
+  const response = /** @type {{base?: unknown, date?: unknown, rates?: unknown} | null} */ (json);
+  if (response?.base !== base || typeof response.rates !== "object" || response.rates === null) {
     throw new Error(`Unexpected exchange rates response for ${base}`);
   }
+  /** @type {Record<string, number>} */
   const rates = {};
   for (const currency of CURRENCIES) {
-    const rate = json.rates[currency];
-    if (currency !== base && Number.isFinite(rate) && rate > 0) rates[currency] = rate;
+    const rate = response.rates[currency];
+    if (currency !== base && typeof rate === "number" && Number.isFinite(rate) && rate > 0) {
+      rates[currency] = rate;
+    }
   }
-  return { base, date: String(json.date ?? ""), rates };
+  return { base, date: String(response.date ?? ""), rates };
 }
 
 /**
@@ -69,11 +73,12 @@ export async function fetchExchangeRates(base, fetchFn = fetch) {
  * Conversion rates into `currency`, derived from rates published for it
  * (`exchangeRates.base === currency`). The output currency itself always
  * converts 1:1; everything else is missing when no matching rates are given.
- * @param {ExchangeRates | null | undefined} exchangeRates
+ * @param {unknown} stored ExchangeRates as saved by the panel; anything else is ignored
  * @param {string} currency the output currency
  * @returns {ConversionRates}
  */
-export function conversionRates(exchangeRates, currency) {
+export function conversionRates(stored, currency) {
+  const exchangeRates = /** @type {Partial<ExchangeRates> | null | undefined} */ (stored);
   const result = { [currency]: 1 };
   if (exchangeRates?.base !== currency || typeof exchangeRates.rates !== "object") return result;
   for (const [code, rate] of Object.entries(exchangeRates.rates ?? {})) {

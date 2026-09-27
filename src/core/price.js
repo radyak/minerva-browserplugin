@@ -9,8 +9,11 @@ import { currencyNotation, findCurrency } from "./currency.js";
  * Only the currency itself is swapped when the result is in another one.
  */
 
-/** First number in the string, including grouping characters. */
-const NUMBER_RE = /-?\d(?:[\d.,   ']*\d)?/;
+/**
+ * First number in the string, including grouping characters (".", ",", "'", space,
+ * narrow no-break space U+202F and no-break space U+00A0).
+ */
+const NUMBER_RE = /-?\d(?:[\d.,\u202f\u00a0 ']*\d)?/;
 
 /**
  * Work out which of "." and "," separates the decimals.
@@ -38,7 +41,7 @@ function detectDecimalSeparator(raw) {
 
 /** Which character groups the thousands, if any is used at all. */
 function detectGroupSeparator(raw, decimalSeparator) {
-  const used = new Set(raw.match(/[.,   ']/g) ?? []);
+  const used = new Set(raw.match(/[.,\u202f\u00a0 ']/g) ?? []);
   if (decimalSeparator) used.delete(decimalSeparator);
   const [separator] = used;
   return separator ?? null;
@@ -61,7 +64,10 @@ function detectGroupSeparator(raw, decimalSeparator) {
  *   `index` is the position of the token inside `prefix` or `suffix`
  */
 
-/** The currency closest to the number, before it or else after it. */
+/**
+ * The currency closest to the number, before it or else after it.
+ * @returns {PriceCurrency | null}
+ */
 function detectCurrency(prefix, suffix) {
   const before = findCurrency(prefix, "before");
   if (before) return { ...before, side: "prefix" };
