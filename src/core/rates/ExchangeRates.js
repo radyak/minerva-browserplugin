@@ -3,9 +3,6 @@
  * knows which way they convert. Currencies are ISO codes.
  */
 
-/** browser.storage.local key of the exchange rates saved with the currency. */
-export const EXCHANGE_RATES_STORAGE_KEY = "settings.exchangeRates";
-
 export class ExchangeRates {
   /**
    * @param {string} base currency the rates are relative to

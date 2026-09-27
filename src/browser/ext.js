@@ -16,12 +16,3 @@ export async function getActiveTab() {
   const [tab] = await ext.tabs.query({ active: true, currentWindow: true });
   return tab;
 }
-
-/** @returns {Promise<Record<string, unknown>>} the stored values of `keys` */
-export async function storageGetMany(keys) {
-  return (await ext.storage.local.get(keys)) ?? {};
-}
-
-export async function storageSet(key, value) {
-  await ext.storage.local.set({ [key]: value });
-}

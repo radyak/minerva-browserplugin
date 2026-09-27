@@ -1,9 +1,10 @@
 import { MSG } from "../core/messages.js";
 import { syncDocument } from "../core/annotator.js";
-import { EXCHANGE_RATES_STORAGE_KEY, ExchangeRates } from "../core/rates/ExchangeRates.js";
+import { ExchangeRates } from "../core/rates/ExchangeRates.js";
 import { Settings } from "../core/settings/Settings.js";
-import { ext, storageGetMany } from "../browser/ext.js";
+import { ext } from "../browser/ext.js";
 import { MessageBus } from "../browser/MessageBus.js";
+import { SettingsStore } from "../browser/SettingsStore.js";
 
 /**
  * Content script: keeps the page in sync with the core rules.
@@ -13,16 +14,12 @@ import { MessageBus } from "../browser/MessageBus.js";
 /** @type {import("../core/state/TabState.js").TabState | null} null until the first sync, so that one is always reported */
 let lastState = null;
 const bus = new MessageBus(ext);
+const store = new SettingsStore(ext);
 let settings = Settings.DEFAULT;
 let rates = ExchangeRates.empty(settings.currency);
 
-/** Everything the calculation reads from storage. */
-const STORAGE_KEYS = [...Object.values(Settings.STORAGE_KEYS), EXCHANGE_RATES_STORAGE_KEY];
-
 async function loadSettings() {
-  const stored = await storageGetMany(STORAGE_KEYS);
-  settings = Settings.fromStorage(stored);
-  rates = ExchangeRates.fromStorage(stored[EXCHANGE_RATES_STORAGE_KEY], settings.currency);
+  ({ settings, rates } = await store.load());
 }
 
 function sync(reason) {
@@ -61,8 +58,7 @@ function observeDom() {
 
 /** Recalculate the prices in every other open tab when settings are saved. */
 function watchSettings() {
-  ext.storage.onChanged.addListener(async (changes, area) => {
-    if (area !== "local" || !STORAGE_KEYS.some((key) => key in changes)) return;
+  store.onChange(async () => {
     await loadSettings();
     sync("settings");
   });

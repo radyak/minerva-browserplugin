@@ -21,7 +21,7 @@ the selector are configurable in one file - see [Configuration](#configuration).
 src/
   core/        browser-agnostic logic
     config.js      plugin-wide constants
-    settings/      Settings (storage keys, ranges, validation of the panel settings)
+    settings/      Settings (ranges, validation of the panel settings)
     effective-price.js  the effective price calculation
     rates/         ExchangeRates (rates for one base, conversion), RatesClient (Frankfurter / ECB)
     currency/      Currency (the supported currencies: code, symbol, tokens),
@@ -32,7 +32,8 @@ src/
                    url-matcher.js (glob matching for URLs)
     messages.js    message types
     state/         TabState (what the extension does in a tab: active, counts)
-  browser/     the thin browser abstraction (API alias, messaging, side panel vs. sidebar)
+  browser/     the thin browser abstraction (API alias, messaging, settings storage,
+               side panel vs. sidebar)
   background/  background script / service worker
   content/     content script + the annotation stylesheet
   panel/       side panel UI (Bootstrap)
@@ -157,11 +158,11 @@ loaded (via `web-ext`), `npm run lint:firefox` runs the AMO validator.
 - The background script watches `tabs.onUpdated` (covers SPA `pushState`
   navigation), sets a badge on the toolbar icon and relays sync requests.
 - The panel is one HTML file used by both browsers - Chrome shows it via
-  `chrome.sidePanel`, Firefox via `sidebar_action`. *Save* persists its inputs to
-  `storage.local` (`settings.auctionPremium`, `settings.shipment`,
-  `settings.currency`, `settings.exchangeRates`) and makes the active tab
-  recalculate right away; other open tabs follow via `storage.onChanged`. Empty
-  inputs keep, and are filled with, the stored value.
+  `chrome.sidePanel`, Firefox via `sidebar_action`. It shows the saved settings;
+  *Save* persists them together with the matching exchange rates in one write to
+  `storage.local` (`settings`, `exchangeRates`) and makes the active tab
+  recalculate right away; other open tabs follow via `storage.onChanged`. An
+  emptied input keeps the saved value.
 - Selecting a currency (EUR, USD, GBP, CHF; default EUR) immediately updates the
   shipment's currency hint and loads the rates against the other three from the
   Frankfurter API; they are listed in the *Plugin status* card and saved with

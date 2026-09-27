@@ -1,15 +1,16 @@
 import { Currency } from "../core/currency/Currency.js";
 import { MSG } from "../core/messages.js";
-import { EXCHANGE_RATES_STORAGE_KEY } from "../core/rates/ExchangeRates.js";
 import { RatesClient } from "../core/rates/RatesClient.js";
 import { Settings } from "../core/settings/Settings.js";
 import { TabState } from "../core/state/TabState.js";
-import { ext, storageGetMany, storageSet } from "../browser/ext.js";
+import { ext } from "../browser/ext.js";
 import { MessageBus } from "../browser/MessageBus.js";
+import { SettingsStore } from "../browser/SettingsStore.js";
 
 /** Side panel (Chrome) / sidebar (Firefox) UI. Identical on both browsers. */
 
 const bus = new MessageBus(ext);
+const store = new SettingsStore(ext);
 
 const status = document.querySelector("#status");
 const form = document.querySelector("#settings");
@@ -95,25 +96,26 @@ function applyCurrency() {
 }
 
 /**
- * Store the rates the page converts with - only when they belong to `code`,
- * otherwise the stored ones stay (and are ignored by the page if they no
- * longer match the saved currency).
+ * The loaded rates of `code` - null when loading failed or they belong to
+ * another currency. The stored rates then stay (and are ignored by the page
+ * if they no longer match the saved currency).
+ * @param {string} code
  */
-async function storeRates(code) {
+async function ratesFor(code) {
   const rates = await selectedRates;
-  if (rates?.base === code) await storageSet(EXCHANGE_RATES_STORAGE_KEY, rates.toJSON());
+  return rates?.base === code ? rates : null;
 }
 
 currency.replaceChildren(...Currency.CODES.map((code) => new Option(code, code)));
 currency.addEventListener("change", applyCurrency);
 
-/** Put the stored value into every input that is empty. */
-async function fillEmptyInputs() {
-  const stored = await storageGetMany(Object.values(Settings.STORAGE_KEYS));
-  for (const [name, input] of Object.entries(inputs)) {
-    const value = stored[Settings.STORAGE_KEYS[name]];
-    if (input.value === "" && value != null && value !== "") input.value = String(value);
-  }
+/**
+ * Show `settings` in the form.
+ * @param {Settings} settings
+ */
+function showSettings(settings) {
+  currency.value = settings.currency;
+  for (const [name, input] of Object.entries(inputs)) input.value = String(settings[name]);
 }
 
 /** Flag invalid inputs; true when every input may be saved. */
@@ -140,15 +142,18 @@ form.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!validate()) return;
 
-  // Empty inputs are skipped, so they keep the stored value.
-  await Promise.all([
-    ...Object.entries(inputs)
-      .filter(([, input]) => input.value !== "")
-      .map(([name, input]) => storageSet(Settings.STORAGE_KEYS[name], input.valueAsNumber)),
-    storageSet(Settings.STORAGE_KEYS.currency, currency.value),
-    storeRates(currency.value),
-  ]);
-  await fillEmptyInputs();
+  // An emptied input keeps the current value.
+  const { settings: current } = await store.load();
+  /** @param {"auctionPremium" | "shipment"} name */
+  const value = (name) => (inputs[name].value === "" ? current[name] : inputs[name].valueAsNumber);
+  const settings = Settings.from({
+    auctionPremium: value("auctionPremium"),
+    shipment: value("shipment"),
+    currency: currency.value,
+  });
+  // Settings and matching rates in one write: open tabs never see one without the other.
+  await store.save(settings, (await ratesFor(settings.currency)) ?? undefined);
+  showSettings(settings);
   // Asking for the state makes the active tab re-read the settings and recalculate.
   await refreshStatus();
   showSaved();
@@ -170,16 +175,16 @@ ext.tabs.onUpdated.addListener((_tabId, changeInfo) => {
 });
 
 /**
- * Select the stored currency (or the default) and refresh the stored rates
- * with the ones just loaded for it; open tabs recalculate via storage.onChanged.
+ * Show the saved settings and refresh the saved rates with the ones just
+ * loaded for their currency; open tabs recalculate via storage.onChanged.
  */
-async function selectStoredCurrency() {
-  const stored = await storageGetMany([Settings.STORAGE_KEYS.currency]);
-  const { currency: code } = Settings.fromStorage(stored);
-  currency.value = code;
+async function showStoredSettings() {
+  const { settings } = await store.load();
+  showSettings(settings);
   applyCurrency();
-  await storeRates(code);
+  const rates = await ratesFor(settings.currency);
+  if (rates) await store.saveRates(rates);
 }
 
 // Show what is stored, then bring the active tab in line with it.
-Promise.all([selectStoredCurrency(), fillEmptyInputs()]).then(refreshStatus);
+showStoredSettings().then(refreshStatus);

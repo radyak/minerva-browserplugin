@@ -3,6 +3,7 @@ import { SITES } from "../core/sites/sites.config.js";
 import { TabState } from "../core/state/TabState.js";
 import { ext, getActiveTab } from "../browser/ext.js";
 import { MessageBus } from "../browser/MessageBus.js";
+import { SettingsStore } from "../browser/SettingsStore.js";
 import { registerPanelOpener } from "../browser/side-panel.js";
 
 /**
@@ -13,6 +14,11 @@ import { registerPanelOpener } from "../browser/side-panel.js";
 
 registerPanelOpener();
 const bus = new MessageBus(ext);
+
+// Settings saved by an older version: convert them once, on update.
+ext.runtime.onInstalled.addListener(() => {
+  new SettingsStore(ext).migrate();
+});
 
 function updateBadge(tabId, active) {
   ext.action?.setBadgeText({ tabId, text: active ? "ON" : "" });

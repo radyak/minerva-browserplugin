@@ -92,14 +92,19 @@ checked by `tsc` via `jsconfig.json`; build-time globals such as `__TARGET__` ar
 
 ## Settings and the effective price
 
-- The panel writes its inputs to `storage.local` under `Settings.STORAGE_KEYS`
-  (`src/core/settings/Settings.js`) only when Save is clicked; empty inputs are skipped (they keep
-  and show the stored value). The content script reads them with `Settings.fromStorage()` (which
-  falls back to `Settings.DEFAULT` for empty/invalid values). The input ranges live in
-  `Settings.RANGES` only; the panel sets its inputs' `min`/`max` from them. There is no message for settings — storage is
+- **All storage goes through `SettingsStore` (`src/browser/SettingsStore.js`).** The layout is
+  `{ settings: Settings#toJSON(), exchangeRates: ExchangeRates#toJSON() }`; `load()` returns a
+  `Settings` (via `Settings.from()`, which falls back to `Settings.DEFAULT` for missing/invalid
+  values) and the matching `ExchangeRates`. `save(settings, rates)` writes both in **one**
+  `storage.local.set`, so listeners get one change event and never see new settings with old
+  rates. Keys of the older one-key-per-setting layout are converted once by `migrate()`, called
+  from the background on `runtime.onInstalled`.
+- The panel shows the saved settings and saves the full `Settings` when Save is clicked; an
+  emptied input keeps the current value. The input ranges live in `Settings.RANGES` only; the
+  panel sets its inputs' `min`/`max` from them. There is no message for settings — storage is
   the channel: after saving, the panel sends `GET_ACTIVE_STATE`, the background forwards
   `SYNC_REQUEST`, and the content script **re-reads the settings on every `SYNC_REQUEST`** before
-  syncing. `storage.onChanged` additionally updates the other open tabs.
+  syncing. `SettingsStore.onChange()` additionally updates the other open tabs.
 - The calculation lives in `calculateEffectivePrice(amount, currency, settings, rates)`
   (`src/core/effective-price.js`) and is passed to `annotateElements()` as `calculate`, so it can
   later be made per-site: `rates.convert(amount, currency) * (1 + auctionPremium / 100) +
@@ -110,11 +115,10 @@ checked by `tsc` via `jsconfig.json`; build-time globals such as `__TARGET__` ar
 - **`ExchangeRates` (`src/core/rates/ExchangeRates.js`) is the only place that knows the rate
   direction:** `rates[code]` is "1 base = x code", `factorFrom(code)`/`convert()` go the other way
   (code → base). It drops invalid entries on construction and is immutable.
-- The panel stores the fetched rates (base = selected currency) as `toJSON()` under
-  `EXCHANGE_RATES_STORAGE_KEY` on Save and whenever it opens; the content script reads them with
-  `ExchangeRates.fromStorage(stored, settings.currency)`. Stored rates for another base are
-  ignored (`ExchangeRates.empty()`), so only the output currency itself (1:1) is known until
-  matching rates exist.
+- The panel stores the fetched rates (base = selected currency) with the settings on Save and
+  on their own (`saveRates()`) whenever it opens. Stored rates for another base are ignored
+  (`ExchangeRates.fromStorage()` gives `ExchangeRates.empty()`), so only the output currency
+  itself (1:1) is known until matching rates exist.
 - Exchange rates are fetched by the panel only (`RatesClient` in `src/core/rates/`, plain `fetch`
   with an injectable fetch function for tests) from Frankfurter (`EXCHANGE_RATES_URL` in
   `config.js`). It sends `Access-Control-Allow-Origin: *`, so no `host_permissions` are needed.
