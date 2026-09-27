@@ -11,7 +11,7 @@ import { SITES } from "../src/core/sites/sites.config.js";
  *
  * Everything shared lives in src/, everything browser specific in
  * platforms/<target>/manifest.json plus the `__TARGET__` build constant that
- * src/platform/panel.js branches on.
+ * src/browser/side-panel.js branches on.
  */
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");

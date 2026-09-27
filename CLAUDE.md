@@ -36,21 +36,23 @@ checked by `tsc` via `jsconfig.json`; build-time globals such as `__TARGET__` ar
 
 - **`src/core/` never touches an extension API.** It works against a plain `Document` and plain
   strings, which is the only reason it can be unit tested with jsdom. Anything needing
-  `chrome.*`/`browser.*` goes through `src/platform/browser.js` (the `ext` alias) and is imported
-  from `content/`, `background/` or `panel/`.
+  `chrome.*`/`browser.*` goes through `src/browser/` (the `ext` alias in `ext.js`, messaging in
+  `MessageBus.js`) and is imported from `content/`, `background/` or `panel/`. Classes in
+  `src/browser/` take `ext` as a constructor argument, so they are testable with a fake one.
 - **Browser differences are confined to two places:** `platforms/<target>/manifest.json` and
-  `src/platform/panel.js` (Chrome `sidePanel` vs. Firefox `sidebarAction`). Do not add a
-  `TARGET === "chrome"` branch anywhere else; extend `src/platform/` instead.
+  `src/browser/side-panel.js` (Chrome `sidePanel` vs. Firefox `sidebarAction`). Do not add a
+  `TARGET === "chrome"` branch anywhere else; extend `src/browser/` instead.
 - **`src/core/sites/sites.config.js` is the single source of truth for the targets.** `SITES` is
   a `SiteRegistry` of `AuctionSite`s (`origin`, `paths`, `priceSelectors`); plugin-wide constants
   live in `src/core/config.js`. The manifests carry `$VERSION` and `$CONTENT_MATCHES` placeholders
   that `scripts/build.mjs` resolves from `package.json` and from `SITES.matchPatterns()`.
   Changing what the extension targets should mean editing only `sites.config.js`.
-- **"platform" means the browser, never an auction site:** `platforms/<target>/` and
-  `src/platform/` are browser specific; auction sites are always "sites".
+- **"platform" means the browser target, never an auction site:** `platforms/<target>/` holds
+  the per-browser manifests; auction sites are always "sites".
 - **`__TARGET__` is an esbuild `define`,** not a runtime variable. It only exists inside the three
   bundled entry points (`background`, `content`, `panel/panel`). Importing a module that reads it
-  from a test will throw — that is another reason core code stays free of `src/platform/`.
+  from a test will throw (`src/browser/ext.js` reads it) — that is another reason core code
+  stays free of `src/browser/`, and why tests inject a fake `ext` instead.
 - **Bundles are IIFE, not ESM** (`format: "iife"` in `scripts/build.mjs`): content scripts and the
   Firefox event page cannot be ES modules. Adding a new entry point means adding it to
   `entryPoints` there, and any new static file to `copyStaticAssets()`.
@@ -127,8 +129,12 @@ Three types only, in `src/core/messages.js`:
   and DOM mutations (coalesced to one run per animation frame).
 - content → background/panel: `STATE_CHANGED`, only when the `TabState` actually changed
   (`equals()`). Background turns it into the toolbar badge.
-- panel → background: `GET_ACTIVE_STATE`, answered asynchronously (the listener returns `true` to
-  keep the channel open — required, easy to drop when editing).
+- panel → background: `GET_ACTIVE_STATE`, answered asynchronously.
+
+Listen with `MessageBus.on(type, handler)`, never `runtime.onMessage` directly: the handler
+returns its answer (or a promise of it, `undefined` for none) and the bus returns `true` to keep
+the channel open when needed — required for async answers and easy to drop by hand. Send with
+`bus.send()` / `bus.sendToTab()`, which ignore a missing receiver.
 
 The state of a tab is a `TabState` (`src/core/state/TabState.js`: `active`, `annotated`,
 `unparsable`). Messages are structured-cloned, so class instances do not survive them: send

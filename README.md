@@ -32,7 +32,7 @@ src/
                    url-matcher.js (glob matching for URLs)
     messages.js    message types
     state/         TabState (what the extension does in a tab: active, counts)
-  platform/    the thin browser abstraction (API alias, side panel vs. sidebar)
+  browser/     the thin browser abstraction (API alias, messaging, side panel vs. sidebar)
   background/  background script / service worker
   content/     content script + the annotation stylesheet
   panel/       side panel UI (Bootstrap)
@@ -45,7 +45,7 @@ icons/         base.png + the PNGs generated from it (npm run icons)
 ```
 
 Everything a browser does differently is confined to `platforms/*/manifest.json`
-and `src/platform/`. `src/core/` never touches an extension API, which is why it
+and `src/browser/`. `src/core/` never touches an extension API, which is why it
 can be unit tested with plain jsdom.
 
 ## Configuration

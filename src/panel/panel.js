@@ -4,9 +4,12 @@ import { EXCHANGE_RATES_STORAGE_KEY } from "../core/rates/ExchangeRates.js";
 import { RatesClient } from "../core/rates/RatesClient.js";
 import { Settings } from "../core/settings/Settings.js";
 import { TabState } from "../core/state/TabState.js";
-import { ext, sendMessage, storageGetMany, storageSet } from "../platform/browser.js";
+import { ext, storageGetMany, storageSet } from "../browser/ext.js";
+import { MessageBus } from "../browser/MessageBus.js";
 
 /** Side panel (Chrome) / sidebar (Firefox) UI. Identical on both browsers. */
+
+const bus = new MessageBus(ext);
 
 const status = document.querySelector("#status");
 const form = document.querySelector("#settings");
@@ -37,7 +40,7 @@ function renderStatus({ active, annotated: count, unparsable }) {
 }
 
 async function refreshStatus() {
-  renderStatus(TabState.from(await sendMessage({ type: MSG.GET_ACTIVE_STATE })));
+  renderStatus(TabState.from(await bus.send({ type: MSG.GET_ACTIVE_STATE })));
 }
 
 /** Show the rates of `rates.base` against the other currencies. */
@@ -157,10 +160,9 @@ for (const input of Object.values(inputs)) {
 
 // Keep the status in sync: the content script pushes changes, tab switches and
 // navigations are picked up from the tabs API.
-ext.runtime.onMessage.addListener((message) => {
+bus.on(MSG.STATE_CHANGED, () => {
   // Re-query instead of trusting the message: it may come from a background tab.
-  if (message?.type === MSG.STATE_CHANGED) refreshStatus();
-  return false;
+  refreshStatus();
 });
 ext.tabs.onActivated.addListener(refreshStatus);
 ext.tabs.onUpdated.addListener((_tabId, changeInfo) => {

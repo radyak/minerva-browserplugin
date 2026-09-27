@@ -2,7 +2,8 @@ import { MSG } from "../core/messages.js";
 import { syncDocument } from "../core/annotator.js";
 import { EXCHANGE_RATES_STORAGE_KEY, ExchangeRates } from "../core/rates/ExchangeRates.js";
 import { Settings } from "../core/settings/Settings.js";
-import { ext, sendMessage, storageGetMany } from "../platform/browser.js";
+import { ext, storageGetMany } from "../browser/ext.js";
+import { MessageBus } from "../browser/MessageBus.js";
 
 /**
  * Content script: keeps the page in sync with the core rules.
@@ -11,6 +12,7 @@ import { ext, sendMessage, storageGetMany } from "../platform/browser.js";
 
 /** @type {import("../core/state/TabState.js").TabState | null} null until the first sync, so that one is always reported */
 let lastState = null;
+const bus = new MessageBus(ext);
 let settings = Settings.DEFAULT;
 let rates = ExchangeRates.empty(settings.currency);
 
@@ -28,7 +30,7 @@ function sync(reason) {
   const changed = !state.equals(lastState);
   lastState = state;
   if (changed) {
-    sendMessage({ type: MSG.STATE_CHANGED, url: location.href, ...state.toJSON(), reason });
+    bus.send({ type: MSG.STATE_CHANGED, url: location.href, ...state.toJSON(), reason });
   }
   return state;
 }
@@ -70,12 +72,11 @@ async function start() {
   // Settings first, so the page never shows an amount computed without them.
   await loadSettings();
 
-  ext.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (message?.type !== MSG.SYNC_REQUEST) return false;
+  bus.on(MSG.SYNC_REQUEST, async () => {
     // Re-read the settings: the panel sends this right after saving them, and
     // must not depend on storage.onChanged having arrived first.
-    loadSettings().then(() => sendResponse({ url: location.href, ...sync("request").toJSON() }));
-    return true; // keep the message channel open for the async response
+    await loadSettings();
+    return { url: location.href, ...sync("request").toJSON() };
   });
 
   // Single page apps swap the URL without reloading; the background script
