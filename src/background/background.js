@@ -1,5 +1,5 @@
 import { MSG } from "../core/messages.js";
-import { isTargetUrl } from "../core/annotator.js";
+import { SITES } from "../core/sites/sites.config.js";
 import { TabState } from "../core/state/TabState.js";
 import { ext, getActiveTab, sendMessageToTab } from "../platform/browser.js";
 import { registerPanelOpener } from "../platform/panel.js";
@@ -23,7 +23,7 @@ ext.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   // `url` changes on real navigations and on history.pushState alike.
   if (!changeInfo.url && changeInfo.status !== "complete") return;
   const url = changeInfo.url ?? tab?.url;
-  updateBadge(tabId, isTargetUrl(url));
+  updateBadge(tabId, SITES.isTarget(url));
   sendMessageToTab(tabId, { type: MSG.SYNC_REQUEST });
 });
 
@@ -39,7 +39,7 @@ ext.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (!tab) return { url: null, ...TabState.inactive().toJSON() };
         const state = await sendMessageToTab(tab.id, { type: MSG.SYNC_REQUEST });
         // No content script there (yet): judge by the URL alone.
-        const fallback = new TabState({ active: isTargetUrl(tab.url) });
+        const fallback = new TabState({ active: SITES.isTarget(tab.url) });
         return state ?? { url: tab.url ?? null, ...fallback.toJSON() };
       })
       .then(sendResponse);

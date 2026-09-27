@@ -4,8 +4,7 @@ import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { PLATFORMS } from "../src/core/config.js";
-import { matchPatternFor } from "../src/core/url-matcher.js";
+import { SITES } from "../src/core/sites/sites.config.js";
 
 /**
  * Builds one directory per browser target under dist/.
@@ -30,10 +29,8 @@ for (const target of targets) {
   }
 }
 
-/** Content script match patterns, one per platform (deduplicated). */
-const CONTENT_MATCHES = [
-  ...new Set(PLATFORMS.map((platform) => matchPatternFor(platform.platformUrl))),
-];
+/** Content script match patterns, one per auction site host (deduplicated). */
+const CONTENT_MATCHES = SITES.matchPatterns();
 
 const pkg = JSON.parse(await readFile(path.join(ROOT, "package.json"), "utf8"));
 

@@ -41,12 +41,13 @@ checked by `tsc` via `jsconfig.json`; build-time globals such as `__TARGET__` ar
 - **Browser differences are confined to two places:** `platforms/<target>/manifest.json` and
   `src/platform/panel.js` (Chrome `sidePanel` vs. Firefox `sidebarAction`). Do not add a
   `TARGET === "chrome"` branch anywhere else; extend `src/platform/` instead.
-- **`src/core/config.js` is the single source of truth.** Sites are entries of the `PLATFORMS`
-  array (`platformUrl`, `platformPaths`, `targetSelectors`); the remaining
-  constants are plugin-wide. The manifests carry `$VERSION` and `$CONTENT_MATCHES` placeholders
-  that `scripts/build.mjs` resolves from `package.json` and from every platform's `platformUrl`
-  (via `matchPatternFor()`).
-  Changing what the extension targets should mean editing only `config.js`.
+- **`src/core/sites/sites.config.js` is the single source of truth for the targets.** `SITES` is
+  a `SiteRegistry` of `AuctionSite`s (`origin`, `paths`, `priceSelectors`); plugin-wide constants
+  live in `src/core/config.js`. The manifests carry `$VERSION` and `$CONTENT_MATCHES` placeholders
+  that `scripts/build.mjs` resolves from `package.json` and from `SITES.matchPatterns()`.
+  Changing what the extension targets should mean editing only `sites.config.js`.
+- **"platform" means the browser, never an auction site:** `platforms/<target>/` and
+  `src/platform/` are browser specific; auction sites are always "sites".
 - **`__TARGET__` is an esbuild `define`,** not a runtime variable. It only exists inside the three
   bundled entry points (`background`, `content`, `panel/panel`). Importing a module that reads it
   from a test will throw — that is another reason core code stays free of `src/platform/`.
@@ -61,21 +62,20 @@ checked by `tsc` via `jsconfig.json`; build-time globals such as `__TARGET__` ar
   `childList` **and** `characterData` on the whole document. An unconditional write turns into an
   infinite observer loop. Any new DOM write needs the same "only on change" guard.
 - **Never annotate our own output** — the loop skips elements carrying `ANNOTATION_CLASS`, which
-  matters because `targetSelectors` are site selectors that may well match the sibling too.
+  matters because `priceSelectors` are site selectors that may well match the sibling too.
   The same goes for the *text*: when matches are nested (`span:first-child` inside
   `span:first-child`), only the innermost one is annotated and wrappers lose any annotation, and
   the price text is read without our annotations (`priceText()`). Otherwise the wrapper reads
   "750 GBP1207.72 USD" and shows the price repeatedly.
-- **`platformUrl` is protocol + host only, `platformPaths` are path globs only.** A URL is on a
-  platform when its origin equals `platformUrl`'s origin and its *pathname* (query/hash ignored)
-  matches one of the paths via our tiny glob matcher (`src/core/url-matcher.js`, `*` only, exact
-  otherwise). `matchPatternFor()` derives the manifest match pattern `<protocol>//<host>/*` and
+- **`origin` is protocol + host only, `paths` are path globs only.** A URL is on a site
+  (`AuctionSite.matches()`) when its origin equals the site's `origin` and its *pathname*
+  (query/hash ignored) matches one of the paths via our tiny glob matcher
+  (`src/core/sites/url-matcher.js`, `*` only, exact otherwise). `matchPatternFor()` derives the manifest match pattern `<protocol>//<host>/*` and
   drops any port, since match patterns cannot carry one; the origin check still enforces it.
-- **`test/annotator.test.mjs` runs against its own `TEST_PLATFORMS`** (`findPlatform`,
-  `syncDocument` and `isTargetUrl` take an optional `platforms` argument defaulting to
-  `PLATFORMS`), so the real config can change freely. The real `PLATFORMS` only gets a shape
-  check (required fields, `platformUrl` without path, paths start with `/`, selectors parse as
-  CSS).
+- **The tests run against their own `TEST_SITES` registries** (`syncDocument` takes an optional
+  `sites` argument defaulting to `SITES`), so the real config can change freely. The real `SITES`
+  only gets a shape check in `test/sites.test.mjs` (`origin` without path, paths start with `/`,
+  selectors parse as CSS).
 - **Price formatting mirrors the input notation** (currency position, decimal/grouping separators,
   surrounding text). The one ambiguous rule: a single separator followed by exactly three digits
   is read as *grouping* (`1.359` = 1359), anything else as a decimal separator (`1.35` = 1.35).
@@ -100,7 +100,7 @@ checked by `tsc` via `jsconfig.json`; build-time globals such as `__TARGET__` ar
   syncing. `storage.onChanged` additionally updates the other open tabs.
 - The calculation lives in `calculateEffectivePrice(amount, currency, settings, rates)`
   (`src/core/effective-price.js`) and is passed to `annotateElements()` as `calculate`, so it can
-  later be made per-platform: `rates.convert(amount, currency) * (1 + auctionPremium / 100) +
+  later be made per-site: `rates.convert(amount, currency) * (1 + auctionPremium / 100) +
   shipment`, in `settings.currency`. `currency` is the input currency read from the price text,
   `rates` an `ExchangeRates` with `settings.currency` as base. A missing currency or rate returns
   `undefined`, which `convertPrice()` turns into `null` and the annotator into `n/a` — no

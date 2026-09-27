@@ -1,8 +1,8 @@
-import { ANNOTATION_CLASS, PLATFORMS, UNPARSABLE_TEXT } from "./config.js";
+import { ANNOTATION_CLASS, UNPARSABLE_TEXT } from "./config.js";
 import { calculateEffectivePrice } from "./effective-price.js";
 import { convertPrice } from "./price.js";
 import { TabState } from "./state/TabState.js";
-import { urlOnPlatform } from "./url-matcher.js";
+import { SITES } from "./sites/sites.config.js";
 
 /**
  * Browser agnostic DOM logic: read the price out of the target element, work
@@ -62,7 +62,7 @@ function createAnnotation(doc, element) {
  * instead of an amount.
  * @param {Document} doc
  * @param {object} options
- * @param {string[]} options.selectors
+ * @param {readonly string[]} options.selectors
  * @param {import("./settings/Settings.js").Settings} options.settings
  * @param {import("./rates/ExchangeRates.js").ExchangeRates} options.rates base `settings.currency`
  * @param {typeof calculateEffectivePrice} [options.calculate]
@@ -128,42 +128,22 @@ export function removeAnnotations(doc) {
 }
 
 /**
- * The platform the extension should act as on this URL: the first one whose
- * `platformUrl` origin matches and that has a matching entry in `platformPaths`.
- * @param {string | undefined | null} url
- * @param {import("./config.js").Platform[]} [platforms]
- * @returns {import("./config.js").Platform | null}
- */
-export function findPlatform(url, platforms = PLATFORMS) {
-  return (
-    platforms.find((platform) =>
-      urlOnPlatform(url, platform.platformUrl, platform.platformPaths),
-    ) ?? null
-  );
-}
-
-/** Should the extension be active on this URL? */
-export function isTargetUrl(url, platforms = PLATFORMS) {
-  return findPlatform(url, platforms) !== null;
-}
-
-/**
  * Bring the document in line with the current URL: annotate with the matching
- * platform's selectors and the user's settings, clean up when no platform
+ * site's price selectors and the user's settings, clean up when no site
  * matches.
  * @param {Document} doc
  * @param {string} url
  * @param {import("./settings/Settings.js").Settings} settings
  * @param {import("./rates/ExchangeRates.js").ExchangeRates} rates base `settings.currency`
- * @param {import("./config.js").Platform[]} [platforms]
+ * @param {import("./sites/SiteRegistry.js").SiteRegistry} [sites]
  * @returns {TabState}
  */
-export function syncDocument(doc, url, settings, rates, platforms = PLATFORMS) {
-  const platform = findPlatform(url, platforms);
-  if (!platform) {
+export function syncDocument(doc, url, settings, rates, sites = SITES) {
+  const site = sites.find(url);
+  if (!site) {
     removeAnnotations(doc);
     return TabState.inactive();
   }
-  const counts = annotateElements(doc, { selectors: platform.targetSelectors, settings, rates });
+  const counts = annotateElements(doc, { selectors: site.priceSelectors, settings, rates });
   return new TabState({ active: true, ...counts });
 }

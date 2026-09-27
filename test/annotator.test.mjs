@@ -2,22 +2,18 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { JSDOM } from "jsdom";
 
-import { ANNOTATION_CLASS, PLATFORMS, UNPARSABLE_TEXT } from "../src/core/config.js";
-import {
-  annotateElements,
-  findPlatform,
-  isTargetUrl,
-  removeAnnotations,
-  syncDocument,
-} from "../src/core/annotator.js";
+import { ANNOTATION_CLASS, UNPARSABLE_TEXT } from "../src/core/config.js";
+import { annotateElements, removeAnnotations, syncDocument } from "../src/core/annotator.js";
 import { ExchangeRates } from "../src/core/rates/ExchangeRates.js";
 import { Settings } from "../src/core/settings/Settings.js";
+import { AuctionSite } from "../src/core/sites/AuctionSite.js";
+import { SiteRegistry } from "../src/core/sites/SiteRegistry.js";
 import { TabState } from "../src/core/state/TabState.js";
 
 /**
- * Everything is tested against platforms of our own so the suite keeps working
- * whatever PLATFORMS is configured; the real configuration only gets a shape
- * check at the end.
+ * Everything is tested against sites of our own so the suite keeps working
+ * whatever SITES is configured; the real configuration only gets a shape
+ * check in sites.test.mjs.
  */
 const SELECTOR = ".price";
 const SETTINGS = new Settings({ auctionPremium: 0, shipment: 100, currency: "EUR" });
@@ -26,18 +22,10 @@ const RATES = new ExchangeRates("EUR", "", { USD: 2 });
 const TARGET_URL = "https://shop.test/lot/1";
 const OTHER_URL = "https://not-the-target.invalid/";
 
-const TEST_PLATFORMS = [
-  {
-    platformUrl: "https://shop.test",
-    platformPaths: ["/lot/*", "/search"],
-    targetSelectors: [SELECTOR],
-  },
-  {
-    platformUrl: "https://other.test/",
-    platformPaths: ["/*"],
-    targetSelectors: [".other"],
-  },
-];
+const TEST_SITES = new SiteRegistry([
+  new AuctionSite({ origin: "https://shop.test", paths: ["/lot/*"], priceSelectors: [SELECTOR] }),
+  new AuctionSite({ origin: "https://other.test/", paths: ["/*"], priceSelectors: [".other"] }),
+]);
 
 function documentWithPrice(price = "500 EUR") {
   return new JSDOM(`
@@ -213,27 +201,10 @@ test("an element matched by several selectors is annotated once", () => {
   );
 });
 
-test("findPlatform picks the platform whose paths match the url", () => {
-  assert.equal(findPlatform(TARGET_URL, TEST_PLATFORMS), TEST_PLATFORMS[0]);
-  // Query and hash are not part of the path.
-  assert.equal(
-    findPlatform("https://shop.test/search?q=coin#top", TEST_PLATFORMS),
-    TEST_PLATFORMS[0],
-  );
-  assert.equal(findPlatform("https://shop.test/search/saved", TEST_PLATFORMS), null);
-  assert.equal(findPlatform("https://other.test/x", TEST_PLATFORMS), TEST_PLATFORMS[1]);
-  // Inside platformUrl, but outside every platformPaths entry.
-  assert.equal(findPlatform("https://shop.test/account", TEST_PLATFORMS), null);
-  assert.equal(findPlatform(OTHER_URL, TEST_PLATFORMS), null);
-  assert.equal(findPlatform(undefined, TEST_PLATFORMS), null);
-  assert.equal(isTargetUrl(TARGET_URL, TEST_PLATFORMS), true);
-  assert.equal(isTargetUrl(OTHER_URL, TEST_PLATFORMS), false);
-});
-
-test("sync uses the selectors of the matching platform", () => {
+test("sync uses the selectors of the matching site", () => {
   const doc = documentWithPrice();
   assert.deepEqual(
-    syncDocument(doc, "https://other.test/", SETTINGS, RATES, TEST_PLATFORMS),
+    syncDocument(doc, "https://other.test/", SETTINGS, RATES, TEST_SITES),
     new TabState({ active: true, annotated: 1, unparsable: 0 }),
   );
   assert.equal(doc.querySelector(".other").nextElementSibling.textContent, "1099 EUR");
@@ -242,36 +213,13 @@ test("sync uses the selectors of the matching platform", () => {
 
 test("sync only runs on the configured url", () => {
   const doc = documentWithPrice();
-  assert.equal(syncDocument(doc, TARGET_URL, SETTINGS, RATES, TEST_PLATFORMS).active, true);
-  assert.equal(syncDocument(doc, OTHER_URL, SETTINGS, RATES, TEST_PLATFORMS).active, false);
+  assert.equal(syncDocument(doc, TARGET_URL, SETTINGS, RATES, TEST_SITES).active, true);
+  assert.equal(syncDocument(doc, OTHER_URL, SETTINGS, RATES, TEST_SITES).active, false);
 
   // Whatever an earlier run left behind is cleaned up off the target URL.
   doc
     .querySelector(SELECTOR)
     .insertAdjacentHTML("afterend", `<span class="${ANNOTATION_CLASS}">600 EUR</span>`);
-  assert.deepEqual(
-    syncDocument(doc, OTHER_URL, SETTINGS, RATES, TEST_PLATFORMS),
-    TabState.inactive(),
-  );
+  assert.deepEqual(syncDocument(doc, OTHER_URL, SETTINGS, RATES, TEST_SITES), TabState.inactive());
   assert.equal(annotations(doc).length, 0);
-});
-
-test("every configured platform is well formed", () => {
-  assert.ok(PLATFORMS.length > 0);
-  for (const platform of PLATFORMS) {
-    const name = platform.platformUrl;
-    const url = new URL(platform.platformUrl);
-    assert.ok(
-      url.pathname === "/" && !url.search && !url.hash && !url.username,
-      `${name}: platformUrl must be protocol + host only`,
-    );
-    assert.ok(Array.isArray(platform.platformPaths) && platform.platformPaths.length > 0, name);
-    for (const path of platform.platformPaths) {
-      assert.match(path, /^\//, `${name}: "${path}" must be a path starting with "/"`);
-    }
-    assert.ok(Array.isArray(platform.targetSelectors) && platform.targetSelectors.length > 0, name);
-    // Every selector must be valid CSS, otherwise querySelectorAll throws at runtime.
-    const doc = new JSDOM("").window.document;
-    for (const selector of platform.targetSelectors) doc.querySelectorAll(selector);
-  }
 });
