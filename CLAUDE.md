@@ -79,9 +79,12 @@ checked by `tsc` via `jsconfig.json`; build-time globals such as `__TARGET__` ar
 - **Price formatting mirrors the input notation** (currency position, decimal/grouping separators,
   surrounding text). The one ambiguous rule: a single separator followed by exactly three digits
   is read as *grouping* (`1.359` = 1359), anything else as a decimal separator (`1.35` = 1.35).
-  The currency token closest to the number (`src/core/currency.js`) is the input currency and is
-  the only part swapped on output. Change `src/core/price.js` or `currency.js` only with a
-  matching case added to `test/price.test.mjs`.
+  The currency token closest to the number (`CurrencyDetector`) is the input currency and is
+  the only part swapped on output. Change `src/core/price.js` or `src/core/currency/` only with a
+  matching case added to `test/price.test.mjs` or `test/currency.test.mjs`.
+- **`Currency.ALL` (`src/core/currency/Currency.js`) is the one list of supported currencies:**
+  code, output symbol and the tokens recognised in page text. Detection, the panel's currency
+  options and the exchange rates request are all derived from it.
 - `dist/`, `build/` and `.poc/` are gitignored. `.poc/` holds unrelated reference extensions
   (Mozilla samples etc.) — not part of the build, safe to ignore.
 

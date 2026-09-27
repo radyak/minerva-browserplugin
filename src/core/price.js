@@ -1,4 +1,5 @@
-import { currencyNotation, findCurrency, isCode } from "./currency.js";
+import { Currency } from "./currency/Currency.js";
+import { CurrencyDetector } from "./currency/CurrencyDetector.js";
 
 /**
  * Parsing, converting and re-formatting of prices found in page text.
@@ -60,18 +61,20 @@ function detectGroupSeparator(raw, decimalSeparator) {
  */
 
 /**
- * @typedef {import("./currency.js").CurrencyMatch & {side: "prefix" | "suffix"}} PriceCurrency
+ * @typedef {import("./currency/CurrencyDetector.js").CurrencyMatch & {side: "prefix" | "suffix"}} PriceCurrency
  *   `index` is the position of the token inside `prefix` or `suffix`
  */
+
+const detector = new CurrencyDetector();
 
 /**
  * The currency closest to the number, before it or else after it.
  * @returns {PriceCurrency | null}
  */
 function detectCurrency(prefix, suffix) {
-  const before = findCurrency(prefix, "before");
+  const before = detector.find(prefix, "before");
   if (before) return { ...before, side: "prefix" };
-  const after = findCurrency(suffix, "after");
+  const after = detector.find(suffix, "after");
   return after ? { ...after, side: "suffix" } : null;
 }
 
@@ -133,8 +136,8 @@ function swapCurrency(price, currency) {
   if (!currency || !price.currency || price.currency.code === currency) return { prefix, suffix };
 
   const { token, index, side } = price.currency;
-  let notation = currencyNotation(token, currency);
-  const spaced = isCode(notation) && !isCode(token);
+  let notation = Currency.of(currency)?.notationFor(token) ?? currency;
+  const spaced = Currency.isCode(notation) && !Currency.isCode(token);
   if (side === "prefix") {
     if (spaced && index + token.length === prefix.length) notation += " ";
     prefix = prefix.slice(0, index) + notation + prefix.slice(index + token.length);

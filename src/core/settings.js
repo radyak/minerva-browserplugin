@@ -1,3 +1,5 @@
+import { Currency } from "./currency/Currency.js";
+
 /**
  * User settings entered in the side panel and read by the content script.
  * Both sides go through browser.storage.local, this module only knows the keys
@@ -5,7 +7,7 @@
  */
 
 /** Currencies the user can pick from; the first one is the default. */
-export const CURRENCIES = Object.freeze(["EUR", "USD", "GBP", "CHF"]);
+export const CURRENCIES = Currency.CODES;
 
 /**
  * @typedef {object} Settings

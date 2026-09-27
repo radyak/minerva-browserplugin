@@ -24,7 +24,8 @@ src/
     settings.js    storage keys + validation of the panel settings
     effective-price.js  the effective price calculation
     exchange-rates.js   fetching exchange rates (Frankfurter / ECB)
-    currency.js    currency detection in the price text, output notation
+    currency/      Currency (the supported currencies: code, symbol, tokens),
+                   CurrencyDetector (finds the currency next to a price)
     price.js       price parsing, conversion, re-formatting
     annotator.js   reads the element, inserts/updates the sibling
     url-matcher.js glob matching for URLs

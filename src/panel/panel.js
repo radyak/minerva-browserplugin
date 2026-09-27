@@ -1,3 +1,4 @@
+import { Currency } from "../core/currency/Currency.js";
 import { MSG } from "../core/messages.js";
 import { EXCHANGE_RATES_STORAGE_KEY, fetchExchangeRates } from "../core/exchange-rates.js";
 import { readSettings, SETTINGS_STORAGE_KEYS } from "../core/settings.js";
@@ -92,6 +93,7 @@ async function storeRates(code) {
   if (rates?.base === code) await storageSet(EXCHANGE_RATES_STORAGE_KEY, rates);
 }
 
+currency.replaceChildren(...Currency.CODES.map((code) => new Option(code, code)));
 currency.addEventListener("change", applyCurrency);
 
 /** Put the stored value into every input that is empty. */
