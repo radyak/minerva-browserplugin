@@ -21,7 +21,7 @@ the selector are configurable in one file - see [Configuration](#configuration).
 src/
   core/        browser-agnostic logic
     config.js      target URLs and selectors per platform
-    settings.js    storage keys + validation of the panel settings
+    settings/      Settings (storage keys, ranges, validation of the panel settings)
     effective-price.js  the effective price calculation
     rates/         ExchangeRates (rates for one base, conversion), RatesClient (Frankfurter / ECB)
     currency/      Currency (the supported currencies: code, symbol, tokens),

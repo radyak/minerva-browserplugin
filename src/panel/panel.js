@@ -2,7 +2,7 @@ import { Currency } from "../core/currency/Currency.js";
 import { MSG } from "../core/messages.js";
 import { EXCHANGE_RATES_STORAGE_KEY } from "../core/rates/ExchangeRates.js";
 import { RatesClient } from "../core/rates/RatesClient.js";
-import { readSettings, SETTINGS_STORAGE_KEYS } from "../core/settings.js";
+import { Settings } from "../core/settings/Settings.js";
 import { ext, sendMessage, storageGetMany, storageSet } from "../platform/browser.js";
 
 /** Side panel (Chrome) / sidebar (Firefox) UI. Identical on both browsers. */
@@ -20,6 +20,13 @@ const inputs = /** @type {Record<"auctionPremium" | "shipment", HTMLInputElement
   auctionPremium: document.querySelector("#auction-premium"),
   shipment: document.querySelector("#shipment"),
 });
+
+// The accepted ranges come from Settings, so the input validation matches what is read back.
+for (const [name, input] of Object.entries(inputs)) {
+  const { min, max } = Settings.RANGES[name];
+  input.min = String(min);
+  if (Number.isFinite(max)) input.max = String(max);
+}
 
 function renderStatus(state) {
   const active = Boolean(state?.active);
@@ -100,9 +107,9 @@ currency.addEventListener("change", applyCurrency);
 
 /** Put the stored value into every input that is empty. */
 async function fillEmptyInputs() {
-  const stored = await storageGetMany(Object.values(SETTINGS_STORAGE_KEYS));
+  const stored = await storageGetMany(Object.values(Settings.STORAGE_KEYS));
   for (const [name, input] of Object.entries(inputs)) {
-    const value = stored[SETTINGS_STORAGE_KEYS[name]];
+    const value = stored[Settings.STORAGE_KEYS[name]];
     if (input.value === "" && value != null && value !== "") input.value = String(value);
   }
 }
@@ -135,8 +142,8 @@ form.addEventListener("submit", async (event) => {
   await Promise.all([
     ...Object.entries(inputs)
       .filter(([, input]) => input.value !== "")
-      .map(([name, input]) => storageSet(SETTINGS_STORAGE_KEYS[name], input.valueAsNumber)),
-    storageSet(SETTINGS_STORAGE_KEYS.currency, currency.value),
+      .map(([name, input]) => storageSet(Settings.STORAGE_KEYS[name], input.valueAsNumber)),
+    storageSet(Settings.STORAGE_KEYS.currency, currency.value),
     storeRates(currency.value),
   ]);
   await fillEmptyInputs();
@@ -166,8 +173,8 @@ ext.tabs.onUpdated.addListener((_tabId, changeInfo) => {
  * with the ones just loaded for it; open tabs recalculate via storage.onChanged.
  */
 async function selectStoredCurrency() {
-  const stored = await storageGetMany([SETTINGS_STORAGE_KEYS.currency]);
-  const { currency: code } = readSettings(stored);
+  const stored = await storageGetMany([Settings.STORAGE_KEYS.currency]);
+  const { currency: code } = Settings.fromStorage(stored);
   currency.value = code;
   applyCurrency();
   await storeRates(code);

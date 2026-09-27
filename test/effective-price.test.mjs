@@ -4,19 +4,24 @@ import test from "node:test";
 import { calculateEffectivePrice } from "../src/core/effective-price.js";
 import { convertPrice } from "../src/core/price.js";
 import { ExchangeRates } from "../src/core/rates/ExchangeRates.js";
-import { DEFAULT_SETTINGS } from "../src/core/settings.js";
+import { Settings } from "../src/core/settings/Settings.js";
 
-const EUR_SETTINGS = { auctionPremium: 0, shipment: 0, currency: "EUR" };
+const EUR_SETTINGS = new Settings({ auctionPremium: 0, shipment: 0, currency: "EUR" });
 // Into EUR; GBP deliberately has no rate.
 const INTO_EUR = new ExchangeRates("EUR", "", { USD: 2 });
 
 const calculate = (amount, currency, settings = {}) =>
-  calculateEffectivePrice(amount, currency, { ...EUR_SETTINGS, ...settings }, INTO_EUR);
+  calculateEffectivePrice(
+    amount,
+    currency,
+    new Settings({ ...EUR_SETTINGS, ...settings }),
+    INTO_EUR,
+  );
 
 test("returns the amount unchanged without premium, shipment or conversion", () => {
   assert.equal(calculate(500, "EUR"), 500);
   assert.equal(
-    calculateEffectivePrice(500, "EUR", DEFAULT_SETTINGS, ExchangeRates.empty("EUR")),
+    calculateEffectivePrice(500, "EUR", Settings.DEFAULT, ExchangeRates.empty("EUR")),
     500,
   );
 });

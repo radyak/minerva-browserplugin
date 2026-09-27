@@ -1,32 +1,35 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { DEFAULT_SETTINGS, readSettings, SETTINGS_STORAGE_KEYS } from "../src/core/settings.js";
+import { Settings } from "../src/core/settings/Settings.js";
 
 /** A storage.local result holding `values`, keyed like the panel stores them. */
 const stored = (values) =>
   Object.fromEntries(
-    Object.entries(values).map(([name, value]) => [SETTINGS_STORAGE_KEYS[name], value]),
+    Object.entries(values).map(([name, value]) => [Settings.STORAGE_KEYS[name], value]),
   );
 
 test("falls back to the defaults without stored values", () => {
-  assert.deepEqual(readSettings(undefined), DEFAULT_SETTINGS);
-  assert.deepEqual(readSettings({}), DEFAULT_SETTINGS);
+  assert.deepEqual(Settings.fromStorage(undefined), Settings.DEFAULT);
+  assert.deepEqual(Settings.fromStorage({}), Settings.DEFAULT);
 });
 
 test("turns stored values into settings", () => {
-  assert.deepEqual(readSettings(stored({ auctionPremium: "15.5", shipment: 7, currency: "CHF" })), {
-    auctionPremium: 15.5,
-    shipment: 7,
-    currency: "CHF",
-  });
+  assert.deepEqual(
+    Settings.fromStorage(stored({ auctionPremium: "15.5", shipment: 7, currency: "CHF" })),
+    new Settings({
+      auctionPremium: 15.5,
+      shipment: 7,
+      currency: "CHF",
+    }),
+  );
 });
 
 test("accepts the bounds of the ranges", () => {
-  assert.equal(readSettings(stored({ auctionPremium: 0 })).auctionPremium, 0);
-  assert.equal(readSettings(stored({ auctionPremium: 100 })).auctionPremium, 100);
-  assert.equal(readSettings(stored({ shipment: 0 })).shipment, 0);
-  assert.equal(readSettings(stored({ shipment: 1e6 })).shipment, 1e6);
+  assert.equal(Settings.fromStorage(stored({ auctionPremium: 0 })).auctionPremium, 0);
+  assert.equal(Settings.fromStorage(stored({ auctionPremium: 100 })).auctionPremium, 100);
+  assert.equal(Settings.fromStorage(stored({ shipment: 0 })).shipment, 0);
+  assert.equal(Settings.fromStorage(stored({ shipment: 1e6 })).shipment, 1e6);
 });
 
 test("falls back to the defaults for unusable values", () => {
@@ -39,17 +42,36 @@ test("falls back to the defaults for unusable values", () => {
     [NaN, {}, [1, 2]],
   ]) {
     assert.deepEqual(
-      readSettings(stored({ auctionPremium, shipment, currency })),
-      DEFAULT_SETTINGS,
+      Settings.fromStorage(stored({ auctionPremium, shipment, currency })),
+      Settings.DEFAULT,
       `${auctionPremium} / ${shipment} / ${currency}`,
     );
   }
 });
 
 test("an unusable value does not affect the valid ones", () => {
-  assert.deepEqual(readSettings(stored({ auctionPremium: 150, shipment: 10, currency: "CHF" })), {
-    auctionPremium: 0,
-    shipment: 10,
-    currency: "CHF",
+  assert.deepEqual(
+    Settings.fromStorage(stored({ auctionPremium: 150, shipment: 10, currency: "CHF" })),
+    new Settings({
+      auctionPremium: 0,
+      shipment: 10,
+      currency: "CHF",
+    }),
+  );
+});
+
+test("turns settings back into storage values", () => {
+  const settings = new Settings({ auctionPremium: 15.5, shipment: 7, currency: "CHF" });
+  assert.deepEqual(settings.toStorage(), {
+    "settings.auctionPremium": 15.5,
+    "settings.shipment": 7,
+    "settings.currency": "CHF",
   });
+  assert.deepEqual(Settings.fromStorage(settings.toStorage()), settings);
+});
+
+test("is immutable", () => {
+  assert.throws(() => {
+    /** @type {any} */ (Settings.DEFAULT).shipment = 5;
+  }, TypeError);
 });

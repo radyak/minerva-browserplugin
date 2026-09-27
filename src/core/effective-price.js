@@ -10,7 +10,7 @@
  * shipment (which is entered in that currency).
  * @param {number} amount price as read from the page
  * @param {string | undefined} currency currency `amount` is in, as read from the page
- * @param {import("./settings.js").Settings} settings
+ * @param {import("./settings/Settings.js").Settings} settings
  * @param {import("./rates/ExchangeRates.js").ExchangeRates | undefined} rates with
  *   `settings.currency` as base
  * @returns {number | undefined} undefined when `currency` is unknown or has no rate

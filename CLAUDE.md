@@ -90,10 +90,11 @@ checked by `tsc` via `jsconfig.json`; build-time globals such as `__TARGET__` ar
 
 ## Settings and the effective price
 
-- The panel writes its inputs to `storage.local` under `SETTINGS_STORAGE_KEYS`
-  (`src/core/settings.js`) only when Save is clicked; empty inputs are skipped (they keep and
-  show the stored value). The content script reads them with `readSettings()` (which falls back
-  to `DEFAULT_SETTINGS` for empty/invalid values). There is no message for settings — storage is
+- The panel writes its inputs to `storage.local` under `Settings.STORAGE_KEYS`
+  (`src/core/settings/Settings.js`) only when Save is clicked; empty inputs are skipped (they keep
+  and show the stored value). The content script reads them with `Settings.fromStorage()` (which
+  falls back to `Settings.DEFAULT` for empty/invalid values). The input ranges live in
+  `Settings.RANGES` only; the panel sets its inputs' `min`/`max` from them. There is no message for settings — storage is
   the channel: after saving, the panel sends `GET_ACTIVE_STATE`, the background forwards
   `SYNC_REQUEST`, and the content script **re-reads the settings on every `SYNC_REQUEST`** before
   syncing. `storage.onChanged` additionally updates the other open tabs.

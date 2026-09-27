@@ -11,6 +11,7 @@ import {
   syncDocument,
 } from "../src/core/annotator.js";
 import { ExchangeRates } from "../src/core/rates/ExchangeRates.js";
+import { Settings } from "../src/core/settings/Settings.js";
 
 /**
  * Everything is tested against platforms of our own so the suite keeps working
@@ -18,7 +19,7 @@ import { ExchangeRates } from "../src/core/rates/ExchangeRates.js";
  * check at the end.
  */
 const SELECTOR = ".price";
-const SETTINGS = { auctionPremium: 0, shipment: 100, currency: "EUR" };
+const SETTINGS = new Settings({ auctionPremium: 0, shipment: 100, currency: "EUR" });
 // Into EUR; GBP deliberately has no rate.
 const RATES = new ExchangeRates("EUR", "", { USD: 2 });
 const TARGET_URL = "https://shop.test/lot/1";
