@@ -1,4 +1,4 @@
-import { currencyNotation, findCurrency } from "./currency.js";
+import { currencyNotation, findCurrency, isCode } from "./currency.js";
 
 /**
  * Parsing, converting and re-formatting of prices found in page text.
@@ -122,8 +122,6 @@ function group(integerPart, separator) {
   const digits = sign ? integerPart.slice(1) : integerPart;
   return sign + digits.replace(/\B(?=(\d{3})+(?!\d))/g, separator);
 }
-
-const isCode = (text) => /^[A-Z]{3}$/.test(text);
 
 /**
  * Prefix and suffix of `price` with its currency replaced by `currency`.

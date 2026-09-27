@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { isCode } from "../src/core/currency.js";
 import { convertPrice, parsePrice } from "../src/core/price.js";
 
 // The formatting cases are independent of the actual calculation.
@@ -78,6 +79,15 @@ test("detects the currency next to the number", () => {
   assert.equal(code("500"), null);
   assert.equal(code("¥500"), null);
   assert.equal(code("500 EURO"), null);
+});
+
+test("tells an ISO code apart from a symbol", () => {
+  assert.equal(isCode("EUR"), true);
+  assert.equal(isCode("CHF"), true);
+  assert.equal(isCode("€"), false);
+  assert.equal(isCode("US$"), false);
+  assert.equal(isCode("SFr."), false);
+  assert.equal(isCode("eur"), false);
 });
 
 test("writes the result in the output currency, keeping the notation", () => {

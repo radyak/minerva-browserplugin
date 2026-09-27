@@ -25,10 +25,19 @@ const TOKENS = [
 /** Symbol to write when the input used a symbol rather than a code. */
 const SYMBOLS = { EUR: "€", USD: "$", GBP: "£", CHF: "CHF" };
 
+/**
+ * Is `token` written as a three letter ISO code ("EUR") rather than a symbol ("€")?
+ * @param {string} token
+ * @returns {boolean}
+ */
+export function isCode(token) {
+  return /^[A-Z]{3}$/.test(token);
+}
+
 const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const TOKEN_RE = new RegExp(
   TOKENS.map(([token]) =>
-    /^[A-Z]{3}$/.test(token) ? `(?<![A-Za-z])${token}(?![A-Za-z])` : escape(token),
+    isCode(token) ? `(?<![A-Za-z])${token}(?![A-Za-z])` : escape(token),
   ).join("|"),
   "g",
 );
@@ -63,5 +72,5 @@ export function findCurrency(text, side) {
  * @returns {string}
  */
 export function currencyNotation(token, code) {
-  return /^[A-Z]{3}$/.test(token) ? code : (SYMBOLS[code] ?? code);
+  return isCode(token) ? code : (SYMBOLS[code] ?? code);
 }

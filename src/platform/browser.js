@@ -36,11 +36,6 @@ export async function getActiveTab() {
   return tab;
 }
 
-export async function storageGet(key, fallback = undefined) {
-  const result = await ext.storage.local.get(key);
-  return result?.[key] ?? fallback;
-}
-
 /** @returns {Promise<Record<string, unknown>>} the stored values of `keys` */
 export async function storageGetMany(keys) {
   return (await ext.storage.local.get(keys)) ?? {};
