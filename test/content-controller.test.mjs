@@ -13,13 +13,14 @@ import { fakeBus, fakeStore, settle } from "./support/fakes.mjs";
 
 const SITES = new SiteRegistry([
   new AuctionSite({ origin: "https://shop.test", paths: ["/lot/*"], priceSelectors: [".price"] }),
+  new AuctionSite({ origin: "https://other.test", paths: ["/*"], priceSelectors: [".other"] }),
 ]);
 const EUR = new Settings({ auctionPremium: 20, shipment: 10, currency: "EUR" });
 const INTO_EUR = new ExchangeRates("EUR", "", { USD: 2 });
 
 /** A page with one price, a controller on it and its fakes. */
 async function startOn(url, { price = "500 USD", settings = EUR, rates = INTO_EUR } = {}) {
-  const { window } = new JSDOM(`<span class="price">${price}</span>`, {
+  const { window } = new JSDOM(`<span class="price">${price}</span><b class="other">999 EUR</b>`, {
     url,
     pretendToBeVisual: true, // requestAnimationFrame
   });
@@ -109,4 +110,19 @@ test("re-evaluates on in-page navigation", async () => {
     ],
   );
   await settle();
+});
+
+test("uses the price selectors of the matching site", async () => {
+  const { window, annotation } = await startOn("https://other.test/");
+  // Only `.other` is a price on this site: 999 EUR +20 % +10.
+  assert.equal(annotation(), "1208.80 EUR");
+  assert.equal(window.document.querySelector(".price").nextElementSibling.className, "other");
+});
+
+test("cleans up what an earlier run left behind off the sites", async () => {
+  const { window, controller, annotation } = await startOn("https://shop.test/lot/1");
+  assert.equal(annotation(), "310 EUR");
+  window.history.pushState({}, "", "/account");
+  assert.equal(controller.sync("test").active, false);
+  assert.equal(annotation(), undefined);
 });

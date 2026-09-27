@@ -55,9 +55,10 @@ checked by `tsc` via `jsconfig.json`; build-time globals such as `__TARGET__` ar
   stays free of `src/browser/`, and why tests inject a fake `ext` instead.
 - **Entry points only wire things up.** `content/content.js`, `background/background.js` and
   `panel/panel.js` create a `ContentController` / `BackgroundController` / `PanelController`
-  with the real `window`/`ext`/`document`, `MessageBus` and `SettingsStore`; all behaviour lives in the controllers, which get their
-  dependencies through the constructor and are tested with jsdom and the fakes in
-  `test/support/fakes.mjs`. Controllers never import `src/browser/ext.js` (it reads `__TARGET__`).
+  with the real `window`/`ext`/`document`, `MessageBus` and `SettingsStore`; all behaviour lives
+  in the controllers, which get their dependencies through the constructor and are tested with
+  jsdom and the fakes in `test/support/fakes.mjs`. Controllers never import
+  `src/browser/ext.js` (it reads `__TARGET__`).
   The panel's DOM work is split into views (`src/panel/views/`: settings form, status badge,
   rates table); its test runs against the real `panel.html`.
 - **Bundles are IIFE, not ESM** (`format: "iife"` in `scripts/build.mjs`): content scripts and the
@@ -66,12 +67,15 @@ checked by `tsc` via `jsconfig.json`; build-time globals such as `__TARGET__` ar
 
 ## Things that bite
 
-- **The annotator must stay idempotent.** `annotateElements()` only writes to the DOM when the
-  text/dataset actually changes, because the content script's `MutationObserver` watches
-  `childList` **and** `characterData` on the whole document. An unconditional write turns into an
-  infinite observer loop. Any new DOM write needs the same "only on change" guard.
-- **Never annotate our own output** — the loop skips elements carrying `ANNOTATION_CLASS`, which
-  matters because `priceSelectors` are site selectors that may well match the sibling too.
+- **The annotator must stay idempotent.** `AnnotationView` (`src/core/annotation/`) is the only
+  class that writes to the page, and it only writes when the text/dataset actually changes,
+  because the content script's `MutationObserver` watches `childList` **and** `characterData` on
+  the whole document. An unconditional write turns into an infinite observer loop. Any new DOM
+  write belongs into `AnnotationView`, with the same "only on change" guard. `PriceAnnotator`
+  decides *what* to show (wrapper rule, pricing).
+- **Never annotate our own output** — `AnnotationView.query()` skips elements carrying
+  `ANNOTATION_CLASS` (`minerva-effective-price`), which matters because `priceSelectors` are site
+  selectors that may well match the sibling too.
   The same goes for the *text*: when matches are nested (`span:first-child` inside
   `span:first-child`), only the innermost one is annotated and wrappers lose any annotation, and
   the price text is read without our annotations (`priceText()`). Otherwise the wrapper reads
@@ -79,9 +83,10 @@ checked by `tsc` via `jsconfig.json`; build-time globals such as `__TARGET__` ar
 - **`origin` is protocol + host only, `paths` are path globs only.** A URL is on a site
   (`AuctionSite.matches()`) when its origin equals the site's `origin` and its *pathname*
   (query/hash ignored) matches one of the paths via our tiny glob matcher
-  (`src/core/sites/url-matcher.js`, `*` only, exact otherwise). `matchPatternFor()` derives the manifest match pattern `<protocol>//<host>/*` and
-  drops any port, since match patterns cannot carry one; the origin check still enforces it.
-- **The tests run against their own `TEST_SITES` registries** (`syncDocument` takes an optional
+  (`src/core/sites/url-matcher.js`, `*` only, exact otherwise). `matchPatternFor()` derives the
+  manifest match pattern `<protocol>//<host>/*` and drops any port, since match patterns cannot
+  carry one; the origin check still enforces it.
+- **The tests run against their own `SiteRegistry`s** (`ContentController` takes an optional
   `sites` argument defaulting to `SITES`), so the real config can change freely. The real `SITES`
   only gets a shape check in `test/sites.test.mjs` (`origin` without path, paths start with `/`,
   selectors parse as CSS).
@@ -113,7 +118,7 @@ checked by `tsc` via `jsconfig.json`; build-time globals such as `__TARGET__` ar
   `SYNC_REQUEST`, and the content script **re-reads the settings on every `SYNC_REQUEST`** before
   syncing. `SettingsStore.onChange()` additionally updates the other open tabs.
 - The calculation lives in `calculateEffectivePrice(amount, currency, settings, rates)`
-  (`src/core/effective-price.js`) and is passed to `annotateElements()` as `calculate`, so it can
+  (`src/core/effective-price.js`) and is passed to `PriceAnnotator` as `calculate`, so it can
   later be made per-site: `rates.convert(amount, currency) * (1 + auctionPremium / 100) +
   shipment`, in `settings.currency`. `currency` is the input currency read from the price text,
   `rates` an `ExchangeRates` with `settings.currency` as base. A missing currency or rate returns

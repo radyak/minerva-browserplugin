@@ -3,29 +3,14 @@ import test from "node:test";
 import { JSDOM } from "jsdom";
 
 import { ANNOTATION_CLASS, UNPARSABLE_TEXT } from "../src/core/config.js";
-import { annotateElements, removeAnnotations, syncDocument } from "../src/core/annotator.js";
+import { PriceAnnotator } from "../src/core/annotation/PriceAnnotator.js";
 import { ExchangeRates } from "../src/core/rates/ExchangeRates.js";
 import { Settings } from "../src/core/settings/Settings.js";
-import { AuctionSite } from "../src/core/sites/AuctionSite.js";
-import { SiteRegistry } from "../src/core/sites/SiteRegistry.js";
-import { TabState } from "../src/core/state/TabState.js";
 
-/**
- * Everything is tested against sites of our own so the suite keeps working
- * whatever SITES is configured; the real configuration only gets a shape
- * check in sites.test.mjs.
- */
 const SELECTOR = ".price";
 const SETTINGS = new Settings({ auctionPremium: 0, shipment: 100, currency: "EUR" });
 // Into EUR; GBP deliberately has no rate.
 const RATES = new ExchangeRates("EUR", "", { USD: 2 });
-const TARGET_URL = "https://shop.test/lot/1";
-const OTHER_URL = "https://not-the-target.invalid/";
-
-const TEST_SITES = new SiteRegistry([
-  new AuctionSite({ origin: "https://shop.test", paths: ["/lot/*"], priceSelectors: [SELECTOR] }),
-  new AuctionSite({ origin: "https://other.test/", paths: ["/*"], priceSelectors: [".other"] }),
-]);
 
 function documentWithPrice(price = "500 EUR") {
   return new JSDOM(`
@@ -36,8 +21,15 @@ function documentWithPrice(price = "500 EUR") {
   `).window.document;
 }
 
-const annotate = (doc) =>
-  annotateElements(doc, { selectors: [SELECTOR], settings: SETTINGS, rates: RATES });
+/** Annotate `doc`'s prices; the resulting counts. */
+const annotate = (doc, selectors = [SELECTOR], options = {}) => {
+  const { annotated, unparsable } = new PriceAnnotator(doc, options).annotate(
+    selectors,
+    SETTINGS,
+    RATES,
+  );
+  return { annotated, unparsable };
+};
 const annotations = (doc) => [...doc.querySelectorAll(`.${ANNOTATION_CLASS}`)];
 
 test("appends the effective price as a sibling of the target element", () => {
@@ -64,7 +56,7 @@ for (const price of ["GBP 500", "500", "¥500"]) {
     const doc = documentWithPrice(price);
     assert.deepEqual(annotate(doc), { annotated: 1, unparsable: 1 });
     assert.equal(annotations(doc)[0].textContent, UNPARSABLE_TEXT);
-    assert.equal(annotations(doc)[0].dataset.xbpUnparsable, "true");
+    assert.equal(annotations(doc)[0].dataset.minervaUnparsable, "true");
   });
 }
 
@@ -87,7 +79,7 @@ test("falls back to n/a when the text holds no price", () => {
 
   const [annotation] = annotations(doc);
   assert.equal(annotation.textContent, UNPARSABLE_TEXT);
-  assert.equal(annotation.dataset.xbpUnparsable, "true");
+  assert.equal(annotation.dataset.minervaUnparsable, "true");
   assert.equal(doc.querySelector(SELECTOR).nextElementSibling, annotation);
 });
 
@@ -100,12 +92,12 @@ test("switches between n/a and a price as the text changes", () => {
   assert.deepEqual(annotate(doc), { annotated: 1, unparsable: 1 });
   assert.equal(annotations(doc).length, 1, "no second annotation is inserted");
   assert.equal(annotation.textContent, UNPARSABLE_TEXT);
-  assert.equal(annotation.dataset.xbpUnparsable, "true");
+  assert.equal(annotation.dataset.minervaUnparsable, "true");
 
   doc.querySelector(SELECTOR).textContent = "700 EUR";
   assert.deepEqual(annotate(doc), { annotated: 1, unparsable: 0 });
   assert.equal(annotation.textContent, "800 EUR");
-  assert.equal(annotation.dataset.xbpUnparsable, undefined, "the marker attribute is cleared");
+  assert.equal(annotation.dataset.minervaUnparsable, undefined, "the marker attribute is cleared");
 });
 
 for (const price of ["500 EUR", "sold out"]) {
@@ -129,10 +121,7 @@ for (const price of ["500 EUR", "sold out"]) {
 
 test("a custom calculation replaces the default one", () => {
   const doc = documentWithPrice();
-  annotateElements(doc, {
-    selectors: [SELECTOR],
-    settings: SETTINGS,
-    rates: RATES,
+  annotate(doc, [SELECTOR], {
     calculate: (amount, currency, settings, rates) =>
       rates.convert(amount, currency) * 2 + settings.shipment,
   });
@@ -180,46 +169,23 @@ test("our annotations inside a matched element are not part of its price", () =>
   assert.equal(doc.querySelector(SELECTOR).nextElementSibling.textContent, "600 EUR");
 });
 
-test("removeAnnotations cleans up everything", () => {
+test("clear removes every annotation", () => {
   const doc = documentWithPrice();
   annotate(doc);
-  assert.equal(removeAnnotations(doc), 1);
+  assert.equal(new PriceAnnotator(doc).clear().active, false);
   assert.equal(annotations(doc).length, 0);
+});
+
+test("reports an active state with the counts", () => {
+  const state = new PriceAnnotator(documentWithPrice()).annotate([SELECTOR], SETTINGS, RATES);
+  assert.deepEqual(state.toJSON(), { active: true, annotated: 1, unparsable: 0 });
 });
 
 test("an element matched by several selectors is annotated once", () => {
   const doc = documentWithPrice();
-  const result = annotateElements(doc, {
-    selectors: [SELECTOR, "#root span"],
-    settings: SETTINGS,
-    rates: RATES,
-  });
-  assert.deepEqual(result, { annotated: 2, unparsable: 0 });
+  assert.deepEqual(annotate(doc, [SELECTOR, "#root span"]), { annotated: 2, unparsable: 0 });
   assert.deepEqual(
     annotations(doc).map((annotation) => annotation.textContent),
     ["600 EUR", "1099 EUR"],
   );
-});
-
-test("sync uses the selectors of the matching site", () => {
-  const doc = documentWithPrice();
-  assert.deepEqual(
-    syncDocument(doc, "https://other.test/", SETTINGS, RATES, TEST_SITES),
-    new TabState({ active: true, annotated: 1, unparsable: 0 }),
-  );
-  assert.equal(doc.querySelector(".other").nextElementSibling.textContent, "1099 EUR");
-  assert.equal(doc.querySelector(SELECTOR).nextElementSibling.className, "other");
-});
-
-test("sync only runs on the configured url", () => {
-  const doc = documentWithPrice();
-  assert.equal(syncDocument(doc, TARGET_URL, SETTINGS, RATES, TEST_SITES).active, true);
-  assert.equal(syncDocument(doc, OTHER_URL, SETTINGS, RATES, TEST_SITES).active, false);
-
-  // Whatever an earlier run left behind is cleaned up off the target URL.
-  doc
-    .querySelector(SELECTOR)
-    .insertAdjacentHTML("afterend", `<span class="${ANNOTATION_CLASS}">600 EUR</span>`);
-  assert.deepEqual(syncDocument(doc, OTHER_URL, SETTINGS, RATES, TEST_SITES), TabState.inactive());
-  assert.equal(annotations(doc).length, 0);
 });

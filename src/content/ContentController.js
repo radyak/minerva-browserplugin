@@ -1,4 +1,4 @@
-import { syncDocument } from "../core/annotator.js";
+import { PriceAnnotator } from "../core/annotation/PriceAnnotator.js";
 import { MSG } from "../core/messages.js";
 import { ExchangeRates } from "../core/rates/ExchangeRates.js";
 import { Settings } from "../core/settings/Settings.js";
@@ -24,12 +24,20 @@ export class ContentController {
    * @param {Pick<import("../browser/MessageBus.js").MessageBus, "on" | "send">} deps.bus
    * @param {Pick<import("../browser/SettingsStore.js").SettingsStore, "load" | "onChange">} deps.store
    * @param {import("../core/sites/SiteRegistry.js").SiteRegistry} [deps.sites]
+   * @param {PriceAnnotator} [deps.annotator]
    */
-  constructor({ window, bus, store, sites = SITES }) {
+  constructor({
+    window,
+    bus,
+    store,
+    sites = SITES,
+    annotator = new PriceAnnotator(window.document),
+  }) {
     this.window = window;
     this.bus = bus;
     this.store = store;
     this.sites = sites;
+    this.annotator = annotator;
   }
 
   /** Load the settings, annotate the page and keep it annotated from now on. */
@@ -67,7 +75,11 @@ export class ContentController {
    */
   sync(reason) {
     const url = this.window.location.href;
-    const state = syncDocument(this.window.document, url, this.#settings, this.#rates, this.sites);
+    const site = this.sites.find(url);
+    // Off every site, clean up whatever an earlier run left behind.
+    const state = site
+      ? this.annotator.annotate(site.priceSelectors, this.#settings, this.#rates)
+      : this.annotator.clear();
     const changed = !state.equals(this.#lastState);
     this.#lastState = state;
     if (changed) this.bus.send({ type: MSG.STATE_CHANGED, url, ...state.toJSON(), reason });

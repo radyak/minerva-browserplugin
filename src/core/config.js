@@ -4,7 +4,7 @@
  */
 
 /** Class of the sibling element the extension inserts (see content/content.css). */
-export const ANNOTATION_CLASS = "xbp-price-markup";
+export const ANNOTATION_CLASS = "minerva-effective-price";
 
 /** Shown in the sibling element when the target text holds no parsable price. */
 export const UNPARSABLE_TEXT = "n/a";

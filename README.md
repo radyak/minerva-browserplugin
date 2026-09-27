@@ -27,7 +27,8 @@ src/
     currency/      Currency (the supported currencies: code, symbol, tokens),
                    CurrencyDetector (finds the currency next to a price)
     price.js       price parsing, conversion, re-formatting
-    annotator.js   reads the element, inserts/updates the sibling
+    annotation/    PriceAnnotator (reads and prices the elements),
+                   AnnotationView (inserts/updates the sibling, idempotent)
     sites/         AuctionSite, SiteRegistry, sites.config.js (the targeted sites),
                    url-matcher.js (glob matching for URLs)
     messages.js    message types
@@ -68,7 +69,7 @@ General values shared by all sites, in [`src/core/config.js`](src/core/config.js
 
 | Constant | Current value | Meaning |
 | --- | --- | --- |
-| `ANNOTATION_CLASS` | `xbp-price-markup` | class of the inserted sibling element |
+| `ANNOTATION_CLASS` | `minerva-effective-price` | class of the inserted sibling element |
 | `UNPARSABLE_TEXT` | `n/a` | shown when the element's text holds no price |
 | `EXCHANGE_RATES_URL` | `https://api.frankfurter.dev/v1/latest` | exchange rates API (ECB reference rates, no key, CORS enabled) |
 
@@ -117,7 +118,7 @@ loaded (via `web-ext`), `npm run lint:firefox` runs the AMO validator.
 
 ## How it works
 
-- The content script asks `src/core/annotator.js` to reconcile the page whenever
+- The content script asks `PriceAnnotator` (`src/core/annotation/`) to reconcile the page whenever
   it loads, the DOM changes (`MutationObserver` on `childList` **and**
   `characterData`, so late-rendered elements and in-place price edits are both
   caught) or the background script reports a URL change.
@@ -126,7 +127,7 @@ loaded (via `web-ext`), `npm run lint:firefox` runs the AMO validator.
   `src/core/effective-price.js` (price converted into the selected currency,
   plus premium, plus shipment), and the result is inserted as a sibling right
   after the
-  price element (same tag, class `xbp-price-markup`, `aria-live="polite"`). The
+  price element (same tag, class `minerva-effective-price`, `aria-live="polite"`). The
   price element itself is never modified. Re-running is idempotent: the
   annotation is only written when its text actually changes, so the extension's
   own DOM writes cannot drive the observer in circles.
@@ -137,7 +138,7 @@ loaded (via `web-ext`), `npm run lint:firefox` runs the AMO validator.
   the page has not filled in yet), or its currency is missing, unsupported or
   has no exchange rate (`500`, `¥500`, foreign prices before any rates were
   saved), the sibling is still inserted and shows
-  `UNPARSABLE_TEXT` (`n/a`), flagged with `data-xbp-unparsable` and greyed out by
+  `UNPARSABLE_TEXT` (`n/a`), flagged with `data-minerva-unparsable` and greyed out by
   `content.css`. It turns back into a real amount as soon as the text becomes a
   price again, and vice versa. Annotations are only dropped when the URL stops
   matching.
