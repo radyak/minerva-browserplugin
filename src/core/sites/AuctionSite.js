@@ -1,8 +1,9 @@
+import { EffectivePriceCalculator } from "../pricing/EffectivePriceCalculator.js";
 import { matchPatternFor, urlOnOrigin } from "./url-matcher.js";
 
 /**
- * One auction site the extension acts on: where it is and which elements hold
- * the prices. Immutable.
+ * One auction site the extension acts on: where it is, which elements hold
+ * the prices and how the price to show is worked out. Immutable.
  */
 export class AuctionSite {
   /**
@@ -15,14 +16,18 @@ export class AuctionSite {
    *   run of characters, without it the path must match exactly.
    * @param {string[]} config.priceSelectors CSS selectors of the elements whose text content
    *   holds the price.
+   * @param {import("../pricing/PriceCalculator.js").PriceCalculator} [config.calculator] How the
+   *   price to show is worked out; the EffectivePriceCalculator unless the site's fees differ.
    */
-  constructor({ origin, paths, priceSelectors }) {
+  constructor({ origin, paths, priceSelectors, calculator = new EffectivePriceCalculator() }) {
     /** @readonly */
     this.origin = origin;
     /** @readonly */
     this.paths = Object.freeze([...paths]);
     /** @readonly */
     this.priceSelectors = Object.freeze([...priceSelectors]);
+    /** @readonly */
+    this.calculator = calculator;
     Object.freeze(this);
   }
 

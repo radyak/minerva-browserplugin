@@ -22,7 +22,7 @@ src/
   core/        browser-agnostic logic
     config.js      plugin-wide constants
     settings/      Settings (ranges, validation of the panel settings)
-    effective-price.js  the effective price calculation
+    pricing/       PriceCalculator (per site), EffectivePriceCalculator (the default)
     rates/         ExchangeRates (rates for one base, conversion), RatesClient (Frankfurter / ECB)
     currency/      Currency (the supported currencies: code, symbol, tokens),
                    CurrencyDetector (finds the currency next to a price)
@@ -61,6 +61,7 @@ The auction sites the extension acts on live in
 | `origin` | `https://www.biddr.com` | protocol + host (optionally a port), no path; `<protocol>//<host>/*` is baked into both manifests as the content script match pattern |
 | `paths` | `["/*"]` | path globs on that host, e.g. `/live/g-m-auction` or `/live/*`; the extension only acts while the page path matches one of them (`*` = any characters, otherwise exact; query and hash are ignored) |
 | `priceSelectors` | `[".current-bid"]` | the elements whose text holds the price |
+| `calculator` | *(optional)* | a `PriceCalculator` for sites whose fees differ; `EffectivePriceCalculator` by default |
 
 On a given URL the first site on the same origin with a matching `paths` entry
 is used. biddr.com and numisbids.com are configured.
@@ -123,8 +124,8 @@ loaded (via `web-ext`), `npm run lint:firefox` runs the AMO validator.
   `characterData`, so late-rendered elements and in-place price edits are both
   caught) or the background script reports a URL change.
 - For every match, the element's text is parsed by `src/core/price.js`, the
-  effective price is calculated by `calculateEffectivePrice()` in
-  `src/core/effective-price.js` (price converted into the selected currency,
+  effective price is calculated by the site's calculator - by default
+  `EffectivePriceCalculator` in `src/core/pricing/` (price converted into the selected currency,
   plus premium, plus shipment), and the result is inserted as a sibling right
   after the
   price element (same tag, class `minerva-effective-price`, `aria-live="polite"`). The

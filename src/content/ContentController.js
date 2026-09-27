@@ -78,7 +78,7 @@ export class ContentController {
     const site = this.sites.find(url);
     // Off every site, clean up whatever an earlier run left behind.
     const state = site
-      ? this.annotator.annotate(site.priceSelectors, this.#settings, this.#rates)
+      ? this.annotator.annotate(site, this.#settings, this.#rates)
       : this.annotator.clear();
     const changed = !state.equals(this.#lastState);
     this.#lastState = state;

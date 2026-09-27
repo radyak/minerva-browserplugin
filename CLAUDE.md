@@ -117,10 +117,12 @@ checked by `tsc` via `jsconfig.json`; build-time globals such as `__TARGET__` ar
   the channel: after saving, the panel sends `GET_ACTIVE_STATE`, the background forwards
   `SYNC_REQUEST`, and the content script **re-reads the settings on every `SYNC_REQUEST`** before
   syncing. `SettingsStore.onChange()` additionally updates the other open tabs.
-- The calculation lives in `calculateEffectivePrice(amount, currency, settings, rates)`
-  (`src/core/effective-price.js`) and is passed to `PriceAnnotator` as `calculate`, so it can
-  later be made per-site: `rates.convert(amount, currency) * (1 + auctionPremium / 100) +
-  shipment`, in `settings.currency`. `currency` is the input currency read from the price text,
+- **The calculation is per site:** every `AuctionSite` has a `calculator`, a `PriceCalculator`
+  (`src/core/pricing/`) whose `calculate(amount, currency, settings, rates)` `PriceAnnotator`
+  uses for that site's prices. The default is `EffectivePriceCalculator`:
+  `rates.convert(amount, currency) * (1 + auctionPremium / 100) + shipment`, in
+  `settings.currency`. A site with different fees gets a subclass, passed as `calculator` in
+  `sites.config.js`. `currency` is the input currency read from the price text,
   `rates` an `ExchangeRates` with `settings.currency` as base. A missing currency or rate returns
   `undefined`, which `convertPrice()` turns into `null` and the annotator into `n/a` — no
   guessing, no fallback rate.

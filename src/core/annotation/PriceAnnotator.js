@@ -1,5 +1,4 @@
 import { UNPARSABLE_TEXT } from "../config.js";
-import { calculateEffectivePrice } from "../effective-price.js";
 import { convertPrice } from "../price.js";
 import { TabState } from "../state/TabState.js";
 import { AnnotationView } from "./AnnotationView.js";
@@ -10,32 +9,26 @@ import { AnnotationView } from "./AnnotationView.js";
  * Browser agnostic: works against a plain Document.
  */
 export class PriceAnnotator {
-  /**
-   * @param {Document} doc
-   * @param {object} [options]
-   * @param {typeof calculateEffectivePrice} [options.calculate] the effective price
-   *   calculation; injectable so it can later differ per site
-   */
-  constructor(doc, { calculate = calculateEffectivePrice } = {}) {
+  /** @param {Document} doc */
+  constructor(doc) {
     this.view = new AnnotationView(doc);
-    this.calculate = calculate;
   }
 
   /**
-   * Insert or refresh the effective price next to every element matching
-   * `selectors`. An element whose text holds no parsable price - or one in a
-   * currency that is unknown or has no rate - still gets its sibling, showing
-   * UNPARSABLE_TEXT instead of an amount.
-   * @param {readonly string[]} selectors
+   * Insert or refresh the price worked out by `site.calculator` next to every
+   * element matching `site.priceSelectors`. An element whose text holds no
+   * parsable price - or one in a currency that is unknown or has no rate -
+   * still gets its sibling, showing UNPARSABLE_TEXT instead of an amount.
+   * @param {import("../sites/AuctionSite.js").AuctionSite} site
    * @param {import("../settings/Settings.js").Settings} settings
    * @param {import("../rates/ExchangeRates.js").ExchangeRates} rates base `settings.currency`
    * @returns {TabState} active, with the counts after the run
    */
-  annotate(selectors, settings, rates) {
+  annotate(site, settings, rates) {
     let annotated = 0;
     let unparsable = 0;
 
-    const matches = this.view.query(selectors);
+    const matches = this.view.query(site.priceSelectors);
     const wrappers = findWrappers(matches);
     for (const element of matches) {
       if (wrappers.has(element)) {
@@ -47,7 +40,7 @@ export class PriceAnnotator {
       const source = this.view.priceText(element);
       const converted = convertPrice(
         source,
-        (amount, currency) => this.calculate(amount, currency, settings, rates),
+        (amount, currency) => site.calculator.calculate(amount, currency, settings, rates),
         settings.currency,
       );
       this.view.show(element, {

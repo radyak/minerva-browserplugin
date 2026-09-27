@@ -6,6 +6,7 @@ import { ContentController } from "../src/content/ContentController.js";
 import { ANNOTATION_CLASS } from "../src/core/config.js";
 import { MSG } from "../src/core/messages.js";
 import { ExchangeRates } from "../src/core/rates/ExchangeRates.js";
+import { PriceCalculator } from "../src/core/pricing/PriceCalculator.js";
 import { Settings } from "../src/core/settings/Settings.js";
 import { AuctionSite } from "../src/core/sites/AuctionSite.js";
 import { SiteRegistry } from "../src/core/sites/SiteRegistry.js";
@@ -125,4 +126,33 @@ test("cleans up what an earlier run left behind off the sites", async () => {
   window.history.pushState({}, "", "/account");
   assert.equal(controller.sync("test").active, false);
   assert.equal(annotation(), undefined);
+});
+
+test("each site uses its own calculator", async () => {
+  class Flat extends PriceCalculator {
+    calculate() {
+      return 42;
+    }
+  }
+  const sites = new SiteRegistry([
+    new AuctionSite({ origin: "https://shop.test", paths: ["/*"], priceSelectors: [".price"] }),
+    new AuctionSite({
+      origin: "https://flat.test",
+      paths: ["/*"],
+      priceSelectors: [".price"],
+      calculator: new Flat(),
+    }),
+  ]);
+  const annotationOn = async (url) => {
+    const { window } = new JSDOM(`<span class="price">500 USD</span>`, { url });
+    await new ContentController({
+      window: /** @type {any} */ (window),
+      bus: fakeBus(),
+      store: fakeStore(EUR, INTO_EUR),
+      sites,
+    }).start();
+    return window.document.querySelector(`.${ANNOTATION_CLASS}`)?.textContent;
+  };
+  assert.equal(await annotationOn("https://shop.test/lot/1"), "310 EUR");
+  assert.equal(await annotationOn("https://flat.test/lot/1"), "42 EUR");
 });

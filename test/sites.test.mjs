@@ -3,6 +3,7 @@ import test from "node:test";
 
 import { JSDOM } from "jsdom";
 
+import { EffectivePriceCalculator } from "../src/core/pricing/EffectivePriceCalculator.js";
 import { AuctionSite } from "../src/core/sites/AuctionSite.js";
 import { SiteRegistry } from "../src/core/sites/SiteRegistry.js";
 import { SITES } from "../src/core/sites/sites.config.js";
@@ -117,6 +118,18 @@ test("isTarget tells whether any site matches", () => {
 test("collects one match pattern per host", () => {
   assert.deepEqual(TEST_SITES.matchPatterns(), ["https://shop.test/*", "https://other.test/*"]);
   assert.equal(SHOP.matchPattern, "https://shop.test/*");
+});
+
+test("sites use the effective price calculation unless configured otherwise", () => {
+  assert.ok(SHOP.calculator instanceof EffectivePriceCalculator);
+  const calculator = new EffectivePriceCalculator();
+  const site = new AuctionSite({
+    origin: "https://x.test",
+    paths: ["/*"],
+    priceSelectors: [".p"],
+    calculator,
+  });
+  assert.equal(site.calculator, calculator);
 });
 
 test("sites are immutable", () => {
