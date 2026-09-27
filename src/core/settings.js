@@ -6,14 +6,11 @@ import { Currency } from "./currency/Currency.js";
  * and how to turn stored values into values the calculation can rely on.
  */
 
-/** Currencies the user can pick from; the first one is the default. */
-export const CURRENCIES = Currency.CODES;
-
 /**
  * @typedef {object} Settings
  * @property {number} auctionPremium Buyer's premium in percent (0-100).
  * @property {number} shipment Flat shipping cost per item in `currency` (>= 0).
- * @property {string} currency One of CURRENCIES.
+ * @property {string} currency ISO code, one of `Currency.CODES`.
  */
 
 /** browser.storage.local key of every setting. */
@@ -27,7 +24,7 @@ export const SETTINGS_STORAGE_KEYS = Object.freeze({
 export const DEFAULT_SETTINGS = Object.freeze({
   auctionPremium: 0,
   shipment: 0,
-  currency: CURRENCIES[0],
+  currency: Currency.CODES[0],
 });
 
 /** Accepted range per numeric setting, mirroring the panel inputs. */
@@ -46,7 +43,7 @@ export function readSettings(stored) {
     const value = raw === null || raw === "" ? NaN : Number(raw);
     if (Number.isFinite(value) && value >= min && value <= max) settings[name] = value;
   }
-  const currency = stored?.[SETTINGS_STORAGE_KEYS.currency];
-  if (typeof currency === "string" && CURRENCIES.includes(currency)) settings.currency = currency;
+  const currency = Currency.of(stored?.[SETTINGS_STORAGE_KEYS.currency]);
+  if (currency) settings.currency = currency.code;
   return settings;
 }

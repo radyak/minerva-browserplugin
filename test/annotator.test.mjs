@@ -10,6 +10,7 @@ import {
   removeAnnotations,
   syncDocument,
 } from "../src/core/annotator.js";
+import { ExchangeRates } from "../src/core/rates/ExchangeRates.js";
 
 /**
  * Everything is tested against platforms of our own so the suite keeps working
@@ -19,7 +20,7 @@ import {
 const SELECTOR = ".price";
 const SETTINGS = { auctionPremium: 0, shipment: 100, currency: "EUR" };
 // Into EUR; GBP deliberately has no rate.
-const RATES = { EUR: 1, USD: 0.5 };
+const RATES = new ExchangeRates("EUR", "", { USD: 2 });
 const TARGET_URL = "https://shop.test/lot/1";
 const OTHER_URL = "https://not-the-target.invalid/";
 
@@ -143,7 +144,7 @@ test("a custom calculation replaces the default one", () => {
     settings: SETTINGS,
     rates: RATES,
     calculate: (amount, currency, settings, rates) =>
-      amount * rates[currency] * 2 + settings.shipment,
+      rates.convert(amount, currency) * 2 + settings.shipment,
   });
   assert.equal(annotations(doc)[0].textContent, "1100 EUR");
 });

@@ -23,7 +23,7 @@ src/
     config.js      target URLs and selectors per platform
     settings.js    storage keys + validation of the panel settings
     effective-price.js  the effective price calculation
-    exchange-rates.js   fetching exchange rates (Frankfurter / ECB)
+    rates/         ExchangeRates (rates for one base, conversion), RatesClient (Frankfurter / ECB)
     currency/      Currency (the supported currencies: code, symbol, tokens),
                    CurrencyDetector (finds the currency next to a price)
     price.js       price parsing, conversion, re-formatting

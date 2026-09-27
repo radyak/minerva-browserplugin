@@ -3,18 +3,22 @@ import test from "node:test";
 
 import { calculateEffectivePrice } from "../src/core/effective-price.js";
 import { convertPrice } from "../src/core/price.js";
+import { ExchangeRates } from "../src/core/rates/ExchangeRates.js";
 import { DEFAULT_SETTINGS } from "../src/core/settings.js";
 
 const EUR_SETTINGS = { auctionPremium: 0, shipment: 0, currency: "EUR" };
 // Into EUR; GBP deliberately has no rate.
-const INTO_EUR = { EUR: 1, USD: 0.5 };
+const INTO_EUR = new ExchangeRates("EUR", "", { USD: 2 });
 
 const calculate = (amount, currency, settings = {}) =>
   calculateEffectivePrice(amount, currency, { ...EUR_SETTINGS, ...settings }, INTO_EUR);
 
 test("returns the amount unchanged without premium, shipment or conversion", () => {
   assert.equal(calculate(500, "EUR"), 500);
-  assert.equal(calculateEffectivePrice(500, "EUR", DEFAULT_SETTINGS, { EUR: 1 }), 500);
+  assert.equal(
+    calculateEffectivePrice(500, "EUR", DEFAULT_SETTINGS, ExchangeRates.empty("EUR")),
+    500,
+  );
 });
 
 test("converts with the rate of the input currency", () => {
@@ -48,6 +52,8 @@ test("is undefined without currency or rate", () => {
 });
 
 test("is undefined for a rate that is not a finite number", () => {
-  assert.equal(calculateEffectivePrice(500, "USD", EUR_SETTINGS, { USD: NaN }), undefined);
-  assert.equal(calculateEffectivePrice(500, "USD", EUR_SETTINGS, { USD: Infinity }), undefined);
+  for (const rate of [NaN, Infinity, 0]) {
+    const rates = new ExchangeRates("EUR", "", { USD: rate });
+    assert.equal(calculateEffectivePrice(500, "USD", EUR_SETTINGS, rates), undefined, `${rate}`);
+  }
 });

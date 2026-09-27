@@ -99,17 +99,21 @@ checked by `tsc` via `jsconfig.json`; build-time globals such as `__TARGET__` ar
   syncing. `storage.onChanged` additionally updates the other open tabs.
 - The calculation lives in `calculateEffectivePrice(amount, currency, settings, rates)`
   (`src/core/effective-price.js`) and is passed to `annotateElements()` as `calculate`, so it can
-  later be made per-platform: `amount * rates[currency] * (1 + auctionPremium / 100) + shipment`,
-  in `settings.currency`. `currency` is the input currency read from the price text, `rates` is a
-  `ConversionRates` map (input currency → factor into the output currency). A missing currency
-  or rate returns `undefined`, which `convertPrice()` turns into `null` and the annotator into
-  `n/a` — no guessing, no fallback rate.
-- `rates` comes from `conversionRates(storedExchangeRates, settings.currency)`: the panel stores
-  the fetched `ExchangeRates` (for base = selected currency) under `EXCHANGE_RATES_STORAGE_KEY`
-  on Save and whenever it opens; the content script inverts them. Stored rates for another base
-  are ignored, so only the output currency itself (1:1) is known until matching rates exist.
-- Exchange rates are fetched by the panel only (`src/core/exchange-rates.js`, plain `fetch` with
-  an injectable fetch function for tests) from Frankfurter (`EXCHANGE_RATES_URL` in
+  later be made per-platform: `rates.convert(amount, currency) * (1 + auctionPremium / 100) +
+  shipment`, in `settings.currency`. `currency` is the input currency read from the price text,
+  `rates` an `ExchangeRates` with `settings.currency` as base. A missing currency or rate returns
+  `undefined`, which `convertPrice()` turns into `null` and the annotator into `n/a` — no
+  guessing, no fallback rate.
+- **`ExchangeRates` (`src/core/rates/ExchangeRates.js`) is the only place that knows the rate
+  direction:** `rates[code]` is "1 base = x code", `factorFrom(code)`/`convert()` go the other way
+  (code → base). It drops invalid entries on construction and is immutable.
+- The panel stores the fetched rates (base = selected currency) as `toJSON()` under
+  `EXCHANGE_RATES_STORAGE_KEY` on Save and whenever it opens; the content script reads them with
+  `ExchangeRates.fromStorage(stored, settings.currency)`. Stored rates for another base are
+  ignored (`ExchangeRates.empty()`), so only the output currency itself (1:1) is known until
+  matching rates exist.
+- Exchange rates are fetched by the panel only (`RatesClient` in `src/core/rates/`, plain `fetch`
+  with an injectable fetch function for tests) from Frankfurter (`EXCHANGE_RATES_URL` in
   `config.js`). It sends `Access-Control-Allow-Origin: *`, so no `host_permissions` are needed.
   The panel renders only the latest request, so fast currency switches cannot show stale rates.
 

@@ -1,6 +1,6 @@
 import { MSG } from "../core/messages.js";
 import { syncDocument } from "../core/annotator.js";
-import { conversionRates, EXCHANGE_RATES_STORAGE_KEY } from "../core/exchange-rates.js";
+import { EXCHANGE_RATES_STORAGE_KEY, ExchangeRates } from "../core/rates/ExchangeRates.js";
 import { readSettings, SETTINGS_STORAGE_KEYS } from "../core/settings.js";
 import { ext, sendMessage, storageGetMany } from "../platform/browser.js";
 
@@ -11,7 +11,7 @@ import { ext, sendMessage, storageGetMany } from "../platform/browser.js";
 
 let lastState = null;
 let settings = readSettings(undefined);
-let rates = conversionRates(undefined, settings.currency);
+let rates = ExchangeRates.empty(settings.currency);
 
 /** Everything the calculation reads from storage. */
 const STORAGE_KEYS = [...Object.values(SETTINGS_STORAGE_KEYS), EXCHANGE_RATES_STORAGE_KEY];
@@ -19,7 +19,7 @@ const STORAGE_KEYS = [...Object.values(SETTINGS_STORAGE_KEYS), EXCHANGE_RATES_ST
 async function loadSettings() {
   const stored = await storageGetMany(STORAGE_KEYS);
   settings = readSettings(stored);
-  rates = conversionRates(stored[EXCHANGE_RATES_STORAGE_KEY], settings.currency);
+  rates = ExchangeRates.fromStorage(stored[EXCHANGE_RATES_STORAGE_KEY], settings.currency);
 }
 
 function sync(reason) {

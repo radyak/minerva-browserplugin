@@ -63,7 +63,7 @@ function createAnnotation(doc, element) {
  * @param {object} options
  * @param {string[]} options.selectors
  * @param {import("./settings.js").Settings} options.settings
- * @param {import("./exchange-rates.js").ConversionRates} options.rates into `settings.currency`
+ * @param {import("./rates/ExchangeRates.js").ExchangeRates} options.rates base `settings.currency`
  * @param {typeof calculateEffectivePrice} [options.calculate]
  * @returns {{annotated: number, unparsable: number}} counts after the run
  */
@@ -153,7 +153,7 @@ export function isTargetUrl(url, platforms = PLATFORMS) {
  * @param {Document} doc
  * @param {string} url
  * @param {import("./settings.js").Settings} settings
- * @param {import("./exchange-rates.js").ConversionRates} rates into `settings.currency`
+ * @param {import("./rates/ExchangeRates.js").ExchangeRates} rates base `settings.currency`
  * @param {import("./config.js").Platform[]} [platforms]
  * @returns {{active: boolean, annotated: number, unparsable: number}}
  */

@@ -11,11 +11,12 @@
  * @param {number} amount price as read from the page
  * @param {string | undefined} currency currency `amount` is in, as read from the page
  * @param {import("./settings.js").Settings} settings
- * @param {import("./exchange-rates.js").ConversionRates} rates into `settings.currency`
+ * @param {import("./rates/ExchangeRates.js").ExchangeRates | undefined} rates with
+ *   `settings.currency` as base
  * @returns {number | undefined} undefined when `currency` is unknown or has no rate
  */
 export function calculateEffectivePrice(amount, currency, settings, rates) {
-  const rate = currency === undefined ? undefined : rates?.[currency];
-  if (!Number.isFinite(rate)) return undefined;
-  return amount * rate * (1 + settings.auctionPremium / 100) + settings.shipment;
+  const converted = rates?.convert(amount, currency);
+  if (converted === undefined) return undefined;
+  return converted * (1 + settings.auctionPremium / 100) + settings.shipment;
 }

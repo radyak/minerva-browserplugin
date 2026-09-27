@@ -1,6 +1,7 @@
 import { Currency } from "../core/currency/Currency.js";
 import { MSG } from "../core/messages.js";
-import { EXCHANGE_RATES_STORAGE_KEY, fetchExchangeRates } from "../core/exchange-rates.js";
+import { EXCHANGE_RATES_STORAGE_KEY } from "../core/rates/ExchangeRates.js";
+import { RatesClient } from "../core/rates/RatesClient.js";
 import { readSettings, SETTINGS_STORAGE_KEYS } from "../core/settings.js";
 import { ext, sendMessage, storageGetMany, storageSet } from "../platform/browser.js";
 
@@ -51,10 +52,11 @@ function renderRates({ base, date, rates }) {
   ratesInfo.classList.remove("text-danger");
 }
 
+const ratesClient = new RatesClient();
 let ratesRequest = 0;
 /**
  * Load and show the rates of `base`; only the latest request is rendered.
- * @returns {Promise<import("../core/exchange-rates.js").ExchangeRates | null>}
+ * @returns {Promise<import("../core/rates/ExchangeRates.js").ExchangeRates | null>}
  */
 async function loadRates(base) {
   const request = ++ratesRequest;
@@ -62,7 +64,7 @@ async function loadRates(base) {
   ratesInfo.textContent = "Loading…";
   ratesInfo.classList.remove("text-danger");
   try {
-    const rates = await fetchExchangeRates(base);
+    const rates = await ratesClient.fetch(base);
     if (request === ratesRequest) renderRates(rates);
     return rates;
   } catch {
@@ -90,7 +92,7 @@ function applyCurrency() {
  */
 async function storeRates(code) {
   const rates = await selectedRates;
-  if (rates?.base === code) await storageSet(EXCHANGE_RATES_STORAGE_KEY, rates);
+  if (rates?.base === code) await storageSet(EXCHANGE_RATES_STORAGE_KEY, rates.toJSON());
 }
 
 currency.replaceChildren(...Currency.CODES.map((code) => new Option(code, code)));
