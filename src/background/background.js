@@ -1,49 +1,19 @@
-import { MSG } from "../core/messages.js";
-import { isTargetUrl } from "../core/annotator.js";
-import { ext, getActiveTab, sendMessageToTab } from "../platform/browser.js";
-import { registerPanelOpener } from "../platform/panel.js";
+import { ext } from "../browser/ext.js";
+import { MessageBus } from "../browser/MessageBus.js";
+import { SettingsStore } from "../browser/SettingsStore.js";
+import { registerPanelOpener } from "../browser/side-panel.js";
+import { BackgroundController } from "./BackgroundController.js";
+import { RatesService } from "./RatesService.js";
 
-/**
- * Background script / service worker: owns the toolbar button, watches tab
- * navigation and forwards sync requests. Browser specific parts are delegated
- * to ../platform.
- */
+/** Background script / service worker entry point: wires the BackgroundController. */
 
 registerPanelOpener();
 
-function updateBadge(tabId, active) {
-  ext.action?.setBadgeText({ tabId, text: active ? "ON" : "" });
-  if (active) {
-    ext.action?.setBadgeBackgroundColor({ tabId, color: "#dc3545" });
-  }
-}
+const store = new SettingsStore(ext);
 
-ext.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  // `url` changes on real navigations and on history.pushState alike.
-  if (!changeInfo.url && changeInfo.status !== "complete") return;
-  const url = changeInfo.url ?? tab?.url;
-  updateBadge(tabId, isTargetUrl(url));
-  sendMessageToTab(tabId, { type: MSG.SYNC_REQUEST });
-});
-
-ext.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message?.type === MSG.STATE_CHANGED && sender.tab?.id != null) {
-    updateBadge(sender.tab.id, message.active);
-    return false;
-  }
-
-  if (message?.type === MSG.GET_ACTIVE_STATE) {
-    getActiveTab()
-      .then(async (tab) => {
-        if (!tab) return { active: false, url: null };
-        const state = await sendMessageToTab(tab.id, { type: MSG.SYNC_REQUEST });
-        return (
-          state ?? { active: isTargetUrl(tab.url), url: tab.url ?? null, annotated: 0, unparsable: 0 }
-        );
-      })
-      .then(sendResponse);
-    return true; // keep the message channel open for the async response
-  }
-
-  return false;
-});
+new BackgroundController({
+  ext,
+  bus: new MessageBus(ext),
+  store,
+  rates: new RatesService({ store }),
+}).start();

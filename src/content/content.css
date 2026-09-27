@@ -3,13 +3,13 @@
  * styles are never touched: the annotation inherits the price element's
  * typography and only stands out through its colour.
  */
-.xbp-price-markup {
+.minerva-effective-price {
   color: #dc3545 !important;
   text-align: center;
 }
 
 /* No price could be read out of the source element. */
-.xbp-price-markup[data-xbp-unparsable] {
+.minerva-effective-price[data-minerva-unparsable] {
   color: #6c757d !important;
   font-style: italic !important;
 }

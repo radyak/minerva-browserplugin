@@ -1,4 +1,5 @@
-import { currencyNotation, findCurrency } from "./currency.js";
+import { Currency } from "./currency/Currency.js";
+import { CurrencyDetector } from "./currency/CurrencyDetector.js";
 
 /**
  * Parsing, converting and re-formatting of prices found in page text.
@@ -9,8 +10,11 @@ import { currencyNotation, findCurrency } from "./currency.js";
  * Only the currency itself is swapped when the result is in another one.
  */
 
-/** First number in the string, including grouping characters. */
-const NUMBER_RE = /-?\d(?:[\d.,   ']*\d)?/;
+/**
+ * First number in the string, including grouping characters (".", ",", "'", space,
+ * narrow no-break space U+202F and no-break space U+00A0).
+ */
+const NUMBER_RE = /-?\d(?:[\d.,\u202f\u00a0 ']*\d)?/;
 
 /**
  * Work out which of "." and "," separates the decimals.
@@ -38,7 +42,7 @@ function detectDecimalSeparator(raw) {
 
 /** Which character groups the thousands, if any is used at all. */
 function detectGroupSeparator(raw, decimalSeparator) {
-  const used = new Set(raw.match(/[.,   ']/g) ?? []);
+  const used = new Set(raw.match(/[.,\u202f\u00a0 ']/g) ?? []);
   if (decimalSeparator) used.delete(decimalSeparator);
   const [separator] = used;
   return separator ?? null;
@@ -57,15 +61,20 @@ function detectGroupSeparator(raw, decimalSeparator) {
  */
 
 /**
- * @typedef {import("./currency.js").CurrencyMatch & {side: "prefix" | "suffix"}} PriceCurrency
+ * @typedef {import("./currency/CurrencyDetector.js").CurrencyMatch & {side: "prefix" | "suffix"}} PriceCurrency
  *   `index` is the position of the token inside `prefix` or `suffix`
  */
 
-/** The currency closest to the number, before it or else after it. */
+const detector = new CurrencyDetector();
+
+/**
+ * The currency closest to the number, before it or else after it.
+ * @returns {PriceCurrency | null}
+ */
 function detectCurrency(prefix, suffix) {
-  const before = findCurrency(prefix, "before");
+  const before = detector.find(prefix, "before");
   if (before) return { ...before, side: "prefix" };
-  const after = findCurrency(suffix, "after");
+  const after = detector.find(suffix, "after");
   return after ? { ...after, side: "suffix" } : null;
 }
 
@@ -117,8 +126,6 @@ function group(integerPart, separator) {
   return sign + digits.replace(/\B(?=(\d{3})+(?!\d))/g, separator);
 }
 
-const isCode = (text) => /^[A-Z]{3}$/.test(text);
-
 /**
  * Prefix and suffix of `price` with its currency replaced by `currency`.
  * A symbol touching the number that turns into a code gets a space ("€5" ->
@@ -129,8 +136,8 @@ function swapCurrency(price, currency) {
   if (!currency || !price.currency || price.currency.code === currency) return { prefix, suffix };
 
   const { token, index, side } = price.currency;
-  let notation = currencyNotation(token, currency);
-  const spaced = isCode(notation) && !isCode(token);
+  let notation = Currency.of(currency)?.notationFor(token) ?? currency;
+  const spaced = Currency.isCode(notation) && !Currency.isCode(token);
   if (side === "prefix") {
     if (spaced && index + token.length === prefix.length) notation += " ";
     prefix = prefix.slice(0, index) + notation + prefix.slice(index + token.length);

@@ -4,15 +4,14 @@ import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { PLATFORMS } from "../src/core/config.js";
-import { matchPatternFor } from "../src/core/url-matcher.js";
+import { SITES } from "../src/core/sites/sites.config.js";
 
 /**
  * Builds one directory per browser target under dist/.
  *
  * Everything shared lives in src/, everything browser specific in
  * platforms/<target>/manifest.json plus the `__TARGET__` build constant that
- * src/platform/panel.js branches on.
+ * src/browser/side-panel.js branches on.
  */
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -30,8 +29,8 @@ for (const target of targets) {
   }
 }
 
-/** Content script match patterns, one per platform (deduplicated). */
-const CONTENT_MATCHES = [...new Set(PLATFORMS.map((platform) => matchPatternFor(platform.platformUrl)))];
+/** Content script match patterns, one per auction site host (deduplicated). */
+const CONTENT_MATCHES = SITES.matchPatterns();
 
 const pkg = JSON.parse(await readFile(path.join(ROOT, "package.json"), "utf8"));
 
@@ -55,7 +54,11 @@ async function copyStaticAssets(target) {
   await mkdir(path.join(out, "panel"), { recursive: true });
   await mkdir(path.join(out, "vendor"), { recursive: true });
 
-  await cp(path.join(ROOT, "icons"), path.join(out, "icons"), { recursive: true });
+  // Only the generated icons - icons/base.png is the source for `npm run icons`.
+  await cp(path.join(ROOT, "icons"), path.join(out, "icons"), {
+    recursive: true,
+    filter: (source) => !source.endsWith(".png") || /icon-\d+\.png$/.test(source),
+  });
   await cp(path.join(ROOT, "src/content/content.css"), path.join(out, "content.css"));
   await cp(path.join(ROOT, "src/panel/panel.html"), path.join(out, "panel/panel.html"));
   await cp(path.join(ROOT, "src/panel/panel.css"), path.join(out, "panel/panel.css"));

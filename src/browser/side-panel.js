@@ -1,4 +1,4 @@
-import { ext, TARGET } from "./browser.js";
+import { ext, TARGET } from "./ext.js";
 
 /**
  * The one place where Chrome and Firefox really diverge: Chrome has

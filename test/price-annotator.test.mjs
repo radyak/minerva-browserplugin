@@ -2,39 +2,17 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { JSDOM } from "jsdom";
 
-import { ANNOTATION_CLASS, PLATFORMS, UNPARSABLE_TEXT } from "../src/core/config.js";
-import {
-  annotateElements,
-  findPlatform,
-  isTargetUrl,
-  removeAnnotations,
-  syncDocument,
-} from "../src/core/annotator.js";
+import { ANNOTATION_CLASS, UNPARSABLE_TEXT } from "../src/core/config.js";
+import { PriceAnnotator } from "../src/core/annotation/PriceAnnotator.js";
+import { ExchangeRates } from "../src/core/rates/ExchangeRates.js";
+import { PriceCalculator } from "../src/core/pricing/PriceCalculator.js";
+import { Settings } from "../src/core/settings/Settings.js";
+import { AuctionSite } from "../src/core/sites/AuctionSite.js";
 
-/**
- * Everything is tested against platforms of our own so the suite keeps working
- * whatever PLATFORMS is configured; the real configuration only gets a shape
- * check at the end.
- */
 const SELECTOR = ".price";
-const SETTINGS = { auctionPremium: 0, shipment: 100, currency: "EUR" };
+const SETTINGS = new Settings({ auctionPremium: 0, shipment: 100, currency: "EUR" });
 // Into EUR; GBP deliberately has no rate.
-const RATES = { EUR: 1, USD: 0.5 };
-const TARGET_URL = "https://shop.test/lot/1";
-const OTHER_URL = "https://not-the-target.invalid/";
-
-const TEST_PLATFORMS = [
-  {
-    platformUrl: "https://shop.test",
-    platformPaths: ["/lot/*", "/search"],
-    targetSelectors: [SELECTOR],
-  },
-  {
-    platformUrl: "https://other.test/",
-    platformPaths: ["/*"],
-    targetSelectors: [".other"],
-  },
-];
+const RATES = new ExchangeRates("EUR", "", { USD: 2 });
 
 function documentWithPrice(price = "500 EUR") {
   return new JSDOM(`
@@ -45,7 +23,22 @@ function documentWithPrice(price = "500 EUR") {
   `).window.document;
 }
 
-const annotate = (doc) => annotateElements(doc, { selectors: [SELECTOR], settings: SETTINGS, rates: RATES });
+/**
+ * Annotate `doc`'s prices as a site with these selectors (and calculator); the resulting counts.
+ * @param {Document} doc
+ * @param {string[]} [priceSelectors]
+ * @param {import("../src/core/pricing/PriceCalculator.js").PriceCalculator} [calculator]
+ */
+const annotate = (doc, priceSelectors = [SELECTOR], calculator = undefined) => {
+  const site = new AuctionSite({
+    origin: "https://shop.test",
+    paths: ["/*"],
+    priceSelectors,
+    calculator,
+  });
+  const { annotated, unparsable } = new PriceAnnotator(doc).annotate(site, SETTINGS, RATES);
+  return { annotated, unparsable };
+};
 const annotations = (doc) => [...doc.querySelectorAll(`.${ANNOTATION_CLASS}`)];
 
 test("appends the effective price as a sibling of the target element", () => {
@@ -72,7 +65,7 @@ for (const price of ["GBP 500", "500", "¥500"]) {
     const doc = documentWithPrice(price);
     assert.deepEqual(annotate(doc), { annotated: 1, unparsable: 1 });
     assert.equal(annotations(doc)[0].textContent, UNPARSABLE_TEXT);
-    assert.equal(annotations(doc)[0].dataset.xbpUnparsable, "true");
+    assert.equal(annotations(doc)[0].dataset.minervaUnparsable, "true");
   });
 }
 
@@ -95,7 +88,7 @@ test("falls back to n/a when the text holds no price", () => {
 
   const [annotation] = annotations(doc);
   assert.equal(annotation.textContent, UNPARSABLE_TEXT);
-  assert.equal(annotation.dataset.xbpUnparsable, "true");
+  assert.equal(annotation.dataset.minervaUnparsable, "true");
   assert.equal(doc.querySelector(SELECTOR).nextElementSibling, annotation);
 });
 
@@ -108,12 +101,12 @@ test("switches between n/a and a price as the text changes", () => {
   assert.deepEqual(annotate(doc), { annotated: 1, unparsable: 1 });
   assert.equal(annotations(doc).length, 1, "no second annotation is inserted");
   assert.equal(annotation.textContent, UNPARSABLE_TEXT);
-  assert.equal(annotation.dataset.xbpUnparsable, "true");
+  assert.equal(annotation.dataset.minervaUnparsable, "true");
 
   doc.querySelector(SELECTOR).textContent = "700 EUR";
   assert.deepEqual(annotate(doc), { annotated: 1, unparsable: 0 });
   assert.equal(annotation.textContent, "800 EUR");
-  assert.equal(annotation.dataset.xbpUnparsable, undefined, "the marker attribute is cleared");
+  assert.equal(annotation.dataset.minervaUnparsable, undefined, "the marker attribute is cleared");
 });
 
 for (const price of ["500 EUR", "sold out"]) {
@@ -135,14 +128,14 @@ for (const price of ["500 EUR", "sold out"]) {
   });
 }
 
-test("a custom calculation replaces the default one", () => {
+test("the site's calculator works out the price", () => {
+  class Doubling extends PriceCalculator {
+    calculate(amount, currency, settings, rates) {
+      return rates.convert(amount, currency) * 2 + settings.shipment;
+    }
+  }
   const doc = documentWithPrice();
-  annotateElements(doc, {
-    selectors: [SELECTOR],
-    settings: SETTINGS,
-    rates: RATES,
-    calculate: (amount, currency, settings, rates) => amount * rates[currency] * 2 + settings.shipment,
-  });
+  annotate(doc, [SELECTOR], new Doubling());
   assert.equal(annotations(doc)[0].textContent, "1100 EUR");
 });
 
@@ -180,94 +173,35 @@ test("a wrapper's annotation from an earlier run is removed", () => {
 
 test("our annotations inside a matched element are not part of its price", () => {
   const doc = documentWithPrice("500 EUR");
-  doc.querySelector(SELECTOR).insertAdjacentHTML(
-    "beforeend",
-    `<span class="${ANNOTATION_CLASS}">999 USD</span>`,
-  );
+  doc
+    .querySelector(SELECTOR)
+    .insertAdjacentHTML("beforeend", `<span class="${ANNOTATION_CLASS}">999 USD</span>`);
   annotate(doc);
   assert.equal(doc.querySelector(SELECTOR).nextElementSibling.textContent, "600 EUR");
 });
 
-test("removeAnnotations cleans up everything", () => {
+test("clear removes every annotation", () => {
   const doc = documentWithPrice();
   annotate(doc);
-  assert.equal(removeAnnotations(doc), 1);
+  assert.equal(new PriceAnnotator(doc).clear().active, false);
   assert.equal(annotations(doc).length, 0);
+});
+
+test("reports an active state with the counts", () => {
+  const site = new AuctionSite({
+    origin: "https://shop.test",
+    paths: ["/*"],
+    priceSelectors: [SELECTOR],
+  });
+  const state = new PriceAnnotator(documentWithPrice()).annotate(site, SETTINGS, RATES);
+  assert.deepEqual(state.toJSON(), { active: true, annotated: 1, unparsable: 0 });
 });
 
 test("an element matched by several selectors is annotated once", () => {
   const doc = documentWithPrice();
-  const result = annotateElements(doc, {
-    selectors: [SELECTOR, "#root span"],
-    settings: SETTINGS,
-    rates: RATES,
-  });
-  assert.deepEqual(result, { annotated: 2, unparsable: 0 });
+  assert.deepEqual(annotate(doc, [SELECTOR, "#root span"]), { annotated: 2, unparsable: 0 });
   assert.deepEqual(
     annotations(doc).map((annotation) => annotation.textContent),
     ["600 EUR", "1099 EUR"],
   );
-});
-
-test("findPlatform picks the platform whose paths match the url", () => {
-  assert.equal(findPlatform(TARGET_URL, TEST_PLATFORMS), TEST_PLATFORMS[0]);
-  // Query and hash are not part of the path.
-  assert.equal(findPlatform("https://shop.test/search?q=coin#top", TEST_PLATFORMS), TEST_PLATFORMS[0]);
-  assert.equal(findPlatform("https://shop.test/search/saved", TEST_PLATFORMS), null);
-  assert.equal(findPlatform("https://other.test/x", TEST_PLATFORMS), TEST_PLATFORMS[1]);
-  // Inside platformUrl, but outside every platformPaths entry.
-  assert.equal(findPlatform("https://shop.test/account", TEST_PLATFORMS), null);
-  assert.equal(findPlatform(OTHER_URL, TEST_PLATFORMS), null);
-  assert.equal(findPlatform(undefined, TEST_PLATFORMS), null);
-  assert.equal(isTargetUrl(TARGET_URL, TEST_PLATFORMS), true);
-  assert.equal(isTargetUrl(OTHER_URL, TEST_PLATFORMS), false);
-});
-
-test("sync uses the selectors of the matching platform", () => {
-  const doc = documentWithPrice();
-  assert.deepEqual(syncDocument(doc, "https://other.test/", SETTINGS, RATES, TEST_PLATFORMS), {
-    active: true,
-    annotated: 1,
-    unparsable: 0,
-  });
-  assert.equal(doc.querySelector(".other").nextElementSibling.textContent, "1099 EUR");
-  assert.equal(doc.querySelector(SELECTOR).nextElementSibling.className, "other");
-});
-
-test("sync only runs on the configured url", () => {
-  const doc = documentWithPrice();
-  assert.equal(syncDocument(doc, TARGET_URL, SETTINGS, RATES, TEST_PLATFORMS).active, true);
-  assert.equal(syncDocument(doc, OTHER_URL, SETTINGS, RATES, TEST_PLATFORMS).active, false);
-
-  // Whatever an earlier run left behind is cleaned up off the target URL.
-  doc.querySelector(SELECTOR).insertAdjacentHTML(
-    "afterend",
-    `<span class="${ANNOTATION_CLASS}">600 EUR</span>`,
-  );
-  assert.deepEqual(syncDocument(doc, OTHER_URL, SETTINGS, RATES, TEST_PLATFORMS), {
-    active: false,
-    annotated: 0,
-    unparsable: 0,
-  });
-  assert.equal(annotations(doc).length, 0);
-});
-
-test("every configured platform is well formed", () => {
-  assert.ok(PLATFORMS.length > 0);
-  for (const platform of PLATFORMS) {
-    const name = platform.platformUrl;
-    const url = new URL(platform.platformUrl);
-    assert.ok(
-      url.pathname === "/" && !url.search && !url.hash && !url.username,
-      `${name}: platformUrl must be protocol + host only`,
-    );
-    assert.ok(Array.isArray(platform.platformPaths) && platform.platformPaths.length > 0, name);
-    for (const path of platform.platformPaths) {
-      assert.match(path, /^\//, `${name}: "${path}" must be a path starting with "/"`);
-    }
-    assert.ok(Array.isArray(platform.targetSelectors) && platform.targetSelectors.length > 0, name);
-    // Every selector must be valid CSS, otherwise querySelectorAll throws at runtime.
-    const doc = new JSDOM("").window.document;
-    for (const selector of platform.targetSelectors) doc.querySelectorAll(selector);
-  }
 });

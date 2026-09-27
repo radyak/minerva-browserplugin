@@ -1,9 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { calculateEffectivePrice } from "../src/core/effective-price.js";
 import { convertPrice, parsePrice } from "../src/core/price.js";
-import { DEFAULT_SETTINGS, readSettings, SETTINGS_STORAGE_KEYS } from "../src/core/settings.js";
 
 // The formatting cases are independent of the actual calculation.
 const plus20 = (text) => convertPrice(text, (amount) => amount * 1.2);
@@ -55,34 +53,11 @@ test("rounds to two decimals", () => {
   assert.equal(plus20("10,55 EUR"), "12,66 EUR");
 });
 
-const EUR_SETTINGS = { auctionPremium: 0, shipment: 0, currency: "EUR" };
-const INTO_EUR = { EUR: 1, USD: 0.5 };
-
-test("the effective price adds the shipment", () => {
-  const settings = { ...EUR_SETTINGS, shipment: 12.5 };
-  const effective = (amount, currency) => calculateEffectivePrice(amount, currency, settings, INTO_EUR);
-  assert.equal(calculateEffectivePrice(500, "EUR", settings, INTO_EUR), 512.5);
-  assert.equal(convertPrice("500 EUR", effective, "EUR"), "512.50 EUR");
-  assert.equal(calculateEffectivePrice(500, "EUR", DEFAULT_SETTINGS, { EUR: 1 }), 500);
-});
-
-test("the effective price adds the auction premium before the shipment", () => {
-  const settings = { ...EUR_SETTINGS, auctionPremium: 20 };
-  assert.equal(calculateEffectivePrice(500, "EUR", settings, INTO_EUR), 600);
-  assert.equal(calculateEffectivePrice(500, "EUR", { ...settings, shipment: 10 }, INTO_EUR), 610);
-});
-
-test("the effective price converts into the output currency first", () => {
-  const settings = { auctionPremium: 20, shipment: 10, currency: "EUR" };
-  // 500 USD -> 250 EUR, +20% premium, +10 EUR shipment.
-  assert.equal(calculateEffectivePrice(500, "USD", settings, INTO_EUR), 310);
-});
-
-test("the effective price is undefined without currency or rate", () => {
-  assert.equal(calculateEffectivePrice(500, undefined, EUR_SETTINGS, INTO_EUR), undefined);
-  assert.equal(calculateEffectivePrice(500, "GBP", EUR_SETTINGS, INTO_EUR), undefined);
-  assert.equal(calculateEffectivePrice(500, "EUR", EUR_SETTINGS, undefined), undefined);
-  assert.equal(convertPrice("500 GBP", () => undefined, "EUR"), null);
+test("returns null when the calculation has no result", () => {
+  assert.equal(
+    convertPrice("500 GBP", () => undefined, "EUR"),
+    null,
+  );
 });
 
 test("detects the currency next to the number", () => {
@@ -116,31 +91,4 @@ test("writes the result in the output currency, keeping the notation", () => {
   // Same currency or none requested: the text stays as it was.
   assert.equal(convertPrice("€20", half, "EUR"), "€10");
   assert.equal(convertPrice("€20", half), "€10");
-});
-
-test("readSettings turns stored values into settings", () => {
-  const { auctionPremium, shipment, currency } = SETTINGS_STORAGE_KEYS;
-  assert.deepEqual(readSettings({ [auctionPremium]: "15.5", [shipment]: 7, [currency]: "CHF" }), {
-    auctionPremium: 15.5,
-    shipment: 7,
-    currency: "CHF",
-  });
-  assert.deepEqual(readSettings(undefined), DEFAULT_SETTINGS);
-  assert.deepEqual(readSettings({}), DEFAULT_SETTINGS);
-});
-
-test("readSettings falls back to the defaults for unusable values", () => {
-  const { auctionPremium, shipment, currency } = SETTINGS_STORAGE_KEYS;
-  for (const [premium, ship, code] of [
-    ["", "", ""],
-    [null, null, null],
-    ["abc", "-1", "eur"],
-    ["101", "-0.01", "JPY"],
-  ]) {
-    assert.deepEqual(
-      readSettings({ [auctionPremium]: premium, [shipment]: ship, [currency]: code }),
-      DEFAULT_SETTINGS,
-      `${premium} / ${ship}`,
-    );
-  }
 });

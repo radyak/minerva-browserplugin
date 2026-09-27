@@ -7,9 +7,10 @@
     "16": "icons/icon-16.png",
     "32": "icons/icon-32.png",
     "48": "icons/icon-48.png",
+    "64": "icons/icon-64.png",
     "128": "icons/icon-128.png"
   },
-  "permissions": ["tabs", "storage", "sidePanel"],
+  "permissions": ["tabs", "storage", "sidePanel", "alarms"],
   "host_permissions": "$CONTENT_MATCHES",
   "background": {
     "service_worker": "background.js"

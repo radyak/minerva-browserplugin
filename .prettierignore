@@ -1,0 +1,8 @@
+dist/
+build/
+.poc/
+node_modules/
+package-lock.json
+# Markdown is formatted by hand (tables, long lines).
+*.md
+web-ext-artifacts/

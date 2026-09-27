@@ -9,19 +9,14 @@
   </head>
   <body class="bg-body-tertiary">
     <div class="d-flex flex-column gap-3 p-3 min-vh-100">
-      <header class="d-flex align-items-center justify-content-between gap-2">
-      </header>
+      <header class="d-flex align-items-center justify-content-between gap-2"></header>
 
       <form id="settings" novalidate>
         <fieldset class="d-flex flex-column gap-3">
           <div>
             <label for="currency" class="form-label">Currency</label>
-            <select class="form-select" id="currency" aria-describedby="currency-help">
-              <option value="EUR" selected>EUR</option>
-              <option value="USD">USD</option>
-              <option value="GBP">GBP</option>
-              <option value="CHF">CHF</option>
-            </select>
+            <!-- Options are filled in from Currency.ALL by panel.js. -->
+            <select class="form-select" id="currency" aria-describedby="currency-help"></select>
             <div id="currency-help" class="form-text">
               Currency you pay in; the current exchange rates are shown below.
             </div>
@@ -34,8 +29,6 @@
                 type="number"
                 class="form-control"
                 id="auction-premium"
-                min="0"
-                max="100"
                 step="0.1"
                 inputmode="decimal"
                 placeholder="0"
@@ -57,14 +50,13 @@
                 type="number"
                 class="form-control"
                 id="shipment"
-                min="0"
                 step="0.01"
                 inputmode="decimal"
                 placeholder="0.00"
                 autocomplete="off"
                 aria-describedby="shipment-help"
               />
-              <span id="shipment-currency" class="input-group-text">EUR</span>
+              <span id="shipment-currency" class="input-group-text"></span>
               <div class="invalid-feedback">Enter an amount of 0 or more.</div>
             </div>
             <div id="shipment-help" class="form-text">
@@ -84,9 +76,7 @@
       <!-- Plugin status section, pinned to the bottom of the panel. -->
       <footer class="mt-auto">
         <div class="card shadow-sm w-100">
-          <div class="card-header">
-            Plugin status
-          </div>
+          <div class="card-header">Plugin status</div>
           <div class="card-body d-flex flex-column gap-2">
             <div>
               <span id="status" class="badge text-bg-secondary">checking…</span>

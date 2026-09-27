@@ -1,8 +1,8 @@
 {
-  "name": "browser-plugin",
+  "name": "minerva",
   "version": "0.1.0",
   "private": true,
-  "description": "Cross-browser extension that marks a configured element on a configured URL and offers a side panel UI.",
+  "description": "Cross-browser WebExtension that assists with online auctions by making effective prices transparent.",
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs",
@@ -11,7 +11,11 @@
     "watch": "node scripts/build.mjs --watch",
     "package": "node scripts/package.mjs",
     "icons": "node scripts/make-icons.mjs",
-    "test": "node --test \"test/*.test.mjs\"",
+    "test": "npm run lint && npm run typecheck && npm run test:unit",
+    "test:unit": "node --test \"test/*.test.mjs\"",
+    "lint": "eslint . && prettier --check .",
+    "format": "prettier --write . && eslint --fix .",
+    "typecheck": "tsc -p jsconfig.json",
     "clean": "rm -rf dist build",
     "dev:firefox": "web-ext run --source-dir dist/firefox",
     "lint:firefox": "web-ext lint --source-dir dist/firefox --self-hosted"
@@ -20,8 +24,14 @@
     "bootstrap": "^5.3.8"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "esbuild": "^0.28.2",
+    "eslint": "^9.39.5",
+    "globals": "^17.12.0",
     "jsdom": "^29.1.1",
+    "prettier": "^3.9.9",
+    "sharp": "^0.35.4",
+    "typescript": "^7.0.2",
     "web-ext": "^10.6.0"
   }
 }
