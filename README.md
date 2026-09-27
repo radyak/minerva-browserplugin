@@ -41,7 +41,7 @@ platforms/
   firefox/manifest.json    MV3 + `sidebar_action`, event page background
 scripts/       build, packaging, icon generation
 test/          node:test unit tests for src/core
-icons/         generated PNGs (npm run icons)
+icons/         base.png + the PNGs generated from it (npm run icons)
 ```
 
 Everything a browser does differently is confined to `platforms/*/manifest.json`

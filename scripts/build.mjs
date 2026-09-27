@@ -54,7 +54,11 @@ async function copyStaticAssets(target) {
   await mkdir(path.join(out, "panel"), { recursive: true });
   await mkdir(path.join(out, "vendor"), { recursive: true });
 
-  await cp(path.join(ROOT, "icons"), path.join(out, "icons"), { recursive: true });
+  // Only the generated icons - icons/base.png is the source for `npm run icons`.
+  await cp(path.join(ROOT, "icons"), path.join(out, "icons"), {
+    recursive: true,
+    filter: (source) => !source.endsWith(".png") || /icon-\d+\.png$/.test(source),
+  });
   await cp(path.join(ROOT, "src/content/content.css"), path.join(out, "content.css"));
   await cp(path.join(ROOT, "src/panel/panel.html"), path.join(out, "panel/panel.html"));
   await cp(path.join(ROOT, "src/panel/panel.css"), path.join(out, "panel/panel.css"));

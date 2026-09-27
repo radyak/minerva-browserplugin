@@ -22,7 +22,7 @@ npm run build            # -> dist/chrome and dist/firefox
 npm run build:chrome     # or :firefox
 npm run watch            # rebuild on change, unminified + inline sourcemaps
 npm run package          # zip dist/<target> -> build/<name>-<version>-<target>.zip
-npm run icons            # regenerate icons/*.png
+npm run icons            # scale icons/base.png to icons/icon-{16,32,64,128}.png (sharp)
 npm run dev:firefox      # web-ext run against dist/firefox (throwaway profile)
 npm run lint:firefox     # AMO validator
 ```
