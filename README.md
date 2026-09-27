@@ -34,7 +34,7 @@ src/
     state/         TabState (what the extension does in a tab: active, counts)
   browser/     the thin browser abstraction (API alias, messaging, settings storage,
                side panel vs. sidebar)
-  background/  background script / service worker
+  background/  background script / service worker (BackgroundController + wiring)
   content/     content script (ContentController + wiring) + the annotation stylesheet
   panel/       side panel UI (Bootstrap)
 platforms/

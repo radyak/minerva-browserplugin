@@ -10,9 +10,3 @@ export const ext = globalThis.browser ?? globalThis.chrome;
 
 /** Build time constant injected by scripts/build.mjs ("chrome" | "firefox"). */
 export const TARGET = __TARGET__;
-
-/** @returns {Promise<{id: number, url?: string} | undefined>} the active tab of the current window */
-export async function getActiveTab() {
-  const [tab] = await ext.tabs.query({ active: true, currentWindow: true });
-  return tab;
-}
