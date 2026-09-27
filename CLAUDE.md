@@ -53,11 +53,13 @@ checked by `tsc` via `jsconfig.json`; build-time globals such as `__TARGET__` ar
   bundled entry points (`background`, `content`, `panel/panel`). Importing a module that reads it
   from a test will throw (`src/browser/ext.js` reads it) — that is another reason core code
   stays free of `src/browser/`, and why tests inject a fake `ext` instead.
-- **Entry points only wire things up.** `content/content.js` and `background/background.js`
-  create a `ContentController` / `BackgroundController` with the real `window`/`ext`,
-  `MessageBus` and `SettingsStore`; all behaviour lives in the controllers, which get their
+- **Entry points only wire things up.** `content/content.js`, `background/background.js` and
+  `panel/panel.js` create a `ContentController` / `BackgroundController` / `PanelController`
+  with the real `window`/`ext`/`document`, `MessageBus` and `SettingsStore`; all behaviour lives in the controllers, which get their
   dependencies through the constructor and are tested with jsdom and the fakes in
   `test/support/fakes.mjs`. Controllers never import `src/browser/ext.js` (it reads `__TARGET__`).
+  The panel's DOM work is split into views (`src/panel/views/`: settings form, status badge,
+  rates table); its test runs against the real `panel.html`.
 - **Bundles are IIFE, not ESM** (`format: "iife"` in `scripts/build.mjs`): content scripts and the
   Firefox event page cannot be ES modules. Adding a new entry point means adding it to
   `entryPoints` there, and any new static file to `copyStaticAssets()`.
@@ -127,7 +129,8 @@ checked by `tsc` via `jsconfig.json`; build-time globals such as `__TARGET__` ar
 - Exchange rates are fetched by the panel only (`RatesClient` in `src/core/rates/`, plain `fetch`
   with an injectable fetch function for tests) from Frankfurter (`EXCHANGE_RATES_URL` in
   `config.js`). It sends `Access-Control-Allow-Origin: *`, so no `host_permissions` are needed.
-  The panel renders only the latest request, so fast currency switches cannot show stale rates.
+  `RatesService` (`src/panel/`) lets only the latest request count, so fast currency switches
+  cannot show or store stale rates.
 
 ## Message flow
 

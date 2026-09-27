@@ -36,7 +36,7 @@ src/
                side panel vs. sidebar)
   background/  background script / service worker (BackgroundController + wiring)
   content/     content script (ContentController + wiring) + the annotation stylesheet
-  panel/       side panel UI (Bootstrap)
+  panel/       side panel UI (Bootstrap): PanelController, views/, RatesService + wiring
 platforms/
   chrome/manifest.json     MV3 + `side_panel`, service worker background
   firefox/manifest.json    MV3 + `sidebar_action`, event page background
