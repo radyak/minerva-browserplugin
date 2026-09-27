@@ -3,6 +3,7 @@ import { MSG } from "../core/messages.js";
 import { EXCHANGE_RATES_STORAGE_KEY } from "../core/rates/ExchangeRates.js";
 import { RatesClient } from "../core/rates/RatesClient.js";
 import { Settings } from "../core/settings/Settings.js";
+import { TabState } from "../core/state/TabState.js";
 import { ext, sendMessage, storageGetMany, storageSet } from "../platform/browser.js";
 
 /** Side panel (Chrome) / sidebar (Firefox) UI. Identical on both browsers. */
@@ -28,17 +29,15 @@ for (const [name, input] of Object.entries(inputs)) {
   if (Number.isFinite(max)) input.max = String(max);
 }
 
-function renderStatus(state) {
-  const active = Boolean(state?.active);
-  const count = state?.annotated ?? 0;
-  const unparsable = state?.unparsable ?? 0;
+/** @param {TabState} state */
+function renderStatus({ active, annotated: count, unparsable }) {
   const label = `${count} price${count === 1 ? "" : "s"} updated`;
   status.textContent = active ? (unparsable ? `${label}, ${unparsable} n/a` : label) : "inactive";
   status.className = `badge ${active ? "text-bg-danger" : "text-bg-secondary"}`;
 }
 
 async function refreshStatus() {
-  renderStatus(await sendMessage({ type: MSG.GET_ACTIVE_STATE }));
+  renderStatus(TabState.from(await sendMessage({ type: MSG.GET_ACTIVE_STATE })));
 }
 
 /** Show the rates of `rates.base` against the other currencies. */

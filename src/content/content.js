@@ -9,6 +9,7 @@ import { ext, sendMessage, storageGetMany } from "../platform/browser.js";
  * All decisions live in ../core, this file only deals with page lifecycle.
  */
 
+/** @type {import("../core/state/TabState.js").TabState | null} null until the first sync, so that one is always reported */
 let lastState = null;
 let settings = Settings.DEFAULT;
 let rates = ExchangeRates.empty(settings.currency);
@@ -24,14 +25,10 @@ async function loadSettings() {
 
 function sync(reason) {
   const state = syncDocument(document, location.href, settings, rates);
-  const changed =
-    !lastState ||
-    lastState.active !== state.active ||
-    lastState.annotated !== state.annotated ||
-    lastState.unparsable !== state.unparsable;
+  const changed = !state.equals(lastState);
   lastState = state;
   if (changed) {
-    sendMessage({ type: MSG.STATE_CHANGED, url: location.href, ...state, reason });
+    sendMessage({ type: MSG.STATE_CHANGED, url: location.href, ...state.toJSON(), reason });
   }
   return state;
 }
@@ -77,7 +74,7 @@ async function start() {
     if (message?.type !== MSG.SYNC_REQUEST) return false;
     // Re-read the settings: the panel sends this right after saving them, and
     // must not depend on storage.onChanged having arrived first.
-    loadSettings().then(() => sendResponse({ url: location.href, ...sync("request") }));
+    loadSettings().then(() => sendResponse({ url: location.href, ...sync("request").toJSON() }));
     return true; // keep the message channel open for the async response
   });
 

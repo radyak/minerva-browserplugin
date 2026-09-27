@@ -30,6 +30,7 @@ src/
     annotator.js   reads the element, inserts/updates the sibling
     url-matcher.js glob matching for URLs
     messages.js    message types
+    state/         TabState (what the extension does in a tab: active, counts)
   platform/    the thin browser abstraction (API alias, side panel vs. sidebar)
   background/  background script / service worker
   content/     content script + the annotation stylesheet

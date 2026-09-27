@@ -1,6 +1,7 @@
 import { ANNOTATION_CLASS, PLATFORMS, UNPARSABLE_TEXT } from "./config.js";
 import { calculateEffectivePrice } from "./effective-price.js";
 import { convertPrice } from "./price.js";
+import { TabState } from "./state/TabState.js";
 import { urlOnPlatform } from "./url-matcher.js";
 
 /**
@@ -155,20 +156,14 @@ export function isTargetUrl(url, platforms = PLATFORMS) {
  * @param {import("./settings/Settings.js").Settings} settings
  * @param {import("./rates/ExchangeRates.js").ExchangeRates} rates base `settings.currency`
  * @param {import("./config.js").Platform[]} [platforms]
- * @returns {{active: boolean, annotated: number, unparsable: number}}
+ * @returns {TabState}
  */
 export function syncDocument(doc, url, settings, rates, platforms = PLATFORMS) {
   const platform = findPlatform(url, platforms);
   if (!platform) {
     removeAnnotations(doc);
-    return { active: false, annotated: 0, unparsable: 0 };
+    return TabState.inactive();
   }
-  return {
-    active: true,
-    ...annotateElements(doc, {
-      selectors: platform.targetSelectors,
-      settings,
-      rates,
-    }),
-  };
+  const counts = annotateElements(doc, { selectors: platform.targetSelectors, settings, rates });
+  return new TabState({ active: true, ...counts });
 }

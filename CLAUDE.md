@@ -125,10 +125,14 @@ Three types only, in `src/core/messages.js`:
 - background → content: `SYNC_REQUEST` on `tabs.onUpdated` (fires for SPA `pushState` too, which
   is how in-page navigation is caught); content also self-syncs on load, `popstate`, `hashchange`
   and DOM mutations (coalesced to one run per animation frame).
-- content → background/panel: `STATE_CHANGED`, only when `active`/`annotated`/`unparsable`
-  actually changed. Background turns it into the toolbar badge.
+- content → background/panel: `STATE_CHANGED`, only when the `TabState` actually changed
+  (`equals()`). Background turns it into the toolbar badge.
 - panel → background: `GET_ACTIVE_STATE`, answered asynchronously (the listener returns `true` to
   keep the channel open — required, easy to drop when editing).
+
+The state of a tab is a `TabState` (`src/core/state/TabState.js`: `active`, `annotated`,
+`unparsable`). Messages are structured-cloned, so class instances do not survive them: send
+`{ ...state.toJSON(), url }`, and turn what arrives back into one with `TabState.from()`.
 
 ## Conventions
 

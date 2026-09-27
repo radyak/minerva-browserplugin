@@ -12,6 +12,7 @@ import {
 } from "../src/core/annotator.js";
 import { ExchangeRates } from "../src/core/rates/ExchangeRates.js";
 import { Settings } from "../src/core/settings/Settings.js";
+import { TabState } from "../src/core/state/TabState.js";
 
 /**
  * Everything is tested against platforms of our own so the suite keeps working
@@ -231,11 +232,10 @@ test("findPlatform picks the platform whose paths match the url", () => {
 
 test("sync uses the selectors of the matching platform", () => {
   const doc = documentWithPrice();
-  assert.deepEqual(syncDocument(doc, "https://other.test/", SETTINGS, RATES, TEST_PLATFORMS), {
-    active: true,
-    annotated: 1,
-    unparsable: 0,
-  });
+  assert.deepEqual(
+    syncDocument(doc, "https://other.test/", SETTINGS, RATES, TEST_PLATFORMS),
+    new TabState({ active: true, annotated: 1, unparsable: 0 }),
+  );
   assert.equal(doc.querySelector(".other").nextElementSibling.textContent, "1099 EUR");
   assert.equal(doc.querySelector(SELECTOR).nextElementSibling.className, "other");
 });
@@ -249,11 +249,10 @@ test("sync only runs on the configured url", () => {
   doc
     .querySelector(SELECTOR)
     .insertAdjacentHTML("afterend", `<span class="${ANNOTATION_CLASS}">600 EUR</span>`);
-  assert.deepEqual(syncDocument(doc, OTHER_URL, SETTINGS, RATES, TEST_PLATFORMS), {
-    active: false,
-    annotated: 0,
-    unparsable: 0,
-  });
+  assert.deepEqual(
+    syncDocument(doc, OTHER_URL, SETTINGS, RATES, TEST_PLATFORMS),
+    TabState.inactive(),
+  );
   assert.equal(annotations(doc).length, 0);
 });
 
