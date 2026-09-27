@@ -7,7 +7,6 @@ import { MSG } from "../src/core/messages.js";
 import { ExchangeRates } from "../src/core/rates/ExchangeRates.js";
 import { Settings } from "../src/core/settings/Settings.js";
 import { PanelController } from "../src/panel/PanelController.js";
-import { RatesService } from "../src/panel/RatesService.js";
 import { fakeBus, fakeStore, settle } from "./support/fakes.mjs";
 
 /** The real panel markup, without its script. */
@@ -20,7 +19,7 @@ const GBP = new Settings({ auctionPremium: 20, shipment: 7, currency: "GBP" });
 const ratesOf = (base) =>
   new ExchangeRates(base, "2026-09-25", { EUR: 1.1, USD: 1.2, GBP: 0.9, CHF: 0.95 });
 
-/** A rates client whose requests the test resolves or rejects by hand. */
+/** Rates the background loads; the test resolves or rejects each request by hand. */
 function manualClient() {
   const pending = [];
   return {
@@ -50,12 +49,22 @@ async function openPanel({ settings = GBP, client = undefined } = {}) {
   const { window } = new JSDOM(PANEL_HTML);
   const doc = window.document;
   const tabs = fakeTabs();
+  const rates = client ?? { fetch: async (base) => ratesOf(base) };
   const bus = fakeBus({
-    answers: { [MSG.GET_ACTIVE_STATE]: { active: true, annotated: 3, unparsable: 1 } },
+    answers: {
+      [MSG.GET_ACTIVE_STATE]: { active: true, annotated: 3, unparsable: 1 },
+      // What BackgroundController.ratesFor() answers.
+      [MSG.GET_RATES]: async ({ base }) => {
+        try {
+          return { rates: (await rates.fetch(base)).toJSON() };
+        } catch (error) {
+          return { error: error.message };
+        }
+      },
+    },
   });
   const store = fakeStore(settings);
-  const rates = new RatesService(client ?? { fetch: async (base) => ratesOf(base) });
-  const controller = new PanelController({ document: doc, tabs, bus, store, rates });
+  const controller = new PanelController({ document: doc, tabs, bus, store });
   const started = controller.start();
   const $ = (selector) => /** @type {any} */ (doc.querySelector(selector));
   return { window, doc, $, tabs, bus, store, controller, started };
@@ -79,8 +88,8 @@ test("shows the saved settings, the rates and the status on open", async () => {
   assert.equal(rateRows($).length, 3);
   assert.match($("#rates-info").textContent, /2026-09-25/);
   assert.equal($("#status").textContent, "3 prices updated, 1 n/a");
-  // The freshly loaded rates are saved for the content scripts.
-  assert.deepEqual(store.savedRates, [ratesOf("GBP")]);
+  // Keeping the saved rates fresh is the background's job.
+  assert.deepEqual(store.savedRates, []);
 });
 
 test("saves the entered settings with the matching rates in one go", async () => {

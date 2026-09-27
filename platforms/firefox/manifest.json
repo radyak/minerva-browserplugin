@@ -19,7 +19,7 @@
     "64": "icons/icon-64.png",
     "128": "icons/icon-128.png"
   },
-  "permissions": ["tabs", "storage"],
+  "permissions": ["tabs", "storage", "alarms"],
   "host_permissions": "$CONTENT_MATCHES",
   "background": {
     "scripts": ["background.js"]

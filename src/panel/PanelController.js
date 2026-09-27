@@ -1,14 +1,17 @@
+import { Currency } from "../core/currency/Currency.js";
 import { MSG } from "../core/messages.js";
+import { ExchangeRates } from "../core/rates/ExchangeRates.js";
 import { TabState } from "../core/state/TabState.js";
-import { RatesService } from "./RatesService.js";
+import { SelectedRates } from "./SelectedRates.js";
 import { RatesView } from "./views/RatesView.js";
 import { SettingsFormView } from "./views/SettingsFormView.js";
 import { StatusView } from "./views/StatusView.js";
 
 /**
  * Side panel (Chrome) / sidebar (Firefox): shows and saves the settings, the
- * exchange rates of the selected currency and what the extension does in the
- * active tab. Identical on both browsers; everything it touches is passed in.
+ * exchange rates of the selected currency (loaded by the background) and what
+ * the extension does in the active tab. Identical on both browsers;
+ * everything it touches is passed in.
  */
 export class PanelController {
   /**
@@ -16,14 +19,13 @@ export class PanelController {
    * @param {Document} deps.document the panel document (panel.html)
    * @param {any} deps.tabs the extension `tabs` API (`onActivated`, `onUpdated`)
    * @param {Pick<import("../browser/MessageBus.js").MessageBus, "on" | "send">} deps.bus
-   * @param {Pick<import("../browser/SettingsStore.js").SettingsStore, "load" | "save" | "saveRates">} deps.store
-   * @param {RatesService} [deps.rates]
+   * @param {Pick<import("../browser/SettingsStore.js").SettingsStore, "load" | "save">} deps.store
    */
-  constructor({ document, tabs, bus, store, rates = new RatesService() }) {
+  constructor({ document, tabs, bus, store }) {
     this.tabs = tabs;
     this.bus = bus;
     this.store = store;
-    this.rates = rates;
+    this.rates = new SelectedRates((code) => this.#requestRates(code));
     this.form = new SettingsFormView(document);
     this.status = new StatusView(/** @type {HTMLElement} */ (document.getElementById("status")));
     this.ratesView = new RatesView({
@@ -84,15 +86,21 @@ export class PanelController {
     this.status.render(TabState.from(await this.bus.send({ type: MSG.GET_ACTIVE_STATE })));
   }
 
-  /**
-   * Show the saved settings and refresh the saved rates with the ones just
-   * loaded for their currency; open tabs recalculate via storage.onChanged.
-   */
+  /** Show the saved settings and the rates of their currency. */
   async #showStoredSettings() {
     const { settings } = await this.store.load();
     this.form.show(settings);
     await this.selectCurrency(settings.currency);
-    const rates = await this.rates.ratesFor(settings.currency);
-    if (rates) await this.store.saveRates(rates);
+  }
+
+  /**
+   * The current rates of `code`, from the background.
+   * @param {string} code
+   * @returns {Promise<ExchangeRates>}
+   */
+  async #requestRates(code) {
+    const answer = await this.bus.send({ type: MSG.GET_RATES, base: code });
+    if (!answer?.rates) throw new Error(answer?.error ?? "Exchange rates unavailable");
+    return ExchangeRates.fromJSON(answer.rates, code, Currency.CODES);
   }
 }

@@ -6,4 +6,6 @@ export const MSG = Object.freeze({
   STATE_CHANGED: "state-changed",
   /** panel -> background: what is the active tab doing right now? */
   GET_ACTIVE_STATE: "get-active-state",
+  /** panel -> background: the current exchange rates of `base` */
+  GET_RATES: "get-rates",
 });

@@ -3,6 +3,7 @@ import test from "node:test";
 
 import { BackgroundController } from "../src/background/BackgroundController.js";
 import { MSG } from "../src/core/messages.js";
+import { ExchangeRates } from "../src/core/rates/ExchangeRates.js";
 import { AuctionSite } from "../src/core/sites/AuctionSite.js";
 import { SiteRegistry } from "../src/core/sites/SiteRegistry.js";
 import { fakeBus } from "./support/fakes.mjs";
@@ -18,6 +19,17 @@ function fakeExt({ activeTab } = /** @type {{activeTab?: any}} */ ({})) {
     colors: /** @type {any[]} */ ([]),
     onUpdated: /** @type {Function[]} */ ([]),
     onInstalled: /** @type {Function[]} */ ([]),
+    onStartup: /** @type {Function[]} */ ([]),
+    onAlarm: /** @type {Function[]} */ ([]),
+    /** @type {Map<string, any>} scheduled alarms by name */
+    scheduled: new Map(),
+    alarms: {
+      get: async (name) => (ext.scheduled.has(name) ? { name } : undefined),
+      create: async (name, info) => {
+        ext.scheduled.set(name, info);
+      },
+      onAlarm: { addListener: (listener) => ext.onAlarm.push(listener) },
+    },
     action: {
       setBadgeText: (badge) => ext.badges.push(badge),
       setBadgeBackgroundColor: (color) => ext.colors.push(color),
@@ -26,14 +38,33 @@ function fakeExt({ activeTab } = /** @type {{activeTab?: any}} */ ({})) {
       onUpdated: { addListener: (listener) => ext.onUpdated.push(listener) },
       query: async () => (activeTab ? [activeTab] : []),
     },
-    runtime: { onInstalled: { addListener: (listener) => ext.onInstalled.push(listener) } },
+    runtime: {
+      onInstalled: { addListener: (listener) => ext.onInstalled.push(listener) },
+      onStartup: { addListener: (listener) => ext.onStartup.push(listener) },
+    },
   };
   return ext;
+}
+
+/** A RatesService that records its calls; `get()` fails for "CHF". */
+function fakeRates() {
+  return {
+    refreshes: 0,
+    async get(base) {
+      if (base === "CHF") throw new Error("offline");
+      return new ExchangeRates(base, "2026-09-25", { EUR: 1.1 });
+    },
+    async refreshSaved() {
+      this.refreshes += 1;
+      return true;
+    },
+  };
 }
 
 function start({ activeTab = undefined, tabAnswer = undefined } = {}) {
   const ext = fakeExt({ activeTab });
   const bus = fakeBus({ answers: { tab: tabAnswer } });
+  const rates = fakeRates();
   let migrations = 0;
   const store = {
     migrate: async () => {
@@ -41,8 +72,8 @@ function start({ activeTab = undefined, tabAnswer = undefined } = {}) {
       return true;
     },
   };
-  new BackgroundController({ ext, bus, store, sites: SITES }).start();
-  return { ext, bus, migrations: () => migrations };
+  new BackgroundController({ ext, bus, store, rates, sites: SITES }).start();
+  return { ext, bus, rates, migrations: () => migrations };
 }
 
 test("marks the badge and asks the tab to sync on navigation", () => {
@@ -101,8 +132,39 @@ test("is inactive without an active tab", async () => {
   });
 });
 
-test("migrates old settings on install or update", () => {
-  const { ext, migrations } = start();
-  ext.onInstalled[0]({ reason: "update" });
+test("on install or update: migrates, schedules the daily refresh and refreshes the rates", async () => {
+  const { ext, rates, migrations } = start();
+  await ext.onInstalled[0]({ reason: "update" });
   assert.equal(migrations(), 1);
+  assert.deepEqual([...ext.scheduled.keys()], ["refresh-exchange-rates"]);
+  assert.equal(rates.refreshes, 1);
+});
+
+test("on browser start: re-schedules the refresh only when missing and refreshes the rates", async () => {
+  const { ext, rates } = start();
+  await ext.onStartup[0]();
+  const scheduled = ext.scheduled.get("refresh-exchange-rates");
+  assert.deepEqual(scheduled, { delayInMinutes: 1440, periodInMinutes: 1440 });
+  await ext.onStartup[0]();
+  // Not re-created, so the running period is kept.
+  assert.equal(ext.scheduled.get("refresh-exchange-rates"), scheduled);
+  assert.equal(rates.refreshes, 2);
+});
+
+test("refreshes the saved rates when the alarm fires", () => {
+  const { ext, rates } = start();
+  ext.onAlarm[0]({ name: "refresh-exchange-rates" });
+  ext.onAlarm[0]({ name: "something-else" });
+  assert.equal(rates.refreshes, 1);
+});
+
+test("answers the panel's rate requests with plain data or an error", async () => {
+  const { bus } = start();
+  assert.deepEqual(await bus.deliver({ type: MSG.GET_RATES, base: "GBP" }), {
+    rates: { base: "GBP", date: "2026-09-25", rates: { EUR: 1.1 } },
+  });
+  assert.deepEqual(await bus.deliver({ type: MSG.GET_RATES, base: "CHF" }), { error: "offline" });
+  assert.deepEqual(await bus.deliver({ type: MSG.GET_RATES, base: "JPY" }), {
+    error: "Unsupported currency: JPY",
+  });
 });

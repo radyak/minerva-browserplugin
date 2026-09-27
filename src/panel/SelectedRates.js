@@ -1,20 +1,18 @@
-import { RatesClient } from "../core/rates/RatesClient.js";
-
 /** @typedef {import("../core/rates/ExchangeRates.js").ExchangeRates} ExchangeRates */
 
 /**
- * Loads exchange rates for the currency selected in the panel. A new load
+ * The exchange rates of the currency selected in the panel. A new load
  * supersedes the previous one, so fast currency switches never end with
  * stale rates on screen or in storage.
  */
-export class RatesService {
+export class SelectedRates {
   #latest = 0;
   /** @type {Promise<ExchangeRates | null>} */
   #selected = Promise.resolve(null);
 
-  /** @param {Pick<RatesClient, "fetch">} [client] */
-  constructor(client = new RatesClient()) {
-    this.client = client;
+  /** @param {(code: string) => Promise<ExchangeRates>} fetchRates rejects when unavailable */
+  constructor(fetchRates) {
+    this.fetchRates = fetchRates;
   }
 
   /**
@@ -25,7 +23,7 @@ export class RatesService {
    */
   async load(code) {
     const request = ++this.#latest;
-    this.#selected = this.client.fetch(code).catch(() => null);
+    this.#selected = this.fetchRates(code).catch(() => null);
     const rates = await this.#selected;
     return { rates, latest: request === this.#latest };
   }

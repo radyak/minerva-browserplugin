@@ -127,19 +127,23 @@ checked by `tsc` via `jsconfig.json`; build-time globals such as `__TARGET__` ar
 - **`ExchangeRates` (`src/core/rates/ExchangeRates.js`) is the only place that knows the rate
   direction:** `rates[code]` is "1 base = x code", `factorFrom(code)`/`convert()` go the other way
   (code → base). It drops invalid entries on construction and is immutable.
-- The panel stores the fetched rates (base = selected currency) with the settings on Save and
-  on their own (`saveRates()`) whenever it opens. Stored rates for another base are ignored
-  (`ExchangeRates.fromStorage()` gives `ExchangeRates.empty()`), so only the output currency
-  itself (1:1) is known until matching rates exist.
-- Exchange rates are fetched by the panel only (`RatesClient` in `src/core/rates/`, plain `fetch`
-  with an injectable fetch function for tests) from Frankfurter (`EXCHANGE_RATES_URL` in
-  `config.js`). It sends `Access-Control-Allow-Origin: *`, so no `host_permissions` are needed.
-  `RatesService` (`src/panel/`) lets only the latest request count, so fast currency switches
-  cannot show or store stale rates.
+- **The background owns the exchange rates** (`RatesService` in `src/background/`, the only user
+  of `RatesClient`). It answers the panel's `GET_RATES` (reusing fetched rates for an hour) and
+  keeps the saved rates fresh: on install/update, on browser start and via a daily `alarms`
+  alarm (`refresh-exchange-rates`; re-created on start because Firefox drops alarms on restart).
+  A refresh only saves when the saved currency is still the one it fetched for.
+- The panel displays the rates it gets from the background and saves them together with the
+  settings on Save (one write, see above). `SelectedRates` (`src/panel/`) lets only the latest
+  request count, so fast currency switches cannot show or store stale rates. Stored rates for
+  another base are ignored (`ExchangeRates.fromStorage()` gives `ExchangeRates.empty()`), so
+  only the output currency itself (1:1) is known until matching rates exist.
+- Rates come from Frankfurter (`EXCHANGE_RATES_URL` in `config.js`, plain `fetch` with an
+  injectable fetch function for tests). It sends `Access-Control-Allow-Origin: *`, so no
+  `host_permissions` are needed.
 
 ## Message flow
 
-Three types only, in `src/core/messages.js`:
+Four types only, in `src/core/messages.js`:
 
 - background → content: `SYNC_REQUEST` on `tabs.onUpdated` (fires for SPA `pushState` too, which
   is how in-page navigation is caught); content also self-syncs on load, `popstate`, `hashchange`
@@ -147,6 +151,8 @@ Three types only, in `src/core/messages.js`:
 - content → background/panel: `STATE_CHANGED`, only when the `TabState` actually changed
   (`equals()`). Background turns it into the toolbar badge.
 - panel → background: `GET_ACTIVE_STATE`, answered asynchronously.
+- panel → background: `GET_RATES` (`base`), answered with `{ rates }` (`ExchangeRates#toJSON()`)
+  or `{ error }`.
 
 Listen with `MessageBus.on(type, handler)`, never `runtime.onMessage` directly: the handler
 returns its answer (or a promise of it, `undefined` for none) and the bus returns `true` to keep

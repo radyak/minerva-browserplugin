@@ -9,7 +9,8 @@ import { Settings } from "../../src/core/settings/Settings.js";
 /**
  * A MessageBus: records sent messages, `deliver()` calls the registered handler.
  * @param {{answers?: Record<string, any>}} [options] what `send()` answers per message
- *   type; `answers.tab` is what `sendToTab()` answers (or a function computing it)
+ *   type, or a function of the message computing it; `answers.tab` is what
+ *   `sendToTab()` answers (or a function computing it)
  * @returns {any}
  */
 export function fakeBus({ answers = {} } = {}) {
@@ -25,7 +26,8 @@ export function fakeBus({ answers = {} } = {}) {
     },
     async send(message) {
       this.sent.push(message);
-      return answers[message.type];
+      const answer = answers[message.type];
+      return typeof answer === "function" ? answer(message) : answer;
     },
     async sendToTab(tabId, message) {
       this.sentToTabs.push([tabId, message]);

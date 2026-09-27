@@ -35,9 +35,9 @@ src/
     state/         TabState (what the extension does in a tab: active, counts)
   browser/     the thin browser abstraction (API alias, messaging, settings storage,
                side panel vs. sidebar)
-  background/  background script / service worker (BackgroundController + wiring)
+  background/  background script / service worker (BackgroundController, RatesService + wiring)
   content/     content script (ContentController + wiring) + the annotation stylesheet
-  panel/       side panel UI (Bootstrap): PanelController, views/, RatesService + wiring
+  panel/       side panel UI (Bootstrap): PanelController, views/, SelectedRates + wiring
 platforms/
   chrome/manifest.json     MV3 + `side_panel`, service worker background
   firefox/manifest.json    MV3 + `sidebar_action`, event page background
@@ -166,8 +166,9 @@ loaded (via `web-ext`), `npm run lint:firefox` runs the AMO validator.
   emptied input keeps the saved value.
 - Selecting a currency (EUR, USD, GBP, CHF; default EUR) immediately updates the
   shipment's currency hint and loads the rates against the other three from the
-  Frankfurter API; they are listed in the *Plugin status* card and saved with
-  the currency. Opening the panel refreshes the saved rates. Until rates for the
+  Frankfurter API (through the background script); they are listed in the
+  *Plugin status* card and saved with the currency. The background refreshes the
+  saved rates on install/update, on browser start and once a day. Until rates for the
   saved currency have been stored once, only prices already in that currency
   are converted; all others show `n/a`.
 
