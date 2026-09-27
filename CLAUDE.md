@@ -53,6 +53,10 @@ checked by `tsc` via `jsconfig.json`; build-time globals such as `__TARGET__` ar
   bundled entry points (`background`, `content`, `panel/panel`). Importing a module that reads it
   from a test will throw (`src/browser/ext.js` reads it) — that is another reason core code
   stays free of `src/browser/`, and why tests inject a fake `ext` instead.
+- **Entry points only wire things up.** `content/content.js` creates a `ContentController` with
+  the real `window`, `MessageBus` and `SettingsStore`; all behaviour lives in the controller,
+  which gets its dependencies through the constructor and is tested with jsdom and the fakes in
+  `test/support/fakes.mjs`.
 - **Bundles are IIFE, not ESM** (`format: "iife"` in `scripts/build.mjs`): content scripts and the
   Firefox event page cannot be ES modules. Adding a new entry point means adding it to
   `entryPoints` there, and any new static file to `copyStaticAssets()`.

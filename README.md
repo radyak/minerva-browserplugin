@@ -35,7 +35,7 @@ src/
   browser/     the thin browser abstraction (API alias, messaging, settings storage,
                side panel vs. sidebar)
   background/  background script / service worker
-  content/     content script + the annotation stylesheet
+  content/     content script (ContentController + wiring) + the annotation stylesheet
   panel/       side panel UI (Bootstrap)
 platforms/
   chrome/manifest.json     MV3 + `side_panel`, service worker background
