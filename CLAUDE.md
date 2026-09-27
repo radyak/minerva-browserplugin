@@ -6,8 +6,12 @@ settings entered in the side panel and inserts the result as a sibling element n
 side panel shows status and exchange rates and holds the persisted auction premium, shipment
 and currency inputs.
 
-`README.md` documents the user-facing behaviour, the price-format table and the install steps.
-This file covers what is needed to change the code safely.
+`README.md` is the entry point; the chapters live in `docs/` (`how-it-works.md`: user-facing
+behaviour and the price-format table, `architecture.md`: components, messages, storage and event
+lifecycles with Mermaid diagrams, `configuration.md`, `development.md`: build and install steps;
+`dev/architecture-review.md`: the review behind the refactoring). Keep `docs/architecture.md` in
+sync when components, messages, storage keys or listeners change. This file covers what is needed
+to change the code safely.
 
 ## Commands
 
