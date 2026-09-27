@@ -1,9 +1,8 @@
 /**
- * Single source of truth for everything the extension is supposed to act on.
- *
- * The values below are PLACEHOLDERS for phase 1 - replace them with the real
- * target once it is known. Both the manifests (build time) and the runtime code
- * read from here, so a change only has to happen in this file.
+ * Single source of truth for everything the extension is supposed to act on:
+ * the auction sites in PLATFORMS and the plugin-wide constants below. Both the
+ * manifests (build time) and the runtime code read from here, so a change only
+ * has to happen in this file.
  */
 
 /**

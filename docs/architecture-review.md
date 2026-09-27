@@ -10,15 +10,15 @@ Minerva is small (≈ 1,100 lines of source code, 49 passing tests) and already 
 
 The weak points do not lie in any single function. They lie in **how knowledge is spread across the code**. The code is organised by function, not by domain concept, so one concept (a *currency*, the *settings*, a *tab state*, a *site*) is defined in several places. Each change therefore needs edits in several files, and readers have to rebuild each concept in their head.
 
-| Area                                      | Rating        | Main finding                                                                            |
-| ----------------------------------------- | ------------- | --------------------------------------------------------------------------------------- |
-| Layering (core / platform / entry points) | 🟢 good       | Clear rules, kept to consistently                                                       |
-| Domain model                              | 🟡 fragmented | Currencies, settings, rates and state are each spread over 3–5 places                   |
-| Naming                                    | 🔴 confusing  | "platform" has three meanings; leftovers from the scaffolding (`xbp`, `element-marker`) |
-| Entry points (`content.js`, `panel.js`)   | 🟡 procedural | Module-level mutable state, event wiring mixed with rendering                           |
-| Messaging / storage                       | 🟡 implicit   | Message and response shapes are only known by convention; saves are not atomic          |
-| Tests                                     | 🟢/🟡         | Core well covered; `settings.js`, `effective-price.js` and every entry point untested   |
-| Tooling                                   | 🟡            | Custom build works, but no linter, no type checking                                     |
+| Area                                      | Rating        | Main finding                                                                                                           |
+| ----------------------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Layering (core / platform / entry points) | 🟢 good       | Clear rules, kept to consistently                                                                                      |
+| Domain model                              | 🟡 fragmented | Currencies, settings, rates and state are each spread over 3–5 places                                                  |
+| Naming                                    | 🔴 confusing  | "platform" has three meanings; leftovers from the scaffolding (`xbp`, `element-marker`)                                |
+| Entry points (`content.js`, `panel.js`)   | 🟡 procedural | Module-level mutable state, event wiring mixed with rendering                                                          |
+| Messaging / storage                       | 🟡 implicit   | Message and response shapes are only known by convention; saves are not atomic                                         |
+| Tests                                     | 🟢/🟡         | Core well covered, but `settings.js` and `effective-price.js` only inside `price.test.mjs`; every entry point untested |
+| Tooling                                   | 🟡            | Custom build works, but no linter, no type checking                                                                    |
 
 **Main recommendation:** first make the domain explicit with a small set of classes and value objects (`Currency`, `Price`, `ExchangeRates`, `Settings`, `AuctionSite`, `TabState`). Then turn the entry points into controller classes with injected dependencies. After that, decide whether to adopt **WXT** as the extension framework (see section 5). Each step can be done on its own and keeps the tests green.
 
@@ -106,7 +106,7 @@ Rates are only fetched while the panel is open. A user who changes the currency 
 
 ### 3.7 Tests and tooling 🟡
 
-- `settings.js` (`readSettings` validation) and `effective-price.js` have no tests of their own.
+- `settings.js` (`readSettings` validation) and `effective-price.js` have no test files of their own; their cases live in `price.test.mjs`.
 - None of the entry points are tested (see 3.4).
 - `CLAUDE.md` says there is no linter or formatter. Style is enforced by review alone.
 - The JSDoc types are good but never checked. Mismatches (e.g. `PriceCurrency` vs. `CurrencyMatch`) would go unnoticed.
@@ -283,7 +283,7 @@ Each step is its own commit (or PR), keeps `npm test` green and changes no behav
 ### Phase 1 — Quick wins (low risk, ~½ day)
 
 1. **Tooling:** add ESLint + Prettier and `checkJs` (`tsc --noEmit`) to `npm test`.
-2. **Missing tests** for `readSettings` (ranges, `""`, `null`, unknown currency) and `calculateEffectivePrice` (missing rate, premium 0/100, shipping).
+2. **Own test files** for `readSettings` and `calculateEffectivePrice`: move their cases out of `price.test.mjs` and add the missing ones (range bounds, premium 0/100, non-finite rates).
 3. **Remove duplicates:** move `isCode` to `currency.js` and use it in `price.js`; remove the unused `storageGet`.
 4. **Fix the documentation drift:** `config.js` "PLACEHOLDERS" comment, the `example.com` note in the README, `package.json` name/description.
 

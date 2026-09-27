@@ -58,8 +58,7 @@ Everything the extension acts on lives in [`src/core/config.js`](src/core/config
 | `targetSelectors` | `[".current-bid"]` | the elements whose text holds the price |
 
 On a given URL the first platform on the same origin with a matching
-`platformPaths` entry is used. The `example.com` entry (`/app/dashboard*`) is a leftover from the initial
-scaffolding; biddr.com is the live target.
+`platformPaths` entry is used. biddr.com and numisbids.com are configured.
 
 General values shared by all platforms:
 
