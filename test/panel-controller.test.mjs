@@ -122,6 +122,35 @@ test("does not save invalid input", async () => {
   assert.equal($("#auction-premium").classList.contains("is-invalid"), true);
 });
 
+test("fills the Save button only while the form differs from the saved settings", async () => {
+  const { window, $, started } = await openPanel();
+  await started;
+  const filled = () => $("#save").classList.contains("btn-primary");
+  const outlined = () => $("#save").classList.contains("btn-outline-primary");
+  const enter = (selector, value) => {
+    $(selector).value = value;
+    $(selector).dispatchEvent(new window.Event("input", { bubbles: true }));
+  };
+  assert.equal(filled(), false);
+  assert.equal(outlined(), true);
+
+  enter("#auction-premium", "25");
+  assert.equal(filled(), true);
+  assert.equal(outlined(), false);
+  enter("#auction-premium", "20.0"); // the saved value again
+  assert.equal(filled(), false);
+  enter("#shipment", ""); // emptied keeps the saved value
+  assert.equal(filled(), false);
+  enter("#currency", "EUR");
+  assert.equal(filled(), true);
+
+  $("#settings").dispatchEvent(new window.Event("submit", { cancelable: true }));
+  await settle();
+  await settle();
+  assert.equal(filled(), false);
+  assert.equal(outlined(), true);
+});
+
 test("only shows the rates of the currency picked last", async () => {
   const client = manualClient();
   const { window, $, started } = await openPanel({ client });

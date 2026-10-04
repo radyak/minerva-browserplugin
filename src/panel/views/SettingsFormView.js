@@ -11,6 +11,8 @@ const SAVED_NOTE_MS = 2000;
 export class SettingsFormView {
   /** @type {ReturnType<typeof setTimeout> | undefined} */
   #savedTimer;
+  /** @type {Settings | undefined} the settings last put into the form */
+  #shown;
 
   /** @param {Document} doc the panel document */
   constructor(doc) {
@@ -23,6 +25,8 @@ export class SettingsFormView {
     this.shipmentCurrency = byId("shipment-currency");
     /** @type {HTMLElement} */
     this.saved = byId("saved");
+    /** @type {HTMLButtonElement} */
+    this.saveButton = byId("save");
     /** @type {Record<"auctionPremium" | "shipment", HTMLInputElement>} */
     this.inputs = { auctionPremium: byId("auction-premium"), shipment: byId("shipment") };
 
@@ -35,6 +39,10 @@ export class SettingsFormView {
       input.min = String(min);
       if (Number.isFinite(max)) input.max = String(max);
       input.addEventListener("input", () => input.classList.remove("is-invalid"));
+    }
+    // A <select> fires "input" too; "change" covers spinner clicks some browsers only report so.
+    for (const type of ["input", "change"]) {
+      this.form.addEventListener(type, () => this.#showChanged());
     }
   }
 
@@ -58,6 +66,30 @@ export class SettingsFormView {
   show(settings) {
     this.currency.value = settings.currency;
     for (const [name, input] of Object.entries(this.inputs)) input.value = String(settings[name]);
+    this.#shown = settings;
+    this.#showChanged();
+  }
+
+  /**
+   * Whether the form differs from the settings last shown. Compares values, not
+   * text: "7.0" for 7 is no change, and neither is an emptied input (it keeps
+   * the value on Save). Typing the old value back counts as unchanged.
+   * @returns {boolean}
+   */
+  isChanged() {
+    const shown = this.#shown;
+    if (!shown) return false;
+    if (this.currency.value !== shown.currency) return true;
+    return Object.entries(this.inputs).some(
+      ([name, input]) => input.value !== "" && input.valueAsNumber !== shown[name],
+    );
+  }
+
+  /** Fill the Save button while there are unsaved changes, outline it otherwise. */
+  #showChanged() {
+    const changed = this.isChanged();
+    this.saveButton.classList.toggle("btn-primary", changed);
+    this.saveButton.classList.toggle("btn-outline-primary", !changed);
   }
 
   /** @param {string} code the currency the shipment is entered in */

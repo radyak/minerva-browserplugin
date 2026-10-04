@@ -36,14 +36,11 @@ Load `dist/chrome` via *Load unpacked* in `chrome://extensions`, or `dist/firefo
 | [Architecture review](docs/dev/architecture-review.md) | Review of 2026-09-27 and the refactoring plan it started |
 
 ## Plans & Next Steps
-* Clean up and design consolidation
-* Logo
 * Disclaimer and Bug reporting link
 * Persistence
 * Clearer distinction of effective price
 * URL-based auction detection & persistence in auction scope
 * Backend: Auction database
 * Tweak "your bid" price, too
-* Mark changed form in save button
 * Add github action pipeline
 * Migration to [WXT](https://wxt.dev) (build, type safety, messaging)
