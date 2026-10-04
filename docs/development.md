@@ -20,6 +20,8 @@ and resolves the `$VERSION` / `$CONTENT_MATCHES` placeholders in the manifest.
 
 Tests use `node:test` and jsdom. Core modules are tested directly, the browser layer and the three controllers with fakes (`test/support/fakes.mjs`); the panel test runs against the real `panel.html`. `CLAUDE.md` lists the conventions and invariants to keep when changing the code.
 
+GitHub Actions (`.github/workflows/ci.yml`) runs on every push to `main` and every pull request: lint, typecheck, unit tests, the build of both targets, the AMO linter on the Firefox build and `npm run package`. The zips are attached to the run as the `minerva-extensions` artifact.
+
 ## Install the development build
 
 **Chrome / Edge**
