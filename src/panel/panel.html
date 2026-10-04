@@ -14,16 +14,40 @@
       <form id="settings" novalidate>
         <fieldset class="d-flex flex-column gap-3">
           <div>
-            <label for="currency" class="form-label">Currency</label>
+            <div class="form-label d-flex align-items-center justify-content-between">
+              <label for="currency">Currency</label>
+              <button
+                type="button"
+                class="help-toggle"
+                aria-controls="currency-help"
+                aria-expanded="false"
+                aria-label="Help on currency"
+                title="Help"
+              >
+                ?
+              </button>
+            </div>
             <!-- Options are filled in from Currency.ALL by panel.js. -->
             <select class="form-select" id="currency" aria-describedby="currency-help"></select>
-            <div id="currency-help" class="form-text">
+            <div id="currency-help" class="form-text" hidden>
               Currency you pay in; the exchange rate for the current page is shown below.
             </div>
           </div>
 
           <div>
-            <label for="auction-premium" class="form-label">Auction premium</label>
+            <div class="form-label d-flex align-items-center justify-content-between">
+              <label for="auction-premium">Auction premium</label>
+              <button
+                type="button"
+                class="help-toggle"
+                aria-controls="auction-premium-help"
+                aria-expanded="false"
+                aria-label="Help on auction premium"
+                title="Help"
+              >
+                ?
+              </button>
+            </div>
             <div class="input-group has-validation">
               <input
                 type="number"
@@ -38,13 +62,25 @@
               <span class="input-group-text">%</span>
               <div class="invalid-feedback">Enter a percentage between 0 and 100.</div>
             </div>
-            <div id="auction-premium-help" class="form-text">
+            <div id="auction-premium-help" class="form-text" hidden>
               Buyer's premium the auction house adds on top of the hammer price.
             </div>
           </div>
 
           <div>
-            <label for="shipment" class="form-label">Shipment</label>
+            <div class="form-label d-flex align-items-center justify-content-between">
+              <label for="shipment">Shipment</label>
+              <button
+                type="button"
+                class="help-toggle"
+                aria-controls="shipment-help"
+                aria-expanded="false"
+                aria-label="Help on shipment"
+                title="Help"
+              >
+                ?
+              </button>
+            </div>
             <div class="input-group has-validation">
               <input
                 type="number"
@@ -59,7 +95,7 @@
               <span id="shipment-currency" class="input-group-text"></span>
               <div class="invalid-feedback">Enter an amount of 0 or more.</div>
             </div>
-            <div id="shipment-help" class="form-text">
+            <div id="shipment-help" class="form-text" hidden>
               Flat shipping cost per item, added to every price on the page.
             </div>
           </div>
@@ -94,8 +130,7 @@
         <div class="form-text mt-2 small">
           <p class="mb-1">
             Minerva is a bidding aid only. No responsibility is taken for the correctness of the
-            effective prices.
-            Report bugs or file feature requests to
+            effective prices. Report bugs or file feature requests to
             <a href="mailto:bgock@proton.me?subject=Minerva Request">this email</a> or on
             <a
               href="https://github.com/radyak/minerva-browserplugin"

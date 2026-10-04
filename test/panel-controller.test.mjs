@@ -125,6 +125,24 @@ test("follows the currencies of the active tab", async () => {
   assert.deepEqual(rateRows($), ["1 CHF =1.0526 GBP", "1 EUR =0.9091 GBP"]);
 });
 
+test("shows an input's hint only while its help toggle is on", async () => {
+  const { $, started } = await openPanel();
+  await started;
+  const toggle = $('.help-toggle[aria-controls="shipment-help"]');
+  assert.equal($("#shipment-help").hidden, true);
+  assert.equal($("#currency-help").hidden, true);
+  assert.equal(toggle.getAttribute("aria-expanded"), "false");
+
+  toggle.click();
+  assert.equal($("#shipment-help").hidden, false);
+  assert.equal($("#currency-help").hidden, true);
+  assert.equal(toggle.getAttribute("aria-expanded"), "true");
+
+  toggle.click();
+  assert.equal($("#shipment-help").hidden, true);
+  assert.equal(toggle.getAttribute("aria-expanded"), "false");
+});
+
 test("saves the entered settings with the matching rates in one go", async () => {
   const { window, $, store, bus, started } = await openPanel();
   await started;

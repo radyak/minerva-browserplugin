@@ -40,6 +40,14 @@ export class SettingsFormView {
       if (Number.isFinite(max)) input.max = String(max);
       input.addEventListener("input", () => input.classList.remove("is-invalid"));
     }
+    // The hints below the inputs stay hidden until their "?" next to the label is clicked.
+    for (const toggle of this.form.querySelectorAll(".help-toggle")) {
+      const hint = doc.getElementById(toggle.getAttribute("aria-controls"));
+      toggle.addEventListener("click", () => {
+        hint.hidden = !hint.hidden;
+        toggle.setAttribute("aria-expanded", String(!hint.hidden));
+      });
+    }
     // A <select> fires "input" too; "change" covers spinner clicks some browsers only report so.
     for (const type of ["input", "change"]) {
       this.form.addEventListener(type, () => this.#showChanged());

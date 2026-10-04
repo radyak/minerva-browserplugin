@@ -6,3 +6,30 @@ body {
 .small {
   font-size: 0.75rem;
 }
+
+/* The round "?" button next to a label that shows or hides the input's hint (.form-text). */
+.help-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.125rem;
+  height: 1.125rem;
+  padding: 0;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  background: none;
+  color: var(--bs-secondary-color);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.help-toggle:hover {
+  color: var(--bs-primary);
+}
+
+.help-toggle[aria-expanded="true"] {
+  border-color: var(--bs-primary);
+  background-color: var(--bs-primary);
+  color: var(--bs-white);
+}

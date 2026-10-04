@@ -47,7 +47,8 @@ What the extension does on a page and in the panel, from the user's point of vie
   *Save* persists them together with the matching exchange rates in one write to
   `storage.local` (`settings`, `exchangeRates`) and makes the active tab
   recalculate right away; other open tabs follow via `storage.onChanged`. An
-  emptied input keeps the saved value.
+  emptied input keeps the saved value. Each input's hint is hidden until the `?`
+  icon next to its label is clicked (a second click hides it again).
 - Selecting a currency (EUR, USD, GBP, CHF; default EUR) immediately updates the
   shipment's currency hint and loads the rates against the other three from the
   Frankfurter API (through the background script) and saves them with the
