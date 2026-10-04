@@ -100,6 +100,21 @@ test("shows the saved settings, the rates and the status on open", async () => {
   assert.deepEqual(store.savedRates, []);
 });
 
+test("shows the form only while the extension is active in the tab", async () => {
+  const active = await openPanel();
+  await active.started;
+  assert.equal(active.$("#settings").hidden, false);
+  assert.equal(active.$("#inactive").hidden, true);
+
+  const inactive = await openPanel({ state: { active: false } });
+  assert.equal(inactive.$("#settings").hidden, true); // until the state is known
+  await inactive.started;
+  assert.equal(inactive.$("#settings").hidden, true);
+  assert.equal(inactive.$("#inactive").hidden, false);
+  assert.match(inactive.$("#inactive").textContent, /No auction or platform active/);
+  assert.equal(inactive.$("#status").textContent, "inactive");
+});
+
 test("shows no rate when the page needs none", async () => {
   const inGbp = await openPanel({ state: { ...ON_USD_PAGE, currencies: ["GBP"] } });
   await inGbp.started;

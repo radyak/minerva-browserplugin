@@ -3,6 +3,7 @@ import { MSG } from "../core/messages.js";
 import { ExchangeRates } from "../core/rates/ExchangeRates.js";
 import { TabState } from "../core/state/TabState.js";
 import { SelectedRates } from "./SelectedRates.js";
+import { InactiveView } from "./views/InactiveView.js";
 import { RatesView } from "./views/RatesView.js";
 import { SettingsFormView } from "./views/SettingsFormView.js";
 import { StatusView } from "./views/StatusView.js";
@@ -33,6 +34,10 @@ export class PanelController {
     this.rates = new SelectedRates((code) => this.#requestRates(code));
     this.form = new SettingsFormView(document);
     this.status = new StatusView(/** @type {HTMLElement} */ (document.getElementById("status")));
+    this.inactiveView = new InactiveView({
+      form: /** @type {HTMLElement} */ (document.getElementById("settings")),
+      notice: /** @type {HTMLElement} */ (document.getElementById("inactive")),
+    });
     this.ratesView = new RatesView({
       body: /** @type {HTMLElement} */ (document.getElementById("rates")),
       info: /** @type {HTMLElement} */ (document.getElementById("rates-info")),
@@ -91,6 +96,7 @@ export class PanelController {
   async refreshStatus() {
     this.#state = TabState.from(await this.bus.send({ type: MSG.GET_ACTIVE_STATE }));
     this.status.render(this.#state);
+    this.inactiveView.render(this.#state);
     this.#showRates();
   }
 

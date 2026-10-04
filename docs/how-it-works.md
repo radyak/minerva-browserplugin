@@ -58,6 +58,9 @@ What the extension does on a page and in the panel, from the user's point of vie
   once a day. Until rates for the
   saved currency have been stored once, only prices already in that currency
   are converted; all others show `n/a`.
+- While the extension is inactive in the active tab, the panel hides the settings
+  form and shows Minerva with a `?` speech bubble and "No auction or platform
+  active" instead; the *Plugin status* card stays visible.
 - Below the *Plugin status* card the panel shows a disclaimer (bidding aid only, no
   responsibility for the prices shown) and links for bug reports and feature
   requests (email, GitHub repository).

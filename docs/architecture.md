@@ -78,9 +78,10 @@ flowchart LR
     PC["PanelController"]
     SFV["SettingsFormView"]
     SV["StatusView"]
+    IV["InactiveView"]
     RV["RatesView"]
     SR["SelectedRates"]
-    PC --> SFV & SV & RV & SR
+    PC --> SFV & SV & IV & RV & SR
   end
 
   STORE[("storage.local<br/>settings · exchangeRates")]
@@ -160,6 +161,7 @@ The panel is a single Bootstrap page shared by both browsers. Its DOM is only to
 | `#shipment` (input) | shipping cost, `min` from `Settings.RANGES` | `SettingsFormView` | `input` → clears the invalid marker |
 | `#shipment-currency` | the selected currency next to the shipment | `SettingsFormView` | – |
 | `#saved` | "Saved." note, hidden after 2 s | `SettingsFormView` | – |
+| `#inactive` | Minerva saying "?", "No auction or platform active"; shown instead of `#settings` while the active tab is inactive (the form stays hidden until the state is known) | `InactiveView` | – |
 | `#status` (badge) | "3 prices updated, 1 n/a" / "inactive" | `StatusView` | – |
 | `#rates` (table body), `#rates-info` | "1 GBP = 1.16 EUR" rows, source date / "Loading…" / error | `RatesView` | – |
 

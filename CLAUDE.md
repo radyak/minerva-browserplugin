@@ -65,7 +65,7 @@ checked by `tsc` via `jsconfig.json`; build-time globals such as `__TARGET__` ar
   jsdom and the fakes in `test/support/fakes.mjs`. Controllers never import
   `src/browser/ext.js` (it reads `__TARGET__`).
   The panel's DOM work is split into views (`src/panel/views/`: settings form, status badge,
-  rates for the active tab's price currencies); its test runs against the real `panel.html`.
+  inactive notice, rates for the active tab's price currencies); its test runs against the real `panel.html`.
 - **Bundles are IIFE, not ESM** (`format: "iife"` in `scripts/build.mjs`): content scripts and the
   Firefox event page cannot be ES modules. Adding a new entry point means adding it to
   `entryPoints` there, and any new static file to `copyStaticAssets()`. `content.css` is the
