@@ -9,7 +9,8 @@ and currency inputs.
 `README.md` is the entry point; the chapters live in `docs/` (`how-it-works.md`: user-facing
 behaviour and the price-format table, `architecture.md`: components, messages, storage and event
 lifecycles with Mermaid diagrams, `configuration.md`, `development.md`: build and install steps;
-`dev/architecture-review.md`: the review behind the refactoring). Keep `docs/architecture.md` in
+`dev/architecture-review.md`: the review behind the refactoring, `dev/wxt-migration-plan.md`:
+the planned switch to WXT). Keep `docs/architecture.md` in
 sync when components, messages, storage keys or listeners change. This file covers what is needed
 to change the code safely.
 
