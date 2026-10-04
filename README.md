@@ -38,7 +38,6 @@ Load `dist/chrome` via *Load unpacked* in `chrome://extensions`, or `dist/firefo
 ## Plans & Next Steps
 * Disclaimer and Bug reporting link
 * Persistence
-* Clearer distinction of effective price
 * URL-based auction detection & persistence in auction scope
 * Backend: Auction database
 * Tweak "your bid" price, too

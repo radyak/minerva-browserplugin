@@ -175,7 +175,7 @@ For every price element on a configured site, `AnnotationView` inserts one sibli
 | Part | Meaning |
 | --- | --- |
 | same tag as the price element | flows like the price itself |
-| `class="minerva-effective-price"` | `ANNOTATION_CLASS`; styled by `content.css`; never read back as a price |
+| `class="minerva-effective-price"` | `ANNOTATION_CLASS`; styled by `content.css` as a speech bubble with Minerva (`::before`) and its tail (`::after`), so the DOM stays one element; never read back as a price |
 | `data-minerva-source` | the price text the result was computed from |
 | `data-minerva-unparsable` | present while the annotation shows `n/a` (greyed out) |
 

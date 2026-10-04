@@ -14,7 +14,8 @@ npm run icons            # scale icons/base.png to the icon sizes (sharp)
 ```
 
 `scripts/build.mjs` bundles each entry point with esbuild (IIFE - content scripts
-cannot be ES modules), copies the static assets plus
+cannot be ES modules) - `content.js` imports `content.css`, which esbuild emits next to it
+with the icon inlined as a `data:` URL - copies the static assets plus
 `node_modules/bootstrap/dist/css/bootstrap.min.css` into `dist/<target>/vendor/`
 and resolves the `$VERSION` / `$CONTENT_MATCHES` placeholders in the manifest.
 

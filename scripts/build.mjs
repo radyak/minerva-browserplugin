@@ -59,7 +59,6 @@ async function copyStaticAssets(target) {
     recursive: true,
     filter: (source) => !source.endsWith(".png") || /icon-\d+\.png$/.test(source),
   });
-  await cp(path.join(ROOT, "src/content/content.css"), path.join(out, "content.css"));
   await cp(path.join(ROOT, "src/panel/panel.html"), path.join(out, "panel/panel.html"));
   await cp(path.join(ROOT, "src/panel/panel.css"), path.join(out, "panel/panel.css"));
   await cp(
@@ -105,6 +104,9 @@ async function build(target) {
     format: "iife", // content scripts and MV2-style event pages cannot be ES modules
     target: ["chrome114", "firefox115"],
     define: { __TARGET__: JSON.stringify(target) },
+    // content.js imports content.css, which esbuild emits as dist/<target>/content.css;
+    // the icon it shows is inlined as a data: URL.
+    loader: { ".png": "dataurl" },
     sourcemap: watch ? "inline" : false,
     minify: !watch,
     logLevel: "warning",

@@ -1,15 +1,65 @@
 /*
- * Injected into every matching page. Kept to a single class so the page's own
- * styles are never touched: the annotation inherits the price element's
- * typography and only stands out through its colour.
+ * Injected into every matching page and bundled by esbuild (imported from
+ * content.js), which inlines the icon as a data: URL - so it needs neither
+ * web_accessible_resources nor a browser specific extension URL.
+ *
+ * The annotation is a speech bubble with Minerva on its left, saying the
+ * effective price. Avatar and tail are pseudo-elements: the content script
+ * only ever writes the text, so the DOM stays a single element per price.
+ * Kept to the one class so the page's own styles are never touched; the
+ * typography is inherited from the price element.
  */
 .minerva-effective-price {
-  color: #dc3545 !important;
-  text-align: center;
+  --minerva-avatar: 1.75em;
+  --minerva-border: #1f3b6e;
+  --minerva-fill: #fffdf5;
+
+  position: relative !important;
+  display: inline-block !important;
+  margin: 0.25em 0 0.25em calc(var(--minerva-avatar) + 0.6em) !important;
+  padding: 0.15em 0.65em !important;
+  border: 1.5px solid var(--minerva-border) !important;
+  border-radius: 0.3em !important;
+  background: var(--minerva-fill) !important;
+  color: #1f3b6e !important;
+  font-weight: 700 !important;
+  line-height: 1.3 !important;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+/* Minerva, left of the bubble. */
+.minerva-effective-price::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: calc(-1 * var(--minerva-avatar) - 0.6em);
+  width: var(--minerva-avatar);
+  height: var(--minerva-avatar);
+  transform: translateY(-50%);
+  background: url("../../icons/icon-64.png") center / contain no-repeat;
+}
+
+/* The tail pointing at her: a rotated square showing only two of its borders. */
+.minerva-effective-price::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: -0.3em;
+  width: 0.5em;
+  height: 0.5em;
+  transform: translateY(-50%) rotate(45deg);
+  border-left: inherit;
+  border-bottom: inherit;
+  background: inherit;
 }
 
 /* No price could be read out of the source element. */
 .minerva-effective-price[data-minerva-unparsable] {
+  --minerva-border: #adb5bd;
+  --minerva-fill: #f8f9fa;
+
   color: #6c757d !important;
   font-style: italic !important;
+  font-weight: 400 !important;
 }

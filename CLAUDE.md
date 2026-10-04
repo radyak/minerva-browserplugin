@@ -68,7 +68,10 @@ checked by `tsc` via `jsconfig.json`; build-time globals such as `__TARGET__` ar
   rates table); its test runs against the real `panel.html`.
 - **Bundles are IIFE, not ESM** (`format: "iife"` in `scripts/build.mjs`): content scripts and the
   Firefox event page cannot be ES modules. Adding a new entry point means adding it to
-  `entryPoints` there, and any new static file to `copyStaticAssets()`.
+  `entryPoints` there, and any new static file to `copyStaticAssets()`. `content.css` is the
+  exception: `content.js` imports it, so esbuild emits it and inlines the PNGs it references as
+  `data:` URLs — content-script CSS cannot use relative URLs into the extension, and this avoids
+  `web_accessible_resources` and a per-browser `chrome-extension://`/`moz-extension://` URL.
 
 ## Things that bite
 
