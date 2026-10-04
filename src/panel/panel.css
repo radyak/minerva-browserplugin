@@ -2,3 +2,7 @@
 body {
   min-width: 260px;
 }
+
+.small {
+  font-size: 0.75rem;
+}

@@ -55,3 +55,6 @@ What the extension does on a page and in the panel, from the user's point of vie
   saved rates on install/update, on browser start and once a day. Until rates for the
   saved currency have been stored once, only prices already in that currency
   are converted; all others show `n/a`.
+- Below the *Plugin status* card the panel shows a disclaimer (bidding aid only, no
+  responsibility for the prices shown) and links for bug reports and feature
+  requests (email, GitHub repository).

@@ -36,7 +36,6 @@ Load `dist/chrome` via *Load unpacked* in `chrome://extensions`, or `dist/firefo
 | [Architecture review](docs/dev/architecture-review.md) | Review of 2026-09-27 and the refactoring plan it started |
 
 ## Plans & Next Steps
-* Disclaimer and Bug reporting link
 * Persistence
 * URL-based auction detection & persistence in auction scope
 * Backend: Auction database
