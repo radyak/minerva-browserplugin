@@ -116,7 +116,7 @@ src/
     sites/         AuctionSite, SiteRegistry, sites.config.js (the targeted sites),
                    url-matcher.js (glob matching for URLs)
     messages.js    message types
-    state/         TabState (what the extension does in a tab: active, counts)
+    state/         TabState (what the extension does in a tab: active, counts, price currencies)
   browser/     the thin browser abstraction (API alias, messaging, settings storage,
                side panel vs. sidebar)
   background/  background script / service worker (BackgroundController, RatesService + wiring)
@@ -197,8 +197,8 @@ Four message types, defined in `src/core/messages.js` and sent through `MessageB
 
 | Type | From → to | Payload | Answer | Sent when |
 | --- | --- | --- | --- | --- |
-| `SYNC_REQUEST` | background → content (`tabs.sendMessage`) | – | `{ url, active, annotated, unparsable }` after re-reading the settings and syncing | a tab navigates (`tabs.onUpdated`), the panel asks for the active tab's state |
-| `STATE_CHANGED` | content → background + panel | `{ url, active, annotated, unparsable, reason }` | – | a sync changed the tab's `TabState` |
+| `SYNC_REQUEST` | background → content (`tabs.sendMessage`) | – | `{ url, active, annotated, unparsable, currencies }` after re-reading the settings and syncing | a tab navigates (`tabs.onUpdated`), the panel asks for the active tab's state |
+| `STATE_CHANGED` | content → background + panel | `{ url, active, annotated, unparsable, currencies, reason }` | – | a sync changed the tab's `TabState` |
 | `GET_ACTIVE_STATE` | panel → background | – | the active tab's state (from its content script, or judged by URL without one) | panel opens, after Save, on tab switches/navigation, on `STATE_CHANGED` |
 | `GET_RATES` | panel → background | `{ base }` | `{ rates }` (`ExchangeRates#toJSON()`) or `{ error }` | panel opens, a currency is picked |
 

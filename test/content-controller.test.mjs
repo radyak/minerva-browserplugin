@@ -51,6 +51,7 @@ test("annotates on start and reports the state once", async () => {
       active: true,
       annotated: 1,
       unparsable: 0,
+      currencies: ["USD"],
       reason: "load",
     },
   ]);
@@ -70,6 +71,7 @@ test("answers a sync request with the current state, after re-reading the settin
     active: true,
     annotated: 1,
     unparsable: 0,
+    currencies: ["USD"],
   });
   assert.equal(annotation(), "250 EUR");
 });

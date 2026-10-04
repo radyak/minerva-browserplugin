@@ -10,7 +10,7 @@ text price and its currency out of a configured element, converts it into the
 currency selected in the side panel, adds the auction premium and shipping cost
 entered there and appends the resulting effective price as a sibling element
 right after it - kept up to date when the price or the settings change. The
-side panel also shows the current exchange rates. The target URL and
+side panel also shows the exchange rate the current page needs. The target URL and
 the selector are configurable in one file - see [Configuration](docs/configuration.md).
 
 It is a cross-browser Manifest V3 WebExtension (Chrome and Firefox) with a shared core and per-browser packaging.

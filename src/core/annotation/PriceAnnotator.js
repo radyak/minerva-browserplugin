@@ -22,11 +22,13 @@ export class PriceAnnotator {
    * @param {import("../sites/AuctionSite.js").AuctionSite} site
    * @param {import("../settings/Settings.js").Settings} settings
    * @param {import("../rates/ExchangeRates.js").ExchangeRates} rates base `settings.currency`
-   * @returns {TabState} active, with the counts after the run
+   * @returns {TabState} active, with the counts and price currencies after the run
    */
   annotate(site, settings, rates) {
     let annotated = 0;
     let unparsable = 0;
+    /** @type {Set<string>} */
+    const currencies = new Set();
 
     const matches = this.view.query(site.priceSelectors);
     const wrappers = findWrappers(matches);
@@ -40,7 +42,10 @@ export class PriceAnnotator {
       const source = this.view.priceText(element);
       const converted = convertPrice(
         source,
-        (amount, currency) => site.calculator.calculate(amount, currency, settings, rates),
+        (amount, currency) => {
+          if (currency) currencies.add(currency);
+          return site.calculator.calculate(amount, currency, settings, rates);
+        },
         settings.currency,
       );
       this.view.show(element, {
@@ -53,7 +58,7 @@ export class PriceAnnotator {
       if (converted === null) unparsable += 1;
     }
 
-    return new TabState({ active: true, annotated, unparsable });
+    return new TabState({ active: true, annotated, unparsable, currencies });
   }
 
   /**

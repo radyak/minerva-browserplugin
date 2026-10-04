@@ -50,9 +50,11 @@ What the extension does on a page and in the panel, from the user's point of vie
   emptied input keeps the saved value.
 - Selecting a currency (EUR, USD, GBP, CHF; default EUR) immediately updates the
   shipment's currency hint and loads the rates against the other three from the
-  Frankfurter API (through the background script); they are listed in the
-  *Plugin status* card and saved with the currency. The background refreshes the
-  saved rates on install/update, on browser start and once a day. Until rates for the
+  Frankfurter API (through the background script) and saves them with the
+  currency. The *Plugin status* card only shows the rates the active tab needs:
+  from the currencies of its prices into the selected one (e.g. `1 USD = 0.8333 GBP`).
+  The background refreshes the saved rates on install/update, on browser start and
+  once a day. Until rates for the
   saved currency have been stored once, only prices already in that currency
   are converted; all others show `n/a`.
 - Below the *Plugin status* card the panel shows a disclaimer (bidding aid only, no

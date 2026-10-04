@@ -8,12 +8,17 @@ import { SettingsFormView } from "./views/SettingsFormView.js";
 import { StatusView } from "./views/StatusView.js";
 
 /**
- * Side panel (Chrome) / sidebar (Firefox): shows and saves the settings, the
- * exchange rates of the selected currency (loaded by the background) and what
- * the extension does in the active tab. Identical on both browsers;
+ * Side panel (Chrome) / sidebar (Firefox): shows and saves the settings, what
+ * the extension does in the active tab and the exchange rates from that tab's
+ * price currencies into the selected currency (loaded by the background). Identical on both browsers;
  * everything it touches is passed in.
  */
 export class PanelController {
+  /** @type {ExchangeRates | null | undefined} rates of the selected currency; undefined while loading, null when unavailable */
+  #rates;
+  /** @type {TabState} */
+  #state = TabState.inactive();
+
   /**
    * @param {object} deps
    * @param {Document} deps.document the panel document (panel.html)
@@ -60,11 +65,12 @@ export class PanelController {
    */
   async selectCurrency(code) {
     this.form.showCurrency(code);
-    this.ratesView.showLoading();
+    this.#rates = undefined;
+    this.#showRates();
     const { rates, latest } = await this.rates.load(code);
     if (!latest) return; // another currency was picked in the meantime
-    if (rates) this.ratesView.show(rates);
-    else this.ratesView.showError();
+    this.#rates = rates;
+    this.#showRates();
   }
 
   /** Save the entered settings with the matching rates; the active tab recalculates. */
@@ -83,7 +89,16 @@ export class PanelController {
 
   /** Ask the background what the active tab is doing and show it. */
   async refreshStatus() {
-    this.status.render(TabState.from(await this.bus.send({ type: MSG.GET_ACTIVE_STATE })));
+    this.#state = TabState.from(await this.bus.send({ type: MSG.GET_ACTIVE_STATE }));
+    this.status.render(this.#state);
+    this.#showRates();
+  }
+
+  /** The rates relevant to the active tab, as far as they are loaded. */
+  #showRates() {
+    if (this.#rates === undefined) this.ratesView.showLoading();
+    else if (this.#rates === null) this.ratesView.showError();
+    else this.ratesView.show(this.#rates, this.#state.currencies);
   }
 
   /** Show the saved settings and the rates of their currency. */

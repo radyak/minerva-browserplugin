@@ -45,14 +45,18 @@ function fakeTabs() {
   };
 }
 
-async function openPanel({ settings = GBP, client = undefined } = {}) {
+/** What the active tab reports: prices in USD. */
+const ON_USD_PAGE = { active: true, annotated: 3, unparsable: 1, currencies: ["USD"] };
+
+/** @param {{settings?: Settings, client?: any, state?: object}} [options] */
+async function openPanel({ settings = GBP, client = undefined, state = ON_USD_PAGE } = {}) {
   const { window } = new JSDOM(PANEL_HTML);
   const doc = window.document;
   const tabs = fakeTabs();
   const rates = client ?? { fetch: async (base) => ratesOf(base) };
   const bus = fakeBus({
     answers: {
-      [MSG.GET_ACTIVE_STATE]: { active: true, annotated: 3, unparsable: 1 },
+      [MSG.GET_ACTIVE_STATE]: state,
       // What BackgroundController.ratesFor() answers.
       [MSG.GET_RATES]: async ({ base }) => {
         try {
@@ -70,8 +74,11 @@ async function openPanel({ settings = GBP, client = undefined } = {}) {
   return { window, doc, $, tabs, bus, store, controller, started };
 }
 
+/** The rate rows as text; the decimal comma of some locales read as a point. */
 const rateRows = ($) =>
-  [...$("#rates").querySelectorAll("tr")].map((row) => row.textContent.replace(/\s+/g, " "));
+  [...$("#rates").querySelectorAll("tr")].map((row) =>
+    row.textContent.replace(/\s+/g, " ").replace(/(\d),(\d)/g, "$1.$2"),
+  );
 
 test("shows the saved settings, the rates and the status on open", async () => {
   const { $, store, started } = await openPanel();
@@ -85,11 +92,37 @@ test("shows the saved settings, the rates and the status on open", async () => {
   assert.equal($("#shipment").value, "7");
   assert.equal($("#shipment-currency").textContent, "GBP");
   assert.equal($("#auction-premium").max, "100");
-  assert.equal(rateRows($).length, 3);
+  // Only the rate the page needs: 1 GBP = 1.2 USD.
+  assert.deepEqual(rateRows($), ["1 USD =0.8333 GBP"]);
   assert.match($("#rates-info").textContent, /2026-09-25/);
   assert.equal($("#status").textContent, "3 prices updated, 1 n/a");
   // Keeping the saved rates fresh is the background's job.
   assert.deepEqual(store.savedRates, []);
+});
+
+test("shows no rate when the page needs none", async () => {
+  const inGbp = await openPanel({ state: { ...ON_USD_PAGE, currencies: ["GBP"] } });
+  await inGbp.started;
+  assert.deepEqual(rateRows(inGbp.$), []);
+  assert.equal(inGbp.$("#rates-info").textContent, "Prices on this page are in GBP.");
+
+  const inactive = await openPanel({ state: { active: false } });
+  await inactive.started;
+  assert.deepEqual(rateRows(inactive.$), []);
+  assert.equal(inactive.$("#rates-info").textContent, "No prices on this page.");
+});
+
+test("follows the currencies of the active tab", async () => {
+  /** @type {any} */
+  let state = ON_USD_PAGE;
+  const { bus, $, started } = await openPanel();
+  await started;
+  bus.send = async (message) =>
+    message.type === MSG.GET_ACTIVE_STATE ? state : { rates: ratesOf(message.base).toJSON() };
+  state = { ...ON_USD_PAGE, currencies: ["CHF", "EUR"] };
+  bus.deliver({ type: MSG.STATE_CHANGED });
+  await settle();
+  assert.deepEqual(rateRows($), ["1 CHF =1.0526 GBP", "1 EUR =0.9091 GBP"]);
 });
 
 test("saves the entered settings with the matching rates in one go", async () => {
@@ -168,7 +201,7 @@ test("only shows the rates of the currency picked last", async () => {
   assert.equal($("#rates-info").textContent, "Loading…");
   client.answer(); // CHF
   await settle();
-  assert.match(rateRows($)[0], /^1 CHF =/);
+  assert.match(rateRows($)[0], /^1 USD =.* CHF$/);
   assert.equal($("#shipment-currency").textContent, "CHF");
 });
 

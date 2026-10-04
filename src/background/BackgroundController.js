@@ -104,7 +104,7 @@ export class BackgroundController {
 
   /**
    * The state of the active tab, freshly synced by its content script.
-   * @returns {Promise<{url: string | null, active: boolean, annotated: number, unparsable: number}>}
+   * @returns {Promise<{url: string | null} & ReturnType<TabState["toJSON"]>>}
    */
   async activeTabState() {
     const [tab] = await this.ext.tabs.query({ active: true, currentWindow: true });

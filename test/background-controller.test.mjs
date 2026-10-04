@@ -119,6 +119,7 @@ test("judges by the URL when the active tab has no content script", async () => 
     active: true,
     annotated: 0,
     unparsable: 0,
+    currencies: [],
   });
 });
 
@@ -129,6 +130,7 @@ test("is inactive without an active tab", async () => {
     active: false,
     annotated: 0,
     unparsable: 0,
+    currencies: [],
   });
 });
 

@@ -65,7 +65,7 @@ checked by `tsc` via `jsconfig.json`; build-time globals such as `__TARGET__` ar
   jsdom and the fakes in `test/support/fakes.mjs`. Controllers never import
   `src/browser/ext.js` (it reads `__TARGET__`).
   The panel's DOM work is split into views (`src/panel/views/`: settings form, status badge,
-  rates table); its test runs against the real `panel.html`.
+  rates for the active tab's price currencies); its test runs against the real `panel.html`.
 - **Bundles are IIFE, not ESM** (`format: "iife"` in `scripts/build.mjs`): content scripts and the
   Firefox event page cannot be ES modules. Adding a new entry point means adding it to
   `entryPoints` there, and any new static file to `copyStaticAssets()`. `content.css` is the
@@ -170,8 +170,9 @@ the channel open when needed — required for async answers and easy to drop by 
 `bus.send()` / `bus.sendToTab()`, which ignore a missing receiver.
 
 The state of a tab is a `TabState` (`src/core/state/TabState.js`: `active`, `annotated`,
-`unparsable`). Messages are structured-cloned, so class instances do not survive them: send
-`{ ...state.toJSON(), url }`, and turn what arrives back into one with `TabState.from()`.
+`unparsable`, `currencies` of the prices found). Messages are structured-cloned, so class
+instances do not survive them: send `{ ...state.toJSON(), url }`, and turn what arrives back into
+one with `TabState.from()`.
 
 ## Conventions
 

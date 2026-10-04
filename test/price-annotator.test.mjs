@@ -194,7 +194,28 @@ test("reports an active state with the counts", () => {
     priceSelectors: [SELECTOR],
   });
   const state = new PriceAnnotator(documentWithPrice()).annotate(site, SETTINGS, RATES);
-  assert.deepEqual(state.toJSON(), { active: true, annotated: 1, unparsable: 0 });
+  assert.deepEqual(state.toJSON(), {
+    active: true,
+    annotated: 1,
+    unparsable: 0,
+    currencies: ["EUR"],
+  });
+});
+
+test("reports the currencies of the prices, once each, also without a rate", () => {
+  const doc = new JSDOM(`
+    <span class="price">500 USD</span>
+    <span class="price">£20</span>
+    <span class="price">$7</span>
+    <span class="price">sold out</span>
+  `).window.document;
+  const site = new AuctionSite({
+    origin: "https://shop.test",
+    paths: ["/*"],
+    priceSelectors: [SELECTOR],
+  });
+  const state = new PriceAnnotator(doc).annotate(site, SETTINGS, RATES);
+  assert.deepEqual(state.currencies, ["GBP", "USD"]);
 });
 
 test("an element matched by several selectors is annotated once", () => {
