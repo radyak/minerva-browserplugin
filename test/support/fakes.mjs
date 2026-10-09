@@ -1,5 +1,8 @@
-import { ExchangeRates } from "../../src/core/rates/ExchangeRates.js";
-import { Settings } from "../../src/core/settings/Settings.js";
+import { AuctionKey } from "../../src/core/settings/AuctionKey.js";
+import { SettingsBook } from "../../src/core/settings/SettingsBook.js";
+
+/** @typedef {import("../../src/core/rates/ExchangeRates.js").ExchangeRates} ExchangeRates */
+/** @typedef {import("../../src/core/settings/Settings.js").Settings} Settings */
 
 /**
  * Stand-ins for the src/browser classes the controllers depend on. They record
@@ -41,40 +44,50 @@ export function fakeBus({ answers = {} } = {}) {
 }
 
 /**
- * A SettingsStore holding `settings` and `rates` in memory.
+ * A SettingsStore holding a SettingsBook and rates per currency in memory.
+ * @param {{book?: SettingsBook, rates?: ExchangeRates[]}} [stored]
  * @returns {any}
  */
-export function fakeStore(
-  settings = Settings.DEFAULT,
-  rates = ExchangeRates.empty(settings.currency),
-) {
+export function fakeStore({ book = new SettingsBook(), rates = [] } = {}) {
   const listeners = [];
+  const byBase = (list) => Object.fromEntries(list.map((value) => [value.base, value]));
+  let saved = byBase(rates);
   return {
-    saved: /** @type {Array<{settings: Settings, rates?: ExchangeRates}>} */ ([]),
+    saved: /** @type {Array<{key: AuctionKey, settings: Settings, rates?: ExchangeRates}>} */ ([]),
     savedRates: /** @type {ExchangeRates[]} */ ([]),
     async load() {
-      return { settings, rates };
+      return { book, rates: saved };
     },
-    async save(newSettings, newRates) {
-      this.saved.push({ settings: newSettings, rates: newRates });
-      settings = newSettings;
-      if (newRates) rates = newRates;
+    async save(key, settings, newRates) {
+      this.saved.push({ key, settings, rates: newRates });
+      book = book.with(key, settings);
+      if (newRates) saved = { ...saved, [newRates.base]: newRates };
     },
     async saveRates(newRates) {
       this.savedRates.push(newRates);
-      rates = newRates;
+      saved = { ...saved, [newRates.base]: newRates };
     },
     onChange(listener) {
       listeners.push(listener);
     },
     /** Replace what is stored and notify like storage.onChanged would. */
-    async change(newSettings, newRates = ExchangeRates.empty(newSettings.currency)) {
-      settings = newSettings;
-      rates = newRates;
+    async change({ book: newBook = book, rates: newRates = Object.values(saved) } = {}) {
+      book = newBook;
+      saved = byBase(newRates);
       await Promise.all(listeners.map((listener) => listener()));
     },
   };
 }
+
+/**
+ * A SettingsBook out of `[key values, settings]` pairs, oldest first.
+ * @param {Array<[ConstructorParameters<typeof AuctionKey>[0], Settings]>} entries
+ */
+export const bookOf = (...entries) =>
+  entries.reduce(
+    (book, [key, settings]) => book.with(new AuctionKey(key), settings),
+    new SettingsBook(),
+  );
 
 /** Let pending promise callbacks and timers run. */
 export const settle = () => new Promise((resolve) => setTimeout(resolve, 0));

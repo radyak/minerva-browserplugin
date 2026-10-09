@@ -62,7 +62,7 @@ function fakeRates() {
     },
     async refreshSaved() {
       this.refreshes += 1;
-      return true;
+      return [];
     },
   };
 }
@@ -71,15 +71,16 @@ function start({ activeTab = undefined, tabAnswer = undefined } = {}) {
   const ext = fakeExt({ activeTab });
   const bus = fakeBus({ answers: { tab: tabAnswer } });
   const rates = fakeRates();
-  let migrations = 0;
+  /** @type {Array<readonly string[]>} the sites of each migration */
+  const migrations = [];
   const store = {
-    migrate: async () => {
-      migrations += 1;
+    migrate: async (sites) => {
+      migrations.push(sites);
       return true;
     },
   };
   new BackgroundController({ ext, bus, store, rates, sites: SITES }).start();
-  return { ext, bus, rates, migrations: () => migrations };
+  return { ext, bus, rates, migrations };
 }
 
 test("marks the badge and asks the tab to sync on navigation", () => {
@@ -126,6 +127,7 @@ test("judges by the URL when the active tab has no content script", async () => 
     annotated: 0,
     unparsable: 0,
     currencies: [],
+    site: "https://shop.test",
     house: "leu",
     auction: "1",
   });
@@ -139,6 +141,7 @@ test("is inactive without an active tab", async () => {
     annotated: 0,
     unparsable: 0,
     currencies: [],
+    site: null,
     house: null,
     auction: null,
   });
@@ -147,7 +150,7 @@ test("is inactive without an active tab", async () => {
 test("on install or update: migrates, schedules the daily refresh and refreshes the rates", async () => {
   const { ext, rates, migrations } = start();
   await ext.onInstalled[0]({ reason: "update" });
-  assert.equal(migrations(), 1);
+  assert.deepEqual(migrations, [["https://shop.test"]]);
   assert.deepEqual([...ext.scheduled.keys()], ["refresh-exchange-rates"]);
   assert.equal(rates.refreshes, 1);
 });

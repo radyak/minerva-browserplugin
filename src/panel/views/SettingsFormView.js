@@ -4,9 +4,13 @@ import { Settings } from "../../core/settings/Settings.js";
 /** How long the "Saved." note stays visible, in milliseconds. */
 const SAVED_NOTE_MS = 2000;
 
+/** Below the Save button while nothing saved applies to the auction. */
+const NOTHING_SAVED_TEXT = "Nothing saved yet: defaults.";
+
 /**
- * The settings form: currency, auction premium and shipment. Knows the markup
- * of panel.html; turns Settings into inputs and back.
+ * The settings form: currency, auction premium and shipment, and where the
+ * values shown come from. Knows the markup of panel.html; turns Settings into
+ * inputs and back.
  */
 export class SettingsFormView {
   /** @type {ReturnType<typeof setTimeout> | undefined} */
@@ -27,6 +31,8 @@ export class SettingsFormView {
     this.saved = byId("saved");
     /** @type {HTMLButtonElement} */
     this.saveButton = byId("save");
+    /** @type {HTMLElement} */
+    this.source = byId("settings-source");
     /** @type {Record<"auctionPremium" | "shipment", HTMLInputElement>} */
     this.inputs = { auctionPremium: byId("auction-premium"), shipment: byId("shipment") };
 
@@ -70,10 +76,13 @@ export class SettingsFormView {
   /**
    * Put `settings` into the form.
    * @param {Settings} settings
+   * @param {import("../../core/settings/SettingsScope.js").SettingsScope | null} [scope] where
+   *   they were found; null for the defaults
    */
-  show(settings) {
+  show(settings, scope = null) {
     this.currency.value = settings.currency;
     for (const [name, input] of Object.entries(this.inputs)) input.value = String(settings[name]);
+    this.source.textContent = scope ? `Saved for ${scope.label}.` : NOTHING_SAVED_TEXT;
     this.#shown = settings;
     this.#showChanged();
   }

@@ -199,6 +199,7 @@ test("reports an active state with the counts", () => {
     annotated: 1,
     unparsable: 0,
     currencies: ["EUR"],
+    site: null,
     house: null,
     auction: null,
   });

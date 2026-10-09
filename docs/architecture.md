@@ -31,7 +31,7 @@ flowchart TB
     side["side-panel.js<br/>sidePanel vs sidebarAction"]
   end
   subgraph core["src/core/ (no extension API, plain DOM)"]
-    domain["Currency · ExchangeRates · Settings<br/>TabState · AuctionSite · SiteRegistry"]
+    domain["Currency · ExchangeRates · Settings<br/>AuctionKey · SettingsScope · SettingsBook<br/>TabState · AuctionSite · SiteRegistry"]
     logic["PriceAnnotator · AnnotationView<br/>price.js · PriceCalculator · RatesClient"]
   end
 
@@ -84,7 +84,7 @@ flowchart LR
     PC --> SFV & SV & IV & RV & SR
   end
 
-  STORE[("storage.local<br/>settings · exchangeRates")]
+  STORE[("storage.local<br/>auctionSettings · exchangeRates")]
   API[("Frankfurter API<br/>ECB rates")]
   BADGE[["toolbar badge"]]
 
@@ -93,7 +93,7 @@ flowchart LR
   CC <-->|"SYNC_REQUEST / STATE_CHANGED"| BC
   CC -.->|STATE_CHANGED| PC
   PC <-->|"GET_ACTIVE_STATE / GET_RATES"| BC
-  PC -->|"save(settings, rates)"| STORE
+  PC -->|"save(key, settings, rates)"| STORE
   RS -->|"saveRates()"| STORE
   STORE -->|"load() / onChange()"| CC
   STORE -->|"load()"| PC
@@ -106,7 +106,9 @@ flowchart LR
 src/
   core/        browser-agnostic logic
     config.js      plugin-wide constants
-    settings/      Settings (ranges, validation of the panel settings)
+    settings/      Settings (ranges, validation of the panel settings), AuctionKey (site +
+                   house + auction), SettingsBook (settings saved per key, lookup),
+                   SettingsScope + SETTINGS_SCOPES (the lookup order)
     pricing/       PriceCalculator (per site), EffectivePriceCalculator (the default)
     rates/         ExchangeRates (rates for one base, conversion), RatesClient (Frankfurter / ECB)
     currency/      Currency (the supported currencies: code, symbol, tokens),
@@ -119,7 +121,7 @@ src/
                    UrlParam (reads house / auction IDs out of a URL)
     messages.js    message types
     state/         TabState (what the extension does in a tab: active, counts, price
-                   currencies, house and auction IDs)
+                   currencies, site, house and auction IDs)
   browser/     the thin browser abstraction (API alias, messaging, settings storage,
                side panel vs. sidebar)
   background/  background script / service worker (BackgroundController, RatesService + wiring)
@@ -137,17 +139,17 @@ icons/         base.png + the PNGs generated from it (npm run icons)
 
 | Controller | Constructor dependencies | Responsibilities |
 | --- | --- | --- |
-| `ContentController` | `window`, `bus`, `store`, `sites` (default `SITES`), `annotator` (default `PriceAnnotator`) | Load settings and rates, annotate the page, re-sync on navigation/DOM/settings changes, answer `SYNC_REQUEST`, report `STATE_CHANGED` |
+| `ContentController` | `window`, `bus`, `store`, `sites` (default `SITES`), `annotator` (default `PriceAnnotator`) | Load settings and rates, annotate the page with the settings resolved for its `AuctionKey` (on every sync), re-sync on navigation/DOM/settings changes, answer `SYNC_REQUEST`, report `STATE_CHANGED` |
 | `BackgroundController` | `ext`, `bus`, `store`, `rates` (`RatesService`), `sites` | Toolbar badge, forward `SYNC_REQUEST` on navigation, answer `GET_ACTIVE_STATE` and `GET_RATES`, settings migration, rates refresh schedule |
-| `PanelController` | `document`, `tabs`, `bus`, `store` | Show and save settings, show rates of the selected currency, show the active tab's status |
+| `PanelController` | `document`, `tabs`, `bus`, `store` | Show the settings resolved for the active tab's auction (reloaded when its `AuctionKey` changes) and save them under that key, show rates of the selected currency, show the active tab's status |
 
 | Helper | Owned by | Purpose |
 | --- | --- | --- |
-| `RatesService` | Background | The only user of `RatesClient`; one-hour cache for the panel's requests, refreshes the saved rates |
+| `RatesService` | Background | The only user of `RatesClient`; one-hour cache for the panel's requests, refreshes the saved rates of every currency in use |
 | `SelectedRates` | Panel | Rates of the currency picked in the panel; a newer request supersedes older ones |
 | `PriceAnnotator` / `AnnotationView` | Content | *What* to show (wrapper rule, pricing) / the only class writing to the page, only on change |
 | `MessageBus` | all | `on(type, handler)` dispatch; returns `true` for async answers so the channel stays open |
-| `SettingsStore` | all | `load()`, `save(settings, rates)` in one write, `saveRates()`, `onChange()`, `migrate()` |
+| `SettingsStore` | all | `load()` → `{ book, rates }`, `save(key, settings, rates)` in one write, `saveRates()`, `onChange()`, `migrate(sites)` |
 
 ## HTML components
 
@@ -163,6 +165,7 @@ The panel is a single Bootstrap page shared by both browsers. Its DOM is only to
 | `#shipment` (input) | shipping cost, `min` from `Settings.RANGES` | `SettingsFormView` | `input` → clears the invalid marker |
 | `#shipment-currency` | the selected currency next to the shipment | `SettingsFormView` | – |
 | `#saved` | "Saved." note, hidden after 2 s | `SettingsFormView` | – |
+| `#settings-source` | where the values shown come from ("Saved for this auction house.", "Nothing saved yet: defaults.") | `SettingsFormView` | – |
 | `#inactive` | Minerva saying "?", "No auction or platform active"; shown instead of `#settings` while the active tab is inactive (the form stays hidden until the state is known) | `InactiveView` | – |
 | `#status` (badge) | "3 prices updated, 1 n/a" / "inactive" | `StatusView` | – |
 | `#auction-ids` (`#auction-house`, `#auction-id`) | house and auction ID from the URL, "unknown" when not found; hidden while inactive | `StatusView` | – |
@@ -202,8 +205,8 @@ Four message types, defined in `src/core/messages.js` and sent through `MessageB
 
 | Type | From → to | Payload | Answer | Sent when |
 | --- | --- | --- | --- | --- |
-| `SYNC_REQUEST` | background → content (`tabs.sendMessage`) | – | `{ url, active, annotated, unparsable, currencies, house, auction }` after re-reading the settings and syncing | a tab navigates (`tabs.onUpdated`), the panel asks for the active tab's state |
-| `STATE_CHANGED` | content → background + panel | `{ url, active, annotated, unparsable, currencies, house, auction, reason }` | – | a sync changed the tab's `TabState` |
+| `SYNC_REQUEST` | background → content (`tabs.sendMessage`) | – | `{ url, active, annotated, unparsable, currencies, site, house, auction }` after re-reading the settings and syncing | a tab navigates (`tabs.onUpdated`), the panel asks for the active tab's state |
+| `STATE_CHANGED` | content → background + panel | `{ url, active, annotated, unparsable, currencies, site, house, auction, reason }` | – | a sync changed the tab's `TabState` |
 | `GET_ACTIVE_STATE` | panel → background | – | the active tab's state (from its content script, or judged by URL without one) | panel opens, after Save, on tab switches/navigation, on `STATE_CHANGED` |
 | `GET_RATES` | panel → background | `{ base }` | `{ rates }` (`ExchangeRates#toJSON()`) or `{ error }` | panel opens, a currency is picked |
 
@@ -215,10 +218,10 @@ Everything is stored in `storage.local` through `SettingsStore`; there is no mes
 
 | Key | Value | Written by | Read by |
 | --- | --- | --- | --- |
-| `settings` | `{ auctionPremium, shipment, currency }` (`Settings#toJSON()`) | panel on Save | content script, panel |
-| `exchangeRates` | `{ base, date, rates }` (`ExchangeRates#toJSON()`; `1 base = rates[code] code`) | panel on Save (with the settings, one write), background on refresh | content script |
+| `auctionSettings` | `[{ site, house, auction, settings: { auctionPremium, shipment, currency } }]` (`SettingsBook#toJSON()`), oldest first, one entry per key | panel on Save | content script, panel, background (currencies to refresh) |
+| `exchangeRates` | `{ [base]: { base, date, rates } }` (`ExchangeRates#toJSON()` per currency; `1 base = rates[code] code`) | panel on Save (with the settings, one write), background on refresh | content script |
 
-Rates saved for another base than the saved currency are ignored, so only prices already in that currency are converted until matching rates exist. The one-key-per-setting layout of older versions (`settings.auctionPremium`, …) is converted once by `SettingsStore.migrate()`.
+The settings of a page are found by `SettingsBook#resolve()`, which tries `SETTINGS_SCOPES` (auction, then house, then site; see [Configuration](configuration.md#which-saved-settings-apply)); without a match the defaults apply. Without stored rates for a currency, only prices already in it are converted. Older layouts are converted once by `SettingsStore.migrate()`: the global settings of 0.1.0 (`settings`, rates of one currency in `exchangeRates`) and the one-key-per-setting layout before it (`settings.auctionPremium`, …) become site-wide settings of every configured site.
 
 ## Lifecycles
 
@@ -229,7 +232,7 @@ Rates saved for another base than the saved currency are ignored, so only prices
 | Content | script injected (`document_idle`) | `start()`: load settings/rates, register listeners, `sync("load")`, observe the DOM |
 | Content | `MutationObserver` (`childList`, `characterData`, whole document) | one `sync("mutation")` per animation frame |
 | Content | `popstate`, `hashchange` | `sync("popstate")` / `sync("hashchange")` |
-| Content | `storage.onChanged` (`settings`, `exchangeRates`) | reload settings/rates, `sync("settings")` |
+| Content | `storage.onChanged` (`auctionSettings`, `exchangeRates`) | reload settings/rates, `sync("settings")` |
 | Content | `SYNC_REQUEST` | reload settings/rates, `sync("request")`, answer the state |
 | Background | `runtime.onInstalled` | migrate old settings, schedule the daily alarm, refresh the saved rates |
 | Background | `runtime.onStartup` | schedule the alarm if missing (Firefox drops alarms on restart), refresh the saved rates |
@@ -238,10 +241,10 @@ Rates saved for another base than the saved currency are ignored, so only prices
 | Background | `STATE_CHANGED` | badge by the reported state |
 | Background | `GET_ACTIVE_STATE`, `GET_RATES` | answer (see [Messages](#messages)) |
 | Background | toolbar button | Chrome: opens the side panel natively; Firefox: `action.onClicked` toggles the sidebar |
-| Panel | panel opens | show saved settings, load rates, ask for the active tab's state |
+| Panel | panel opens | ask for the active tab's state, show the settings resolved for its auction, load their rates |
 | Panel | `#currency` `change` | show the currency next to the shipment, load its rates |
-| Panel | `#settings` `submit` | validate, save settings + rates, refresh the status |
-| Panel | `STATE_CHANGED`, `tabs.onActivated`, `tabs.onUpdated` | refresh the status |
+| Panel | `#settings` `submit` | validate, save settings + rates under the active tab's `AuctionKey`, refresh the status |
+| Panel | `STATE_CHANGED`, `tabs.onActivated`, `tabs.onUpdated` | refresh the status; on another `AuctionKey`, show the settings resolved for it |
 
 ### Page load and navigation
 
@@ -255,15 +258,15 @@ sequenceDiagram
   participant PC as PanelController
 
   Page->>CC: content script injected
-  CC->>Store: load() settings + exchangeRates
-  CC->>Page: annotate (PriceAnnotator → AnnotationView)
+  CC->>Store: load() auctionSettings + exchangeRates
+  CC->>Page: annotate with the settings resolved for the page's AuctionKey
   CC-)BC: STATE_CHANGED (reason "load")
   CC-)PC: STATE_CHANGED (if the panel is open)
   BC->>BC: badge "ON"
   PC->>BC: GET_ACTIVE_STATE
   BC->>CC: SYNC_REQUEST
   CC-->>BC: state
-  BC-->>PC: state → StatusView
+  BC-->>PC: state → StatusView, on another AuctionKey the resolved settings → form
 
   Note over Page,CC: the page changes a price or renders late
   Page->>CC: MutationObserver
@@ -272,7 +275,7 @@ sequenceDiagram
   Note over Page,BC: in-page navigation (history.pushState)
   BC->>BC: tabs.onUpdated → badge by URL
   BC->>CC: SYNC_REQUEST
-  CC->>Page: annotate, or remove all annotations off the site
+  CC->>Page: annotate (settings resolved for the new URL), or remove all annotations off the site
   CC-)BC: STATE_CHANGED (only if the state changed)
 ```
 
@@ -295,7 +298,7 @@ sequenceDiagram
   RS-->>BC: ExchangeRates
   BC-->>PC: { rates } → RatesView (only the latest request is shown)
   User->>PC: Save
-  PC->>Store: save(settings, rates) — one write
+  PC->>Store: save(key, settings, rates) — one write
   Store-)Other: storage.onChanged → reload + sync("settings")
   Store-)Tab: storage.onChanged → reload + sync("settings")
   PC->>BC: GET_ACTIVE_STATE
@@ -318,7 +321,7 @@ sequenceDiagram
 
   alt install / update
     Browser->>BC: runtime.onInstalled
-    BC->>Store: migrate() old keys
+    BC->>Store: migrate(sites) old keys
     BC->>Browser: create alarm (daily) if missing
   else browser start
     Browser->>BC: runtime.onStartup
@@ -327,10 +330,12 @@ sequenceDiagram
     Browser->>BC: alarms.onAlarm "refresh-exchange-rates"
   end
   BC->>RS: refreshSaved()
-  RS->>Store: load() → saved currency
-  RS->>API: GET latest?base=…&symbols=…
-  API-->>RS: rates (ECB reference)
-  RS->>Store: saveRates() — only if the saved currency is unchanged
+  RS->>Store: load() → currencies of the saved settings + the default
+  loop every currency
+    RS->>API: GET latest?base=…&symbols=…
+    API-->>RS: rates (ECB reference)
+    RS->>Store: saveRates() — that currency only, a failure keeps the old ones
+  end
   Store-)Tabs: storage.onChanged → reload + sync("settings")
 ```
 

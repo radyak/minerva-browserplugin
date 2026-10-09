@@ -1,7 +1,9 @@
 import { PriceAnnotator } from "../core/annotation/PriceAnnotator.js";
 import { MSG } from "../core/messages.js";
 import { ExchangeRates } from "../core/rates/ExchangeRates.js";
+import { AuctionKey } from "../core/settings/AuctionKey.js";
 import { Settings } from "../core/settings/Settings.js";
+import { SettingsBook } from "../core/settings/SettingsBook.js";
 import { SITES } from "../core/sites/sites.config.js";
 import { TabState } from "../core/state/TabState.js";
 
@@ -14,8 +16,9 @@ import { TabState } from "../core/state/TabState.js";
 export class ContentController {
   /** @type {TabState | null} null until the first sync, so that one is always reported */
   #lastState = null;
-  #settings = Settings.DEFAULT;
-  #rates = ExchangeRates.empty(Settings.DEFAULT.currency);
+  #book = new SettingsBook();
+  /** @type {import("../browser/SettingsStore.js").RatesByCurrency} */
+  #rates = {};
 
   /**
    * @param {object} deps
@@ -76,21 +79,43 @@ export class ContentController {
     const url = this.window.location.href;
     const site = this.sites.find(url);
     // Off every site, clean up whatever an earlier run left behind.
-    const state = site
-      ? new TabState({
-          ...this.annotator.annotate(site, this.#settings, this.#rates).toJSON(),
-          ...site.identify(url),
-        })
-      : this.annotator.clear();
+    const state = site ? this.#annotate(site, url) : this.annotator.clear();
     const changed = !state.equals(this.#lastState);
     this.#lastState = state;
     if (changed) this.bus.send({ type: MSG.STATE_CHANGED, url, ...state.toJSON(), reason });
     return state;
   }
 
+  /**
+   * Annotate the page of `url` on `site` with the settings of its auction.
+   * @param {import("../core/sites/AuctionSite.js").AuctionSite} site
+   * @param {string} url
+   * @returns {TabState}
+   */
+  #annotate(site, url) {
+    const key = new AuctionKey({ site: site.origin, ...site.identify(url) });
+    const { settings, rates } = this.settingsFor(key);
+    return new TabState({
+      ...this.annotator.annotate(site, settings, rates).toJSON(),
+      ...key.toJSON(),
+    });
+  }
+
+  /**
+   * The settings saved for the auction of `key` (see SettingsBook#resolve), the
+   * defaults when nothing saved applies, and the rates into their currency.
+   * @param {AuctionKey} key
+   * @returns {{settings: Settings, rates: ExchangeRates}}
+   */
+  settingsFor(key) {
+    const settings = this.#book.resolve(key)?.settings ?? Settings.DEFAULT;
+    const rates = this.#rates[settings.currency] ?? ExchangeRates.empty(settings.currency);
+    return { settings, rates };
+  }
+
   async #loadSettings() {
-    const { settings, rates } = await this.store.load();
-    this.#settings = settings;
+    const { book, rates } = await this.store.load();
+    this.#book = book;
     this.#rates = rates;
   }
 

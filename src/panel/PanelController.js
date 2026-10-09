@@ -1,6 +1,8 @@
 import { Currency } from "../core/currency/Currency.js";
 import { MSG } from "../core/messages.js";
 import { ExchangeRates } from "../core/rates/ExchangeRates.js";
+import { AuctionKey } from "../core/settings/AuctionKey.js";
+import { Settings } from "../core/settings/Settings.js";
 import { TabState } from "../core/state/TabState.js";
 import { SelectedRates } from "./SelectedRates.js";
 import { InactiveView } from "./views/InactiveView.js";
@@ -9,16 +11,20 @@ import { SettingsFormView } from "./views/SettingsFormView.js";
 import { StatusView } from "./views/StatusView.js";
 
 /**
- * Side panel (Chrome) / sidebar (Firefox): shows and saves the settings, what
- * the extension does in the active tab and the exchange rates from that tab's
- * price currencies into the selected currency (loaded by the background). Identical on both browsers;
- * everything it touches is passed in.
+ * Side panel (Chrome) / sidebar (Firefox): shows and saves the settings of the
+ * auction in the active tab, what the extension does there and the exchange
+ * rates from that tab's price currencies into the selected currency (loaded by
+ * the background). Identical on both browsers; everything it touches is passed in.
  */
 export class PanelController {
   /** @type {ExchangeRates | null | undefined} rates of the selected currency; undefined while loading, null when unavailable */
   #rates;
   /** @type {TabState} */
   #state = TabState.inactive();
+  /** @type {AuctionKey | null} the auction of the active tab; null until its state is known */
+  #key = null;
+  /** @type {import("../core/settings/SettingsBook.js").ResolvedSettings | null} what the form was filled with; null for the defaults */
+  #resolved = null;
 
   /**
    * @param {object} deps
@@ -49,7 +55,7 @@ export class PanelController {
     });
   }
 
-  /** Wire the UI, show what is stored, then bring the active tab in line with it. */
+  /** Wire the UI, then show the active tab's state and the settings saved for its auction. */
   async start() {
     this.form.onSubmit(() => this.save());
     this.form.onCurrencyChange((code) => this.selectCurrency(code));
@@ -65,7 +71,6 @@ export class PanelController {
       if (changeInfo.url || changeInfo.status === "complete") this.refreshStatus();
     });
 
-    await this.#showStoredSettings();
     await this.refreshStatus();
   }
 
@@ -83,26 +88,41 @@ export class PanelController {
     this.#showRates();
   }
 
-  /** Save the entered settings with the matching rates; the active tab recalculates. */
+  /**
+   * Save the entered settings for the auction in the active tab, with the
+   * matching rates; the tab recalculates.
+   */
   async save() {
-    if (!this.form.validate()) return;
-    const { settings: current } = await this.store.load();
-    const settings = this.form.read(current);
+    const key = this.#key;
+    if (!this.form.validate() || !key?.site) return;
+    const settings = this.form.read(this.#resolved?.settings ?? Settings.DEFAULT);
     // Settings and matching rates in one write: open tabs never see one without the other.
-    // Without matching rates the stored ones stay (and are ignored by the page).
-    await this.store.save(settings, (await this.rates.ratesFor(settings.currency)) ?? undefined);
-    this.form.show(settings);
+    // Without matching rates the page shows n/a until the background has fetched them.
+    await this.store.save(
+      key,
+      settings,
+      (await this.rates.ratesFor(settings.currency)) ?? undefined,
+    );
+    this.#resolved = (await this.store.load()).book.resolve(key);
+    this.form.show(settings, this.#resolved?.scope ?? null);
     // Asking for the state makes the active tab re-read the settings and recalculate.
     await this.refreshStatus();
     this.form.showSaved();
   }
 
-  /** Ask the background what the active tab is doing and show it. */
+  /**
+   * Ask the background what the active tab is doing and show it; when the tab
+   * is on another auction than before, fill the form with its settings.
+   */
   async refreshStatus() {
     this.#state = TabState.from(await this.bus.send({ type: MSG.GET_ACTIVE_STATE }));
     this.status.render(this.#state);
     this.inactiveView.render(this.#state);
     this.#showRates();
+    const key = AuctionKey.from(this.#state);
+    if (key.equals(this.#key)) return;
+    this.#key = key;
+    await this.#showSettingsFor(key);
   }
 
   /** The rates relevant to the active tab, as far as they are loaded. */
@@ -112,10 +132,17 @@ export class PanelController {
     else this.ratesView.show(this.#rates, this.#state.currencies);
   }
 
-  /** Show the saved settings and the rates of their currency. */
-  async #showStoredSettings() {
-    const { settings } = await this.store.load();
-    this.form.show(settings);
+  /**
+   * Fill the form with the settings that apply to the auction of `key` - the
+   * defaults when nothing saved does - and load the rates of their currency.
+   * @param {AuctionKey} key
+   */
+  async #showSettingsFor(key) {
+    const { book } = await this.store.load();
+    if (!key.equals(this.#key)) return; // the tab moved on in the meantime
+    this.#resolved = book.resolve(key);
+    const settings = this.#resolved?.settings ?? Settings.DEFAULT;
+    this.form.show(settings, this.#resolved?.scope ?? null);
     await this.selectCurrency(settings.currency);
   }
 

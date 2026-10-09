@@ -114,15 +114,23 @@ checked by `tsc` via `jsconfig.json`; build-time globals such as `__TARGET__` ar
 ## Settings and the effective price
 
 - **All storage goes through `SettingsStore` (`src/browser/SettingsStore.js`).** The layout is
-  `{ settings: Settings#toJSON(), exchangeRates: ExchangeRates#toJSON() }`; `load()` returns a
-  `Settings` (via `Settings.from()`, which falls back to `Settings.DEFAULT` for missing/invalid
-  values) and the matching `ExchangeRates`. `save(settings, rates)` writes both in **one**
-  `storage.local.set`, so listeners get one change event and never see new settings with old
-  rates. Keys of the older one-key-per-setting layout are converted once by `migrate()`, called
-  from the background on `runtime.onInstalled`.
-- The panel shows the saved settings and saves the full `Settings` when Save is clicked; an
-  emptied input keeps the current value. The input ranges live in `Settings.RANGES` only; the
-  panel sets its inputs' `min`/`max` from them. There is no message for settings — storage is
+  `{ auctionSettings: SettingsBook#toJSON(), exchangeRates: { [base]: ExchangeRates#toJSON() } }`;
+  `load()` returns the `SettingsBook` and the rates per currency. `save(key, settings, rates)`
+  writes both in **one** `storage.local.set`, so listeners get one change event and never see new
+  settings without their rates. Older layouts (the global `settings` key of 0.1.0, the
+  one-key-per-setting keys before it) are converted once by `migrate(sites)`, called from the
+  background on `runtime.onInstalled`: global settings become site-wide entries of every site.
+- **Settings are saved per auction.** `SettingsBook` (`src/core/settings/`) holds one entry per
+  `AuctionKey` (site origin + house + auction ID, as `TabState` carries them; `null` = unknown),
+  newest last. `resolve(key)` walks `SETTINGS_SCOPES` (`SettingsScope.js`: auction > house > site,
+  each a list of key fields that must be equal) and returns the newest entry of the first scope
+  with one, or `null` - then `Settings.DEFAULT` applies. A scope is skipped when one of its fields
+  is unknown on the page, so unknown IDs never match each other. The lookup order lives only in
+  `SETTINGS_SCOPES`; saving always stores the full key. The content script resolves on every
+  `sync()` (so URL changes switch settings), the panel when the active tab's `AuctionKey` changes.
+- The panel shows the resolved settings and saves the full `Settings` under the active tab's key
+  when Save is clicked; an emptied input keeps the value shown. The input ranges live in
+  `Settings.RANGES` only; the panel sets its inputs' `min`/`max` from them. There is no message for settings — storage is
   the channel: after saving, the panel sends `GET_ACTIVE_STATE`, the background forwards
   `SYNC_REQUEST`, and the content script **re-reads the settings on every `SYNC_REQUEST`** before
   syncing. `SettingsStore.onChange()` additionally updates the other open tabs.
@@ -142,12 +150,13 @@ checked by `tsc` via `jsconfig.json`; build-time globals such as `__TARGET__` ar
   of `RatesClient`). It answers the panel's `GET_RATES` (reusing fetched rates for an hour) and
   keeps the saved rates fresh: on install/update, on browser start and via a daily `alarms`
   alarm (`refresh-exchange-rates`; re-created on start because Firefox drops alarms on restart).
-  A refresh only saves when the saved currency is still the one it fetched for.
+  A refresh covers every currency of the saved settings plus `Settings.DEFAULT.currency` (used
+  where nothing saved applies), each saved on its own.
 - The panel displays the rates it gets from the background and saves them together with the
   settings on Save (one write, see above). `SelectedRates` (`src/panel/`) lets only the latest
-  request count, so fast currency switches cannot show or store stale rates. Stored rates for
-  another base are ignored (`ExchangeRates.fromStorage()` gives `ExchangeRates.empty()`), so
-  only the output currency itself (1:1) is known until matching rates exist.
+  request count, so fast currency switches cannot show or store stale rates. Rates are stored
+  per base currency; without stored rates for a currency only the output currency itself (1:1)
+  is known.
 - Rates come from Frankfurter (`EXCHANGE_RATES_URL` in `config.js`, plain `fetch` with an
   injectable fetch function for tests). It sends `Access-Control-Allow-Origin: *`, so no
   `host_permissions` are needed.
@@ -171,7 +180,7 @@ the channel open when needed — required for async answers and easy to drop by 
 `bus.send()` / `bus.sendToTab()`, which ignore a missing receiver.
 
 The state of a tab is a `TabState` (`src/core/state/TabState.js`: `active`, `annotated`,
-`unparsable`, `currencies` of the prices found, `house`/`auction` IDs). Messages are
+`unparsable`, `currencies` of the prices found, `site` origin, `house`/`auction` IDs). Messages are
 structured-cloned, so class instances do not survive them: send `{ ...state.toJSON(), url }`, and
 turn what arrives back into one with `TabState.from()`.
 

@@ -15,6 +15,7 @@ export class TabState {
    * @param {number} [values.annotated] number of annotated prices
    * @param {number} [values.unparsable] of those, the ones showing "n/a"
    * @param {Iterable<string>} [values.currencies] currency codes of the prices on the page
+   * @param {string | null} [values.site] origin of the AuctionSite the tab is on, null when none
    * @param {string | null} [values.house] auction house ID from the URL, null when unknown
    * @param {string | null} [values.auction] auction ID from the URL, null when unknown
    */
@@ -23,6 +24,7 @@ export class TabState {
     annotated = 0,
     unparsable = 0,
     currencies = [],
+    site = null,
     house = null,
     auction = null,
   } = {}) {
@@ -34,6 +36,8 @@ export class TabState {
     this.unparsable = unparsable;
     /** @readonly sorted, without duplicates */
     this.currencies = Object.freeze([...new Set(currencies)].sort());
+    /** @readonly */
+    this.site = site;
     /** @readonly */
     this.house = house;
     /** @readonly */
@@ -54,7 +58,7 @@ export class TabState {
    */
   static from(data) {
     const values =
-      /** @type {{active?: unknown, annotated?: unknown, unparsable?: unknown, currencies?: unknown, house?: unknown, auction?: unknown}} */ (
+      /** @type {{active?: unknown, annotated?: unknown, unparsable?: unknown, currencies?: unknown, site?: unknown, house?: unknown, auction?: unknown}} */ (
         data ?? {}
       );
     const count = (value) => (Number.isInteger(value) && value >= 0 ? value : 0);
@@ -67,6 +71,7 @@ export class TabState {
       annotated: count(values.annotated),
       unparsable: count(values.unparsable),
       currencies,
+      site: id(values.site),
       house: id(values.house),
       auction: id(values.auction),
     });
@@ -82,6 +87,7 @@ export class TabState {
       this.active === other.active &&
       this.annotated === other.annotated &&
       this.unparsable === other.unparsable &&
+      this.site === other.site &&
       this.house === other.house &&
       this.auction === other.auction &&
       this.currencies.length === other.currencies.length &&
@@ -89,13 +95,14 @@ export class TabState {
     );
   }
 
-  /** @returns {{active: boolean, annotated: number, unparsable: number, currencies: string[], house: string | null, auction: string | null}} plain data for messages */
+  /** @returns {{active: boolean, annotated: number, unparsable: number, currencies: string[], site: string | null, house: string | null, auction: string | null}} plain data for messages */
   toJSON() {
     return {
       active: this.active,
       annotated: this.annotated,
       unparsable: this.unparsable,
       currencies: [...this.currencies],
+      site: this.site,
       house: this.house,
       auction: this.auction,
     };

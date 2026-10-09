@@ -9,6 +9,7 @@ test("is inactive with nothing annotated by default", () => {
     annotated: 0,
     unparsable: 0,
     currencies: [],
+    site: null,
     house: null,
     auction: null,
   });
@@ -31,6 +32,10 @@ test("compares by value", () => {
     false,
   );
   assert.equal(
+    new TabState({ site: "https://a.test" }).equals(new TabState({ site: "https://b.test" })),
+    false,
+  );
+  assert.equal(
     new TabState({ house: "leu", auction: "7" }).equals(
       new TabState({ house: "leu", auction: "8" }),
     ),
@@ -46,6 +51,7 @@ test("survives a round trip through a message", () => {
     annotated: 3,
     unparsable: 1,
     currencies: ["USD"],
+    site: "https://x.test",
     house: "leu",
     auction: "7",
   });
@@ -66,6 +72,7 @@ test("reads anything missing or malformed as inactive / zero", () => {
       annotated: -1,
       unparsable: 1.5,
       currencies: "USD",
+      site: 1,
       house: "",
       auction: 7,
     }),

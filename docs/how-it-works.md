@@ -43,21 +43,28 @@ What the extension does on a page and in the panel, from the user's point of vie
 - The background script watches `tabs.onUpdated` (covers SPA `pushState`
   navigation), sets a badge on the toolbar icon and relays sync requests.
 - The panel is one HTML file used by both browsers - Chrome shows it via
-  `chrome.sidePanel`, Firefox via `sidebar_action`. It shows the saved settings;
-  *Save* persists them together with the matching exchange rates in one write to
-  `storage.local` (`settings`, `exchangeRates`) and makes the active tab
+  `chrome.sidePanel`, Firefox via `sidebar_action`. Settings are saved per
+  auction: *Save* stores them under the active tab's site, auction house and
+  auction ID, together with the exchange rates of their currency, in one write to
+  `storage.local` (`auctionSettings`, `exchangeRates`), and makes the active tab
   recalculate right away; other open tabs follow via `storage.onChanged`. An
-  emptied input keeps the saved value. Each input's hint is hidden until the `?`
+  emptied input keeps the value shown.
+- Whenever the active tab is on another auction (navigation, tab switch), the
+  panel fills the form with the settings that apply there: those saved for the
+  same auction on the same site, otherwise the latest saved for the same auction
+  house, otherwise the latest saved on the site, otherwise the defaults. A line
+  below *Save* names where the values come from. The page calculates with the
+  same settings (see [Configuration](configuration.md#which-saved-settings-apply)). Each input's hint is hidden until the `?`
   icon next to its label is clicked (a second click hides it again).
 - Selecting a currency (EUR, USD, GBP, CHF; default EUR) immediately updates the
   shipment's currency hint and loads the rates against the other three from the
   Frankfurter API (through the background script) and saves them with the
-  currency. The *Plugin status* card only shows the rates the active tab needs:
+  settings. The *Plugin status* card only shows the rates the active tab needs:
   from the currencies of its prices into the selected one (e.g. `1 USD = 0.8333 GBP`).
-  The background refreshes the saved rates on install/update, on browser start and
-  once a day. Until rates for the
-  saved currency have been stored once, only prices already in that currency
-  are converted; all others show `n/a`.
+  The background refreshes the saved rates of every currency in use (and of the
+  default currency) on install/update, on browser start and once a day. Until
+  rates for a currency have been stored once, only prices already in that
+  currency are converted; all others show `n/a`.
 - While the extension is inactive in the active tab, the panel hides the settings
   form and shows Minerva with a `?` speech bubble and "No auction or platform
   active" instead; the *Plugin status* card stays visible.

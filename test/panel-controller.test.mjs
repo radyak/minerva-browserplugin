@@ -5,9 +5,10 @@ import { JSDOM } from "jsdom";
 
 import { MSG } from "../src/core/messages.js";
 import { ExchangeRates } from "../src/core/rates/ExchangeRates.js";
+import { AuctionKey } from "../src/core/settings/AuctionKey.js";
 import { Settings } from "../src/core/settings/Settings.js";
 import { PanelController } from "../src/panel/PanelController.js";
-import { fakeBus, fakeStore, settle } from "./support/fakes.mjs";
+import { bookOf, fakeBus, fakeStore, settle } from "./support/fakes.mjs";
 
 /** The real panel markup, without its script. */
 const PANEL_HTML = readFileSync(
@@ -45,18 +46,25 @@ function fakeTabs() {
   };
 }
 
-/** What the active tab reports: prices in USD. */
+const SHOP = "https://shop.test";
+
+/** What the active tab reports: prices in USD, on a page of house "leu". */
 const ON_USD_PAGE = {
   active: true,
   annotated: 3,
   unparsable: 1,
   currencies: ["USD"],
+  site: SHOP,
   house: "leu",
   auction: null,
 };
 
-/** @param {{settings?: Settings, client?: any, state?: object}} [options] */
-async function openPanel({ settings = GBP, client = undefined, state = ON_USD_PAGE } = {}) {
+/** @param {{book?: any, client?: any, state?: object}} [options] */
+async function openPanel({
+  book = bookOf([{ site: SHOP }, GBP]),
+  client = undefined,
+  state = ON_USD_PAGE,
+} = {}) {
   const { window } = new JSDOM(PANEL_HTML);
   const doc = window.document;
   const tabs = fakeTabs();
@@ -74,7 +82,7 @@ async function openPanel({ settings = GBP, client = undefined, state = ON_USD_PA
       },
     },
   });
-  const store = fakeStore(settings);
+  const store = fakeStore({ book });
   const controller = new PanelController({ document: doc, tabs, bus, store });
   const started = controller.start();
   const $ = (selector) => /** @type {any} */ (doc.querySelector(selector));
@@ -98,6 +106,7 @@ test("shows the saved settings, the rates and the status on open", async () => {
   assert.equal($("#auction-premium").value, "20");
   assert.equal($("#shipment").value, "7");
   assert.equal($("#shipment-currency").textContent, "GBP");
+  assert.equal($("#settings-source").textContent, "Saved for this site.");
   assert.equal($("#auction-premium").max, "100");
   // Only the rate the page needs: 1 GBP = 1.2 USD.
   assert.deepEqual(rateRows($), ["1 USD =0.8333 GBP"]);
@@ -179,12 +188,15 @@ test("saves the entered settings with the matching rates in one go", async () =>
   await settle();
   assert.deepEqual(store.saved, [
     {
+      // Under the key of the page: house "leu", auction unknown.
+      key: new AuctionKey({ site: SHOP, house: "leu" }),
       settings: new Settings({ auctionPremium: 25, shipment: 7, currency: "GBP" }),
       rates: ratesOf("GBP"),
     },
   ]);
   // The emptied input shows the kept value again.
   assert.equal($("#shipment").value, "7");
+  assert.equal($("#settings-source").textContent, "Saved for this auction house.");
   assert.equal($("#saved").hidden, false);
   assert.equal(bus.sent.filter((message) => message.type === MSG.GET_ACTIVE_STATE).length, 2);
 });
@@ -231,6 +243,7 @@ test("fills the Save button only while the form differs from the saved settings"
 test("only shows the rates of the currency picked last", async () => {
   const client = manualClient();
   const { window, $, started } = await openPanel({ client });
+  await settle();
   client.answer(); // GBP, on open
   await started;
 
@@ -252,6 +265,7 @@ test("only shows the rates of the currency picked last", async () => {
 test("saves settings without rates when they could not be loaded", async () => {
   const client = manualClient();
   const { window, $, store, started } = await openPanel({ client });
+  await settle();
   client.pending.shift().reject(new Error("offline"));
   await started;
   assert.equal($("#rates-info").textContent, "Exchange rates unavailable.");
@@ -276,4 +290,76 @@ test("refreshes the status on state changes, tab switches and navigation", async
   tabs.updated[0](2, { status: "loading" }); // not yet: ignored
   await settle();
   assert.equal(statusRequests(), before + 3);
+});
+
+test("fills the form with the settings of the auction the active tab is on", async () => {
+  /** @type {any} */
+  let state = { ...ON_USD_PAGE, auction: "1" };
+  const CHF = new Settings({ auctionPremium: 10, shipment: 3, currency: "CHF" });
+  const book = bookOf(
+    [{ site: SHOP }, GBP],
+    [{ site: SHOP, house: "cng", auction: "2" }, CHF],
+    [{ site: SHOP, house: "leu", auction: "1" }, CHF],
+  );
+  const { window, bus, $, started } = await openPanel({ book, state });
+  bus.send = async (message) =>
+    message.type === MSG.GET_ACTIVE_STATE ? state : { rates: ratesOf(message.base).toJSON() };
+  await started;
+  const showing = () => [
+    $("#currency").value,
+    $("#auction-premium").value,
+    $("#settings-source").textContent,
+  ];
+  const navigate = async (changes) => {
+    state = { ...ON_USD_PAGE, ...changes };
+    bus.deliver({ type: MSG.STATE_CHANGED });
+    await settle();
+    await settle();
+  };
+  assert.deepEqual(showing(), ["CHF", "10", "Saved for this auction."]);
+
+  // Same auction: what is being typed stays.
+  $("#auction-premium").value = "12";
+  await navigate({ auction: "1", annotated: 5 });
+  assert.equal($("#auction-premium").value, "12");
+
+  await navigate({ house: "cng", auction: "2" });
+  assert.deepEqual(showing(), ["CHF", "10", "Saved for this auction."]);
+  await navigate({ house: "leu", auction: "9" });
+  assert.deepEqual(showing(), ["CHF", "10", "Saved for this auction house."]);
+  await navigate({ house: "nac", auction: "9" });
+  assert.deepEqual(showing(), ["CHF", "10", "Saved for this site."]);
+  await navigate({ site: "https://other.test", house: null, auction: null });
+  assert.deepEqual(showing(), ["EUR", "0", "Nothing saved yet: defaults."]);
+  assert.equal($("#shipment-currency").textContent, "EUR");
+  assert.equal(window.document.querySelector("#settings").hidden, false);
+});
+
+test("saves for the auction of the active tab, from the defaults when nothing was saved", async () => {
+  const state = { ...ON_USD_PAGE, house: "leu", auction: "3" };
+  const { window, $, store, started } = await openPanel({ book: bookOf(), state });
+  await started;
+  assert.equal($("#settings-source").textContent, "Nothing saved yet: defaults.");
+  $("#auction-premium").value = "15";
+  $("#shipment").value = "";
+  $("#settings").dispatchEvent(new window.Event("submit", { cancelable: true }));
+  await settle();
+  await settle();
+  assert.deepEqual(
+    store.saved.map(({ key, settings }) => [key, settings]),
+    [
+      [
+        new AuctionKey({ site: SHOP, house: "leu", auction: "3" }),
+        new Settings({ auctionPremium: 15, shipment: 0, currency: Settings.DEFAULT.currency }),
+      ],
+    ],
+  );
+  assert.equal($("#settings-source").textContent, "Saved for this auction.");
+});
+
+test("saves nothing while the active tab is on no site", async () => {
+  const { controller, store, started } = await openPanel({ state: { active: false } });
+  await started;
+  await controller.save();
+  assert.deepEqual(store.saved, []);
 });
