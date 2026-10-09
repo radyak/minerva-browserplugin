@@ -7,6 +7,7 @@ import { EffectivePriceCalculator } from "../src/core/pricing/EffectivePriceCalc
 import { AuctionSite } from "../src/core/sites/AuctionSite.js";
 import { SiteRegistry } from "../src/core/sites/SiteRegistry.js";
 import { SITES } from "../src/core/sites/sites.config.js";
+import { UrlParam } from "../src/core/sites/UrlParam.js";
 import { matchPatternFor, urlMatches, urlOnOrigin } from "../src/core/sites/url-matcher.js";
 
 test("matches a plain prefix glob", () => {
@@ -132,6 +133,59 @@ test("sites use the effective price calculation unless configured otherwise", ()
   assert.equal(site.calculator, calculator);
 });
 
+test("UrlParam reads a query parameter", () => {
+  const param = UrlParam.query("a");
+  assert.equal(param.extract(new URL("https://x.test/h/auction?a=7522&l=9")), "7522");
+  assert.equal(param.extract(new URL("https://x.test/h/auction?l=9")), null);
+  assert.equal(param.extract(new URL("https://x.test/h/auction?a=")), null);
+});
+
+test("UrlParam reads one path segment, the rest of the pattern being a glob", () => {
+  const sale = UrlParam.path("/sale/:id*");
+  assert.equal(sale.extract(new URL("https://x.test/sale/7123")), "7123");
+  assert.equal(sale.extract(new URL("https://x.test/sale/7123/lot/45?x=1")), "7123");
+  assert.equal(sale.extract(new URL("https://x.test/sale/")), null);
+  assert.equal(sale.extract(new URL("https://x.test/other/7123")), null);
+
+  const house = UrlParam.path("/:id/auction");
+  assert.equal(house.extract(new URL("https://x.test/agorawien/auction?a=1")), "agorawien");
+  assert.equal(house.extract(new URL("https://x.test/auctions/calendar")), null);
+  assert.equal(house.extract(new URL("https://x.test/a%20b/auction")), "a b");
+  // Regex characters in the pattern are literal.
+  assert.equal(UrlParam.path("/a.b/:id").extract(new URL("https://x.test/axb/1")), null);
+});
+
+test("UrlParam needs exactly one placeholder in a path pattern", () => {
+  assert.throws(() => UrlParam.path("/sale/*"), /:id/);
+  assert.throws(() => UrlParam.path("/:id/:id"), /:id/);
+});
+
+test("a site identifies house and auction from the URL, as far as configured", () => {
+  const site = new AuctionSite({
+    origin: "https://x.test",
+    paths: ["/*"],
+    priceSelectors: [".p"],
+    ids: { house: UrlParam.path("/:id/auction"), auction: UrlParam.query("a") },
+  });
+  assert.deepEqual(site.identify("https://x.test/leu/auction?a=7"), { house: "leu", auction: "7" });
+  assert.deepEqual(site.identify("https://x.test/leu/auction"), { house: "leu", auction: null });
+  assert.deepEqual(site.identify("not a url"), { house: null, auction: null });
+  // Without ids nothing is known.
+  assert.deepEqual(SHOP.identify("https://shop.test/lot/1?a=7"), { house: null, auction: null });
+});
+
+test("the configured sites identify their real URLs", () => {
+  const identify = (url) => SITES.find(url)?.identify(url);
+  assert.deepEqual(identify("https://www.biddr.com/agorawien/auction?a=7522&l=9222559"), {
+    house: "agorawien",
+    auction: "7522",
+  });
+  assert.deepEqual(identify("https://www.numisbids.com/sale/7123/lot/45"), {
+    house: null,
+    auction: "7123",
+  });
+});
+
 test("sites are immutable", () => {
   assert.throws(() => {
     /** @type {any} */ (SHOP.paths).push("/x");
@@ -155,6 +209,7 @@ test("every configured site is well formed", () => {
       assert.match(path, /^\//, `${name}: "${path}" must be a path starting with "/"`);
     }
     assert.ok(site.priceSelectors.length > 0, name);
+    assert.ok(site.ids.auction, `${name}: ids.auction must be configured`);
     // Every selector must be valid CSS, otherwise querySelectorAll throws at runtime.
     const doc = new JSDOM("").window.document;
     for (const selector of site.priceSelectors) doc.querySelectorAll(selector);

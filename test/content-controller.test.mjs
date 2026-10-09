@@ -10,10 +10,16 @@ import { PriceCalculator } from "../src/core/pricing/PriceCalculator.js";
 import { Settings } from "../src/core/settings/Settings.js";
 import { AuctionSite } from "../src/core/sites/AuctionSite.js";
 import { SiteRegistry } from "../src/core/sites/SiteRegistry.js";
+import { UrlParam } from "../src/core/sites/UrlParam.js";
 import { fakeBus, fakeStore, settle } from "./support/fakes.mjs";
 
 const SITES = new SiteRegistry([
-  new AuctionSite({ origin: "https://shop.test", paths: ["/lot/*"], priceSelectors: [".price"] }),
+  new AuctionSite({
+    origin: "https://shop.test",
+    paths: ["/lot/*"],
+    priceSelectors: [".price"],
+    ids: { house: UrlParam.query("h"), auction: UrlParam.path("/lot/:id") },
+  }),
   new AuctionSite({ origin: "https://other.test", paths: ["/*"], priceSelectors: [".other"] }),
 ]);
 const EUR = new Settings({ auctionPremium: 20, shipment: 10, currency: "EUR" });
@@ -52,9 +58,17 @@ test("annotates on start and reports the state once", async () => {
       annotated: 1,
       unparsable: 0,
       currencies: ["USD"],
+      house: null,
+      auction: "1",
       reason: "load",
     },
   ]);
+});
+
+test("reports the auction house and auction named in the URL", async () => {
+  const { bus } = await startOn("https://shop.test/lot/42?h=leu");
+  assert.equal(bus.sent[0].house, "leu");
+  assert.equal(bus.sent[0].auction, "42");
 });
 
 test("stays inactive off the configured sites", async () => {
@@ -72,6 +86,8 @@ test("answers a sync request with the current state, after re-reading the settin
     annotated: 1,
     unparsable: 0,
     currencies: ["USD"],
+    house: null,
+    auction: "1",
   });
   assert.equal(annotation(), "250 EUR");
 });

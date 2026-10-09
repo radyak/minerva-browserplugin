@@ -9,7 +9,15 @@ The auction sites the extension acts on live in
 | `origin` | `https://www.biddr.com` | protocol + host (optionally a port), no path; `<protocol>//<host>/*` is baked into both manifests as the content script match pattern |
 | `paths` | `["/*"]` | path globs on that host, e.g. `/live/g-m-auction` or `/live/*`; the extension only acts while the page path matches one of them (`*` = any characters, otherwise exact; query and hash are ignored) |
 | `priceSelectors` | `[".current-bid"]` | the elements whose text holds the price |
+| `ids` | `{ house: UrlParam.path("/:id/auction"), auction: UrlParam.query("a") }` | where the page URL names the auction house *(optional)* and the auction; shown in the *Plugin status* card |
 | `calculator` | *(optional)* | a `PriceCalculator` for sites whose fees differ; `EffectivePriceCalculator` by default |
+
+An ID is read by a `UrlParam` (`src/core/sites/UrlParam.js`), either from a query
+parameter - `UrlParam.query("a")` reads `7522` from `?a=7522` - or from one path
+segment - `UrlParam.path("/sale/:id*")` reads `7123` from `/sale/7123/lot/45`. In
+a path pattern `:id` marks the segment (exactly once), `*` matches any characters
+and the rest must match literally, against the whole path. An ID the URL does
+not contain is shown as "unknown".
 
 On a given URL the first site on the same origin with a matching `paths` entry
 is used. biddr.com and numisbids.com are configured.

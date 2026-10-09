@@ -111,7 +111,8 @@ export class BackgroundController {
     if (!tab) return { url: null, ...TabState.inactive().toJSON() };
     const state = await this.bus.sendToTab(tab.id, { type: MSG.SYNC_REQUEST });
     // No content script there (yet): judge by the URL alone.
-    const fallback = new TabState({ active: this.sites.isTarget(tab.url) });
+    const site = this.sites.find(tab.url);
+    const fallback = new TabState({ active: site !== null, ...site?.identify(tab.url) });
     return state ?? { url: tab.url ?? null, ...fallback.toJSON() };
   }
 }

@@ -9,6 +9,8 @@ test("is inactive with nothing annotated by default", () => {
     annotated: 0,
     unparsable: 0,
     currencies: [],
+    house: null,
+    auction: null,
   });
   assert.deepEqual(new TabState(), TabState.inactive());
 });
@@ -28,12 +30,25 @@ test("compares by value", () => {
     new TabState({ currencies: ["USD"] }).equals(new TabState({ currencies: ["EUR"] })),
     false,
   );
+  assert.equal(
+    new TabState({ house: "leu", auction: "7" }).equals(
+      new TabState({ house: "leu", auction: "8" }),
+    ),
+    false,
+  );
   assert.equal(state.equals(null), false);
   assert.equal(state.equals(undefined), false);
 });
 
 test("survives a round trip through a message", () => {
-  const state = new TabState({ active: true, annotated: 3, unparsable: 1, currencies: ["USD"] });
+  const state = new TabState({
+    active: true,
+    annotated: 3,
+    unparsable: 1,
+    currencies: ["USD"],
+    house: "leu",
+    auction: "7",
+  });
   const message = structuredClone({
     type: "state-changed",
     url: "https://x.test/",
@@ -46,7 +61,14 @@ test("reads anything missing or malformed as inactive / zero", () => {
   assert.deepEqual(TabState.from(undefined), TabState.inactive());
   assert.deepEqual(TabState.from(null), TabState.inactive());
   assert.deepEqual(
-    TabState.from({ active: "yes", annotated: -1, unparsable: 1.5, currencies: "USD" }),
+    TabState.from({
+      active: "yes",
+      annotated: -1,
+      unparsable: 1.5,
+      currencies: "USD",
+      house: "",
+      auction: 7,
+    }),
     TabState.inactive(),
   );
 });

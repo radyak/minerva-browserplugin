@@ -1,9 +1,12 @@
 import { EffectivePriceCalculator } from "../pricing/EffectivePriceCalculator.js";
 import { matchPatternFor, urlOnOrigin } from "./url-matcher.js";
 
+/** @typedef {{house: string | null, auction: string | null}} AuctionIds */
+
 /**
  * One auction site the extension acts on: where it is, which elements hold
- * the prices and how the price to show is worked out. Immutable.
+ * the prices, how the price to show is worked out and where the URL names the
+ * auction house and the auction. Immutable.
  */
 export class AuctionSite {
   /**
@@ -18,8 +21,18 @@ export class AuctionSite {
    *   holds the price.
    * @param {import("../pricing/PriceCalculator.js").PriceCalculator} [config.calculator] How the
    *   price to show is worked out; the EffectivePriceCalculator unless the site's fees differ.
+   * @param {object} [config.ids] Where the page URL names the auction, see UrlParam.
+   * @param {import("./UrlParam.js").UrlParam} [config.ids.house] the auction house (optional:
+   *   not every site has it in the URL)
+   * @param {import("./UrlParam.js").UrlParam} [config.ids.auction] the auction
    */
-  constructor({ origin, paths, priceSelectors, calculator = new EffectivePriceCalculator() }) {
+  constructor({
+    origin,
+    paths,
+    priceSelectors,
+    calculator = new EffectivePriceCalculator(),
+    ids = {},
+  }) {
     /** @readonly */
     this.origin = origin;
     /** @readonly */
@@ -28,6 +41,8 @@ export class AuctionSite {
     this.priceSelectors = Object.freeze([...priceSelectors]);
     /** @readonly */
     this.calculator = calculator;
+    /** @readonly */
+    this.ids = Object.freeze({ house: ids.house ?? null, auction: ids.auction ?? null });
     Object.freeze(this);
   }
 
@@ -38,6 +53,24 @@ export class AuctionSite {
    */
   matches(url) {
     return urlOnOrigin(url, this.origin, this.paths);
+  }
+
+  /**
+   * The auction house and auction `url` is about, as far as the URL tells.
+   * @param {string | undefined | null} url
+   * @returns {AuctionIds} null for each one not found (or not configured)
+   */
+  identify(url) {
+    let parsed;
+    try {
+      parsed = new URL(url ?? "");
+    } catch {
+      return { house: null, auction: null };
+    }
+    return {
+      house: this.ids.house?.extract(parsed) ?? null,
+      auction: this.ids.auction?.extract(parsed) ?? null,
+    };
   }
 
   /** The WebExtension match pattern covering every page of this site's host. */

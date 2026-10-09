@@ -61,6 +61,8 @@ What the extension does on a page and in the panel, from the user's point of vie
 - While the extension is inactive in the active tab, the panel hides the settings
   form and shows Minerva with a `?` speech bubble and "No auction or platform
   active" instead; the *Plugin status* card stays visible.
+- While active, the *Plugin status* card also shows the auction house and auction
+  IDs read from the page URL (per site, see [Configuration](configuration.md)).
 - Below the *Plugin status* card the panel shows a disclaimer (bidding aid only, no
   responsibility for the prices shown) and links for bug reports and feature
   requests (email, GitHub repository).

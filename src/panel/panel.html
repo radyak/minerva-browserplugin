@@ -127,6 +127,22 @@
             <div>
               <span id="status" class="badge text-bg-secondary">checking…</span>
             </div>
+            <!-- Identified from the page URL (AuctionSite ids); only while active. -->
+            <div id="auction-ids" hidden>
+              <div class="small fw-semibold">Auction</div>
+              <table class="table table-sm small mb-0">
+                <tbody>
+                  <tr>
+                    <td>House ID</td>
+                    <td id="auction-house" class="text-end"></td>
+                  </tr>
+                  <tr>
+                    <td>Auction ID</td>
+                    <td id="auction-id" class="text-end"></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
             <div>
               <div class="small fw-semibold">Exchange rate</div>
               <table class="table table-sm small mb-0">

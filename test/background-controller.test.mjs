@@ -6,10 +6,16 @@ import { MSG } from "../src/core/messages.js";
 import { ExchangeRates } from "../src/core/rates/ExchangeRates.js";
 import { AuctionSite } from "../src/core/sites/AuctionSite.js";
 import { SiteRegistry } from "../src/core/sites/SiteRegistry.js";
+import { UrlParam } from "../src/core/sites/UrlParam.js";
 import { fakeBus } from "./support/fakes.mjs";
 
 const SITES = new SiteRegistry([
-  new AuctionSite({ origin: "https://shop.test", paths: ["/lot/*"], priceSelectors: [".price"] }),
+  new AuctionSite({
+    origin: "https://shop.test",
+    paths: ["/lot/*"],
+    priceSelectors: [".price"],
+    ids: { house: UrlParam.query("h"), auction: UrlParam.path("/lot/:id") },
+  }),
 ]);
 
 /** The parts of the extension API the controller uses, recording badges and listeners. */
@@ -113,13 +119,15 @@ test("answers the active tab's state as synced by its content script", async () 
 });
 
 test("judges by the URL when the active tab has no content script", async () => {
-  const { bus } = start({ activeTab: { id: 9, url: "https://shop.test/lot/1" } });
+  const { bus } = start({ activeTab: { id: 9, url: "https://shop.test/lot/1?h=leu" } });
   assert.deepEqual(await bus.deliver({ type: MSG.GET_ACTIVE_STATE }), {
-    url: "https://shop.test/lot/1",
+    url: "https://shop.test/lot/1?h=leu",
     active: true,
     annotated: 0,
     unparsable: 0,
     currencies: [],
+    house: "leu",
+    auction: "1",
   });
 });
 
@@ -131,6 +139,8 @@ test("is inactive without an active tab", async () => {
     annotated: 0,
     unparsable: 0,
     currencies: [],
+    house: null,
+    auction: null,
   });
 });
 

@@ -3,8 +3,7 @@ import { MSG } from "../core/messages.js";
 import { ExchangeRates } from "../core/rates/ExchangeRates.js";
 import { Settings } from "../core/settings/Settings.js";
 import { SITES } from "../core/sites/sites.config.js";
-
-/** @typedef {import("../core/state/TabState.js").TabState} TabState */
+import { TabState } from "../core/state/TabState.js";
 
 /**
  * Keeps one page in sync with the core rules: annotates it whenever the page,
@@ -78,7 +77,10 @@ export class ContentController {
     const site = this.sites.find(url);
     // Off every site, clean up whatever an earlier run left behind.
     const state = site
-      ? this.annotator.annotate(site, this.#settings, this.#rates)
+      ? new TabState({
+          ...this.annotator.annotate(site, this.#settings, this.#rates).toJSON(),
+          ...site.identify(url),
+        })
       : this.annotator.clear();
     const changed = !state.equals(this.#lastState);
     this.#lastState = state;

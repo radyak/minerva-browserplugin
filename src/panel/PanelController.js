@@ -33,7 +33,12 @@ export class PanelController {
     this.store = store;
     this.rates = new SelectedRates((code) => this.#requestRates(code));
     this.form = new SettingsFormView(document);
-    this.status = new StatusView(/** @type {HTMLElement} */ (document.getElementById("status")));
+    this.status = new StatusView({
+      badge: /** @type {HTMLElement} */ (document.getElementById("status")),
+      ids: /** @type {HTMLElement} */ (document.getElementById("auction-ids")),
+      house: /** @type {HTMLElement} */ (document.getElementById("auction-house")),
+      auction: /** @type {HTMLElement} */ (document.getElementById("auction-id")),
+    });
     this.inactiveView = new InactiveView({
       form: /** @type {HTMLElement} */ (document.getElementById("settings")),
       notice: /** @type {HTMLElement} */ (document.getElementById("inactive")),

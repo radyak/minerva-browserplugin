@@ -46,7 +46,14 @@ function fakeTabs() {
 }
 
 /** What the active tab reports: prices in USD. */
-const ON_USD_PAGE = { active: true, annotated: 3, unparsable: 1, currencies: ["USD"] };
+const ON_USD_PAGE = {
+  active: true,
+  annotated: 3,
+  unparsable: 1,
+  currencies: ["USD"],
+  house: "leu",
+  auction: null,
+};
 
 /** @param {{settings?: Settings, client?: any, state?: object}} [options] */
 async function openPanel({ settings = GBP, client = undefined, state = ON_USD_PAGE } = {}) {
@@ -96,6 +103,9 @@ test("shows the saved settings, the rates and the status on open", async () => {
   assert.deepEqual(rateRows($), ["1 USD =0.8333 GBP"]);
   assert.match($("#rates-info").textContent, /2026-09-25/);
   assert.equal($("#status").textContent, "3 prices updated, 1 n/a");
+  assert.equal($("#auction-ids").hidden, false);
+  assert.equal($("#auction-house").textContent, "leu");
+  assert.equal($("#auction-id").textContent, "unknown");
   // Keeping the saved rates fresh is the background's job.
   assert.deepEqual(store.savedRates, []);
 });
@@ -113,6 +123,7 @@ test("shows the form only while the extension is active in the tab", async () =>
   assert.equal(inactive.$("#inactive").hidden, false);
   assert.match(inactive.$("#inactive").textContent, /No auction or platform active/);
   assert.equal(inactive.$("#status").textContent, "inactive");
+  assert.equal(inactive.$("#auction-ids").hidden, true);
 });
 
 test("shows no rate when the page needs none", async () => {

@@ -48,7 +48,8 @@ checked by `tsc` via `jsconfig.json`; build-time globals such as `__TARGET__` ar
   `src/browser/side-panel.js` (Chrome `sidePanel` vs. Firefox `sidebarAction`). Do not add a
   `TARGET === "chrome"` branch anywhere else; extend `src/browser/` instead.
 - **`src/core/sites/sites.config.js` is the single source of truth for the targets.** `SITES` is
-  a `SiteRegistry` of `AuctionSite`s (`origin`, `paths`, `priceSelectors`); plugin-wide constants
+  a `SiteRegistry` of `AuctionSite`s (`origin`, `paths`, `priceSelectors`, `ids` for the house
+  and auction ID in the URL, read by `UrlParam`); plugin-wide constants
   live in `src/core/config.js`. The manifests carry `$VERSION` and `$CONTENT_MATCHES` placeholders
   that `scripts/build.mjs` resolves from `package.json` and from `SITES.matchPatterns()`.
   Changing what the extension targets should mean editing only `sites.config.js`.
@@ -170,9 +171,9 @@ the channel open when needed — required for async answers and easy to drop by 
 `bus.send()` / `bus.sendToTab()`, which ignore a missing receiver.
 
 The state of a tab is a `TabState` (`src/core/state/TabState.js`: `active`, `annotated`,
-`unparsable`, `currencies` of the prices found). Messages are structured-cloned, so class
-instances do not survive them: send `{ ...state.toJSON(), url }`, and turn what arrives back into
-one with `TabState.from()`.
+`unparsable`, `currencies` of the prices found, `house`/`auction` IDs). Messages are
+structured-cloned, so class instances do not survive them: send `{ ...state.toJSON(), url }`, and
+turn what arrives back into one with `TabState.from()`.
 
 ## Conventions
 

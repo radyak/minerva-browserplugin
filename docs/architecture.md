@@ -115,9 +115,11 @@ src/
     annotation/    PriceAnnotator (reads and prices the elements),
                    AnnotationView (inserts/updates the sibling, idempotent)
     sites/         AuctionSite, SiteRegistry, sites.config.js (the targeted sites),
-                   url-matcher.js (glob matching for URLs)
+                   url-matcher.js (glob matching for URLs),
+                   UrlParam (reads house / auction IDs out of a URL)
     messages.js    message types
-    state/         TabState (what the extension does in a tab: active, counts, price currencies)
+    state/         TabState (what the extension does in a tab: active, counts, price
+                   currencies, house and auction IDs)
   browser/     the thin browser abstraction (API alias, messaging, settings storage,
                side panel vs. sidebar)
   background/  background script / service worker (BackgroundController, RatesService + wiring)
@@ -163,6 +165,7 @@ The panel is a single Bootstrap page shared by both browsers. Its DOM is only to
 | `#saved` | "Saved." note, hidden after 2 s | `SettingsFormView` | – |
 | `#inactive` | Minerva saying "?", "No auction or platform active"; shown instead of `#settings` while the active tab is inactive (the form stays hidden until the state is known) | `InactiveView` | – |
 | `#status` (badge) | "3 prices updated, 1 n/a" / "inactive" | `StatusView` | – |
+| `#auction-ids` (`#auction-house`, `#auction-id`) | house and auction ID from the URL, "unknown" when not found; hidden while inactive | `StatusView` | – |
 | `#rates` (table body), `#rates-info` | "1 GBP = 1.16 EUR" rows, source date / "Loading…" / error | `RatesView` | – |
 
 ### Injected annotation (content script)
@@ -199,8 +202,8 @@ Four message types, defined in `src/core/messages.js` and sent through `MessageB
 
 | Type | From → to | Payload | Answer | Sent when |
 | --- | --- | --- | --- | --- |
-| `SYNC_REQUEST` | background → content (`tabs.sendMessage`) | – | `{ url, active, annotated, unparsable, currencies }` after re-reading the settings and syncing | a tab navigates (`tabs.onUpdated`), the panel asks for the active tab's state |
-| `STATE_CHANGED` | content → background + panel | `{ url, active, annotated, unparsable, currencies, reason }` | – | a sync changed the tab's `TabState` |
+| `SYNC_REQUEST` | background → content (`tabs.sendMessage`) | – | `{ url, active, annotated, unparsable, currencies, house, auction }` after re-reading the settings and syncing | a tab navigates (`tabs.onUpdated`), the panel asks for the active tab's state |
+| `STATE_CHANGED` | content → background + panel | `{ url, active, annotated, unparsable, currencies, house, auction, reason }` | – | a sync changed the tab's `TabState` |
 | `GET_ACTIVE_STATE` | panel → background | – | the active tab's state (from its content script, or judged by URL without one) | panel opens, after Save, on tab switches/navigation, on `STATE_CHANGED` |
 | `GET_RATES` | panel → background | `{ base }` | `{ rates }` (`ExchangeRates#toJSON()`) or `{ error }` | panel opens, a currency is picked |
 
