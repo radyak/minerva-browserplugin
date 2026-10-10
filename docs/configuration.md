@@ -48,15 +48,15 @@ decided by `SETTINGS_SCOPES` in
 in order, the first one holding saved settings wins (and within it the most recently
 saved entry):
 
-| Scope | Key parts that must match | Panel says |
+| Scope | Key parts that must match | Panel highlights (tooltip) |
 | --- | --- | --- |
-| `auction` | site + auction ID | Saved for this auction. |
-| `house` | site + auction house ID | Saved for this auction house. |
-| `site` | site | Saved for this site. |
+| `auction` | site + auction ID | *Auction* (Saved for this auction.) |
+| `house` | site + auction house ID | *House* (Saved for this auction house.) |
+| `site` | site | *Site* (Saved for this site.) |
 
 A scope is skipped when one of its key parts is unknown on the page (no auction
 house in numisbids URLs, for example). Without any match the page uses the defaults
-(`Settings.DEFAULT`) and the panel says "Nothing saved yet: defaults." Reorder,
+(`Settings.DEFAULT`) and the panel highlights *Defaults*. Reorder,
 add or drop scopes in that list to change the lookup - saving always stores the
 full key, so the stored data does not depend on it.
 

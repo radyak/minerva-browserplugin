@@ -10,7 +10,7 @@ export class StatusView {
 
   /** @param {import("../../core/state/TabState.js").TabState} state */
   render({ active, annotated, unparsable }) {
-    const label = `${annotated} price${annotated === 1 ? "" : "s"} updated`;
+    const label = `${annotated} price${annotated === 1 ? "" : "s"} annotated`;
     this.badge.textContent = active
       ? unparsable
         ? `${label}, ${unparsable} n/a`

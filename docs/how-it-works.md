@@ -52,8 +52,9 @@ What the extension does on a page and in the panel, from the user's point of vie
 - Whenever the active tab is on another auction (navigation, tab switch), the
   panel fills the form with the settings that apply there: those saved for the
   same auction on the same site, otherwise the latest saved for the same auction
-  house, otherwise the latest saved on the site, otherwise the defaults. A line
-  below *Save* names where the values come from. The page calculates with the
+  house, otherwise the latest saved on the site, otherwise the defaults. Below
+  the auction IDs at the top, *Values from* highlights where the values come
+  from: *Auction*, *House*, *Site* or *Defaults*. The page calculates with the
   same settings (see [Configuration](configuration.md#which-saved-settings-apply)). Each input's hint is hidden until the `?`
   icon next to its label is clicked (a second click hides it again).
 - Selecting a currency (EUR, USD, GBP, CHF; default EUR) immediately updates the

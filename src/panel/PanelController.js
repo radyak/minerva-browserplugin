@@ -45,6 +45,7 @@ export class PanelController {
       ids: /** @type {HTMLElement} */ (document.getElementById("auction-ids")),
       house: /** @type {HTMLElement} */ (document.getElementById("auction-house")),
       auction: /** @type {HTMLElement} */ (document.getElementById("auction-id")),
+      source: /** @type {HTMLElement} */ (document.getElementById("settings-source")),
     });
     this.inactiveView = new InactiveView({
       form: /** @type {HTMLElement} */ (document.getElementById("settings")),
@@ -106,7 +107,8 @@ export class PanelController {
       (await this.rates.ratesFor(settings.currency)) ?? undefined,
     );
     this.#resolved = (await this.store.load()).book.resolve(key);
-    this.form.show(settings, this.#resolved?.scope ?? null);
+    this.form.show(settings);
+    this.auctionView.showSource(this.#resolved?.scope ?? null);
     // Asking for the state makes the active tab re-read the settings and recalculate.
     await this.refreshStatus();
     this.form.showSaved();
@@ -145,7 +147,8 @@ export class PanelController {
     if (!key.equals(this.#key)) return; // the tab moved on in the meantime
     this.#resolved = book.resolve(key);
     const settings = this.#resolved?.settings ?? Settings.DEFAULT;
-    this.form.show(settings, this.#resolved?.scope ?? null);
+    this.form.show(settings);
+    this.auctionView.showSource(this.#resolved?.scope ?? null);
     await this.selectCurrency(settings.currency);
   }
 

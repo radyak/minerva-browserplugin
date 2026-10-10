@@ -89,6 +89,13 @@ async function openPanel({
   return { window, doc, $, tabs, bus, store, controller, started };
 }
 
+/** Where the form's values come from: the title of the highlighted pill below the auction IDs. */
+const source = ($) => {
+  const current = $("#settings-source").querySelectorAll("[aria-current]");
+  assert.equal(current.length, 1);
+  return current[0].title;
+};
+
 /** The rate rows as text; the decimal comma of some locales read as a point. */
 const rateRows = ($) =>
   [...$("#rates").querySelectorAll("tr")].map((row) =>
@@ -106,7 +113,7 @@ test("shows the saved settings, the rates and the status on open", async () => {
   assert.equal($("#auction-premium").value, "20");
   assert.equal($("#shipment").value, "7");
   assert.equal($("#shipment-currency").textContent, "GBP");
-  assert.equal($("#settings-source").textContent, "Saved for this site.");
+  assert.equal(source($), "Saved for this site.");
   assert.equal($("#auction-premium").max, "100");
   // Only the rate the page needs: 1 GBP = 1.2 USD.
   assert.deepEqual(rateRows($), ["1 USD =0.8333 GBP"]);
@@ -125,6 +132,11 @@ test("shows the form and the auction only while the tab is on an auction", async
   assert.equal(active.$("#settings").hidden, false);
   assert.equal(active.$("#inactive").hidden, true);
   assert.equal(active.$("#auction-ids").hidden, false);
+  assert.deepEqual(
+    [...active.$("#settings-source").children].map((pill) => pill.textContent),
+    ["Auction", "House", "Site", "Defaults"],
+  );
+  assert.equal(active.$("#settings-source [aria-current]").textContent, "Site");
 
   // On a site, but neither house nor auction in the URL.
   const noAuction = await openPanel({ state: { ...ON_USD_PAGE, house: null } });
@@ -213,7 +225,7 @@ test("saves the entered settings with the matching rates in one go", async () =>
   ]);
   // The emptied input shows the kept value again.
   assert.equal($("#shipment").value, "7");
-  assert.equal($("#settings-source").textContent, "Saved for this auction house.");
+  assert.equal(source($), "Saved for this auction house.");
   assert.equal($("#saved").hidden, false);
   assert.equal(bus.sent.filter((message) => message.type === MSG.GET_ACTIVE_STATE).length, 2);
 });
@@ -322,11 +334,7 @@ test("fills the form with the settings of the auction the active tab is on", asy
   bus.send = async (message) =>
     message.type === MSG.GET_ACTIVE_STATE ? state : { rates: ratesOf(message.base).toJSON() };
   await started;
-  const showing = () => [
-    $("#currency").value,
-    $("#auction-premium").value,
-    $("#settings-source").textContent,
-  ];
+  const showing = () => [$("#currency").value, $("#auction-premium").value, source($)];
   const navigate = async (changes) => {
     state = { ...ON_USD_PAGE, ...changes };
     bus.deliver({ type: MSG.STATE_CHANGED });
@@ -358,7 +366,7 @@ test("saves for the auction of the active tab, from the defaults when nothing wa
   const state = { ...ON_USD_PAGE, house: "leu", auction: "3" };
   const { window, $, store, started } = await openPanel({ book: bookOf(), state });
   await started;
-  assert.equal($("#settings-source").textContent, "Nothing saved yet: defaults.");
+  assert.equal(source($), "Nothing saved yet: defaults.");
   $("#auction-premium").value = "15";
   $("#shipment").value = "";
   $("#settings").dispatchEvent(new window.Event("submit", { cancelable: true }));
@@ -373,7 +381,7 @@ test("saves for the auction of the active tab, from the defaults when nothing wa
       ],
     ],
   );
-  assert.equal($("#settings-source").textContent, "Saved for this auction.");
+  assert.equal(source($), "Saved for this auction.");
 });
 
 test("saves nothing while the active tab is on no auction", async () => {

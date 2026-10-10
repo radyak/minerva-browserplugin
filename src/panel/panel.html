@@ -10,7 +10,7 @@
   <body class="bg-body-tertiary">
     <div class="d-flex flex-column gap-3 p-3 min-vh-100">
       <!-- The auction the active tab is on, from its URL (AuctionSite ids); shown with the form. -->
-      <header id="auction-ids" class="shadow-sm" hidden>
+      <header id="auction-ids" hidden>
         <table class="table table-sm small mb-0">
           <tbody>
             <tr>
@@ -23,6 +23,12 @@
             </tr>
           </tbody>
         </table>
+        <!-- Which saved settings the form shows: one pill per SettingsScope plus the defaults,
+             filled in by AuctionView; the one in use is highlighted. -->
+        <div class="d-flex align-items-center flex-wrap gap-1 px-1 pt-1 small">
+          <span class="text-body-secondary me-1">Values from</span>
+          <span id="settings-source" class="d-flex flex-wrap gap-1"></span>
+        </div>
       </header>
 
       <!-- Instead of the form while the active tab is on no auction (see InactiveView). -->
@@ -129,8 +135,6 @@
               <button type="submit" id="save" class="btn btn-outline-primary">Save</button>
               <span id="saved" class="text-success small" role="status" hidden>Saved.</span>
             </div>
-            <!-- Where the values come from (SettingsScope label); Save stores them for this auction. -->
-            <div id="settings-source" class="form-text small mt-1"></div>
           </div>
         </fieldset>
       </form>
