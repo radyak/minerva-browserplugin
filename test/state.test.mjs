@@ -79,3 +79,10 @@ test("reads anything missing or malformed as inactive / zero", () => {
     TabState.inactive(),
   );
 });
+
+test("is on an auction while active with a house or auction ID", () => {
+  assert.equal(new TabState({ active: true, house: "leu" }).onAuction, true);
+  assert.equal(new TabState({ active: true, auction: "7" }).onAuction, true);
+  assert.equal(new TabState({ active: true, site: "https://a.test" }).onAuction, false);
+  assert.equal(new TabState({ house: "leu", auction: "7" }).onAuction, false);
+});

@@ -78,10 +78,11 @@ flowchart LR
     PC["PanelController"]
     SFV["SettingsFormView"]
     SV["StatusView"]
+    AV["AuctionView"]
     IV["InactiveView"]
     RV["RatesView"]
     SR["SelectedRates"]
-    PC --> SFV & SV & IV & RV & SR
+    PC --> SFV & SV & AV & IV & RV & SR
   end
 
   STORE[("storage.local<br/>auctionSettings · exchangeRates")]
@@ -155,7 +156,7 @@ icons/         base.png + the PNGs generated from it (npm run icons)
 
 ### Side panel (`src/panel/panel.html`)
 
-The panel is a single Bootstrap page shared by both browsers. Its DOM is only touched through three view classes:
+The panel is a single Bootstrap page shared by both browsers. Its DOM is only touched through its view classes:
 
 | Element (`id`) | Content | View | User events → controller |
 | --- | --- | --- | --- |
@@ -166,9 +167,9 @@ The panel is a single Bootstrap page shared by both browsers. Its DOM is only to
 | `#shipment-currency` | the selected currency next to the shipment | `SettingsFormView` | – |
 | `#saved` | "Saved." note, hidden after 2 s | `SettingsFormView` | – |
 | `#settings-source` | where the values shown come from ("Saved for this auction house.", "Nothing saved yet: defaults.") | `SettingsFormView` | – |
-| `#inactive` | Minerva saying "?", "No auction or platform active"; shown instead of `#settings` while the active tab is inactive (the form stays hidden until the state is known) | `InactiveView` | – |
+| `#auction-ids` (`#auction-house`, `#auction-id`), top of the panel | house and auction ID from the URL, "unknown" when not found; shown together with `#settings` | `AuctionView` | – |
+| `#inactive` (`#inactive-text`) | Minerva saying "?", "No auction or platform active" (inactive) / "No auction detected on this page" (on a site, but no house or auction ID in the URL); shown instead of `#settings` unless the active tab is on an auction (`TabState#onAuction`: active with a house or auction ID; the form stays hidden until the state is known) | `InactiveView` | – |
 | `#status` (badge) | "3 prices updated, 1 n/a" / "inactive" | `StatusView` | – |
-| `#auction-ids` (`#auction-house`, `#auction-id`) | house and auction ID from the URL, "unknown" when not found; hidden while inactive | `StatusView` | – |
 | `#rates` (table body), `#rates-info` | "1 GBP = 1.16 EUR" rows, source date / "Loading…" / error | `RatesView` | – |
 
 ### Injected annotation (content script)

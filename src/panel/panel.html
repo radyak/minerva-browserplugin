@@ -9,15 +9,29 @@
   </head>
   <body class="bg-body-tertiary">
     <div class="d-flex flex-column gap-3 p-3 min-vh-100">
-      <header class="d-flex align-items-center justify-content-between gap-2"></header>
+      <!-- The auction the active tab is on, from its URL (AuctionSite ids); shown with the form. -->
+      <header id="auction-ids" class="shadow-sm" hidden>
+        <table class="table table-sm small mb-0">
+          <tbody>
+            <tr>
+              <td>Auction house</td>
+              <td id="auction-house" class="text-end fw-semibold"></td>
+            </tr>
+            <tr>
+              <td>Auction</td>
+              <td id="auction-id" class="text-end fw-semibold"></td>
+            </tr>
+          </tbody>
+        </table>
+      </header>
 
-      <!-- Instead of the form while the extension is inactive in the active tab. -->
+      <!-- Instead of the form while the active tab is on no auction (see InactiveView). -->
       <section id="inactive" class="my-auto text-center text-body-secondary" hidden>
         <div class="minerva-idle">
           <img src="../icons/icon-128.png" alt="Minerva" width="96" height="96" />
           <span class="minerva-bubble" aria-hidden="true">?</span>
         </div>
-        <p class="mt-3 mb-0">No auction or platform active</p>
+        <p id="inactive-text" class="mt-3 mb-0">No auction or platform active</p>
       </section>
 
       <!-- Hidden until the state of the active tab is known (see InactiveView). -->
@@ -128,22 +142,6 @@
           <div class="card-body d-flex flex-column gap-2">
             <div>
               <span id="status" class="badge text-bg-secondary">checking…</span>
-            </div>
-            <!-- Identified from the page URL (AuctionSite ids); only while active. -->
-            <div id="auction-ids" hidden>
-              <div class="small fw-semibold">Auction</div>
-              <table class="table table-sm small mb-0">
-                <tbody>
-                  <tr>
-                    <td>House ID</td>
-                    <td id="auction-house" class="text-end"></td>
-                  </tr>
-                  <tr>
-                    <td>Auction ID</td>
-                    <td id="auction-id" class="text-end"></td>
-                  </tr>
-                </tbody>
-              </table>
             </div>
             <div>
               <div class="small fw-semibold">Exchange rate</div>

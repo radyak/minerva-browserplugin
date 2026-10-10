@@ -119,11 +119,28 @@ test("shows the saved settings, the rates and the status on open", async () => {
   assert.deepEqual(store.savedRates, []);
 });
 
-test("shows the form only while the extension is active in the tab", async () => {
+test("shows the form and the auction only while the tab is on an auction", async () => {
   const active = await openPanel();
   await active.started;
   assert.equal(active.$("#settings").hidden, false);
   assert.equal(active.$("#inactive").hidden, true);
+  assert.equal(active.$("#auction-ids").hidden, false);
+
+  // On a site, but neither house nor auction in the URL.
+  const noAuction = await openPanel({ state: { ...ON_USD_PAGE, house: null } });
+  await noAuction.started;
+  assert.equal(noAuction.$("#settings").hidden, true);
+  assert.equal(noAuction.$("#inactive").hidden, false);
+  assert.equal(noAuction.$("#inactive-text").textContent, "No auction detected on this page");
+  assert.equal(noAuction.$("#auction-ids").hidden, true);
+  assert.equal(noAuction.$("#status").textContent, "3 prices updated, 1 n/a");
+
+  // The auction alone is enough.
+  const auctionOnly = await openPanel({ state: { ...ON_USD_PAGE, house: null, auction: "7" } });
+  await auctionOnly.started;
+  assert.equal(auctionOnly.$("#settings").hidden, false);
+  assert.equal(auctionOnly.$("#auction-house").textContent, "unknown");
+  assert.equal(auctionOnly.$("#auction-id").textContent, "7");
 
   const inactive = await openPanel({ state: { active: false } });
   assert.equal(inactive.$("#settings").hidden, true); // until the state is known
@@ -329,10 +346,12 @@ test("fills the form with the settings of the auction the active tab is on", asy
   assert.deepEqual(showing(), ["CHF", "10", "Saved for this auction house."]);
   await navigate({ house: "nac", auction: "9" });
   assert.deepEqual(showing(), ["CHF", "10", "Saved for this site."]);
-  await navigate({ site: "https://other.test", house: null, auction: null });
+  await navigate({ site: "https://other.test", house: "leu", auction: "1" });
   assert.deepEqual(showing(), ["EUR", "0", "Nothing saved yet: defaults."]);
   assert.equal($("#shipment-currency").textContent, "EUR");
   assert.equal(window.document.querySelector("#settings").hidden, false);
+  await navigate({ house: null, auction: null });
+  assert.equal(window.document.querySelector("#settings").hidden, true);
 });
 
 test("saves for the auction of the active tab, from the defaults when nothing was saved", async () => {
@@ -357,9 +376,11 @@ test("saves for the auction of the active tab, from the defaults when nothing wa
   assert.equal($("#settings-source").textContent, "Saved for this auction.");
 });
 
-test("saves nothing while the active tab is on no site", async () => {
-  const { controller, store, started } = await openPanel({ state: { active: false } });
-  await started;
-  await controller.save();
-  assert.deepEqual(store.saved, []);
+test("saves nothing while the active tab is on no auction", async () => {
+  for (const state of [{ active: false }, { ...ON_USD_PAGE, house: null, auction: null }]) {
+    const { controller, store, started } = await openPanel({ state });
+    await started;
+    await controller.save();
+    assert.deepEqual(store.saved, []);
+  }
 });

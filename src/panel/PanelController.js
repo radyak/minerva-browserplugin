@@ -5,6 +5,7 @@ import { AuctionKey } from "../core/settings/AuctionKey.js";
 import { Settings } from "../core/settings/Settings.js";
 import { TabState } from "../core/state/TabState.js";
 import { SelectedRates } from "./SelectedRates.js";
+import { AuctionView } from "./views/AuctionView.js";
 import { InactiveView } from "./views/InactiveView.js";
 import { RatesView } from "./views/RatesView.js";
 import { SettingsFormView } from "./views/SettingsFormView.js";
@@ -39,8 +40,8 @@ export class PanelController {
     this.store = store;
     this.rates = new SelectedRates((code) => this.#requestRates(code));
     this.form = new SettingsFormView(document);
-    this.status = new StatusView({
-      badge: /** @type {HTMLElement} */ (document.getElementById("status")),
+    this.status = new StatusView(/** @type {HTMLElement} */ (document.getElementById("status")));
+    this.auctionView = new AuctionView({
       ids: /** @type {HTMLElement} */ (document.getElementById("auction-ids")),
       house: /** @type {HTMLElement} */ (document.getElementById("auction-house")),
       auction: /** @type {HTMLElement} */ (document.getElementById("auction-id")),
@@ -48,6 +49,7 @@ export class PanelController {
     this.inactiveView = new InactiveView({
       form: /** @type {HTMLElement} */ (document.getElementById("settings")),
       notice: /** @type {HTMLElement} */ (document.getElementById("inactive")),
+      text: /** @type {HTMLElement} */ (document.getElementById("inactive-text")),
     });
     this.ratesView = new RatesView({
       body: /** @type {HTMLElement} */ (document.getElementById("rates")),
@@ -94,7 +96,7 @@ export class PanelController {
    */
   async save() {
     const key = this.#key;
-    if (!this.form.validate() || !key?.site) return;
+    if (!this.form.validate() || !key?.site || !this.#state.onAuction) return;
     const settings = this.form.read(this.#resolved?.settings ?? Settings.DEFAULT);
     // Settings and matching rates in one write: open tabs never see one without the other.
     // Without matching rates the page shows n/a until the background has fetched them.
@@ -117,6 +119,7 @@ export class PanelController {
   async refreshStatus() {
     this.#state = TabState.from(await this.bus.send({ type: MSG.GET_ACTIVE_STATE }));
     this.status.render(this.#state);
+    this.auctionView.render(this.#state);
     this.inactiveView.render(this.#state);
     this.#showRates();
     const key = AuctionKey.from(this.#state);

@@ -65,11 +65,13 @@ What the extension does on a page and in the panel, from the user's point of vie
   default currency) on install/update, on browser start and once a day. Until
   rates for a currency have been stored once, only prices already in that
   currency are converted; all others show `n/a`.
-- While the extension is inactive in the active tab, the panel hides the settings
-  form and shows Minerva with a `?` speech bubble and "No auction or platform
-  active" instead; the *Plugin status* card stays visible.
-- While active, the *Plugin status* card also shows the auction house and auction
-  IDs read from the page URL (per site, see [Configuration](configuration.md)).
+- The settings form is only shown while the active tab is on an actual auction:
+  on a configured site, with the auction house or auction ID found in the page
+  URL (per site, see [Configuration](configuration.md)). The IDs are shown at the
+  top of the panel, above the form ("unknown" for one not found). Otherwise the
+  panel shows Minerva with a `?` speech bubble and "No auction or platform active"
+  (no site) or "No auction detected on this page" (site, but no IDs) instead; prices
+  are still converted and the *Plugin status* card stays visible either way.
 - Below the *Plugin status* card the panel shows a disclaimer (bidding aid only, no
   responsibility for the prices shown) and links for bug reports and feature
   requests (email, GitHub repository).

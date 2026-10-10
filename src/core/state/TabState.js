@@ -45,6 +45,15 @@ export class TabState {
     Object.freeze(this);
   }
 
+  /**
+   * Whether the tab is on an actual auction: active, and the URL names the
+   * auction house or the auction. Only then does the panel offer the settings.
+   * @returns {boolean}
+   */
+  get onAuction() {
+    return this.active && (this.house !== null || this.auction !== null);
+  }
+
   /** Not active: nothing annotated. */
   static inactive() {
     return new TabState();
