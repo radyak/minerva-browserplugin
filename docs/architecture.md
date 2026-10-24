@@ -169,7 +169,7 @@ The panel is a single Bootstrap page shared by both browsers. Its DOM is only to
 | `#auction-ids` (`#auction-house`, `#auction-id`), top of the panel | house and auction ID from the URL, "unknown" when not found; shown together with `#settings` | `AuctionView` | – |
 | `#settings-source`, below the IDs | "Values from" pills, one per `SETTINGS_SCOPES` entry plus *Defaults*; the one the form's values come from is highlighted (`aria-current`, tooltip "Saved for this auction house.") | `AuctionView` | – |
 | `#inactive` (`#inactive-text`) | Minerva saying "?", "No auction or platform active" (inactive) / "No auction detected on this page" (on a site, but no house or auction ID in the URL); shown instead of `#settings` unless the active tab is on an auction (`TabState#onAuction`: active with a house or auction ID; the form stays hidden until the state is known) | `InactiveView` | – |
-| `#status` (badge) | "3 prices updated, 1 n/a" / "inactive" | `StatusView` | – |
+| `#status` (badge) | "3 prices annotated, 1 n/a" / "inactive" | `StatusView` | – |
 | `#rates` (table body), `#rates-info` | "1 GBP = 1.16 EUR" rows, source date / "Loading…" / error | `RatesView` | – |
 
 ### Injected annotation (content script)

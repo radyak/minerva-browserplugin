@@ -119,7 +119,7 @@ test("shows the saved settings, the rates and the status on open", async () => {
   // Only the rate the page needs: 1 GBP = 1.2 USD.
   assert.deepEqual(rateRows($), ["1 USD =0.8333 GBP"]);
   assert.match($("#rates-info").textContent, /2026-09-25/);
-  assert.equal($("#status").textContent, "3 prices updated, 1 n/a");
+  assert.equal($("#status").textContent, "3 prices annotated, 1 n/a");
   assert.equal($("#auction-ids").hidden, false);
   assert.equal($("#auction-house").textContent, "leu");
   assert.equal($("#auction-id").textContent, "unknown");
@@ -146,7 +146,7 @@ test("shows the form and the auction only while the tab is on an auction", async
   assert.equal(noAuction.$("#inactive").hidden, false);
   assert.equal(noAuction.$("#inactive-text").textContent, "No auction detected on this page");
   assert.equal(noAuction.$("#auction-ids").hidden, true);
-  assert.equal(noAuction.$("#status").textContent, "3 prices updated, 1 n/a");
+  assert.equal(noAuction.$("#status").textContent, "3 prices annotated, 1 n/a");
 
   // The auction alone is enough.
   const auctionOnly = await openPanel({ state: { ...ON_USD_PAGE, house: null, auction: "7" } });
