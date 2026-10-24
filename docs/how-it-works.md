@@ -8,8 +8,8 @@ What the extension does on a page and in the panel, from the user's point of vie
   caught) or the background script reports a URL change.
 - For every match, the element's text is parsed by `src/core/price.js`, the
   effective price is calculated by the site's calculator - by default
-  `EffectivePriceCalculator` in `src/core/pricing/` (price converted into the selected currency,
-  plus premium, plus shipment), and the result is inserted as a sibling right
+  `EffectivePriceCalculator` in `src/core/pricing/` (price plus premium, plus shipment - which
+  is entered in the auction's currency, like the price - converted into the selected currency), and the result is inserted as a sibling right
   after the
   price element (same tag, class `minerva-effective-price`, `aria-live="polite"`). The
   price element itself is never modified. Re-running is idempotent: the
@@ -30,11 +30,11 @@ What the extension does on a page and in the panel, from the user's point of vie
   decimal and grouping separators and surrounding text are preserved; only the
   currency is swapped (a symbol for a symbol, a code for a code):
 
-  | in | out (EUR, 1 USD = 0.5 EUR, +100 shipment) |
+  | in | out (EUR, 1 USD = 0.5 EUR, +100 shipment in the price's currency) |
   | --- | --- |
   | `500 EUR` | `600 EUR` |
-  | `USD 1.359` | `EUR 779,50` |
-  | `$49.99` | `€125.00` |
+  | `USD 1.359` | `EUR 729,50` |
+  | `$49.99` | `€75.00` |
   | `1.234,56 EUR` | `1.334,56 EUR` |
   | `500` | `n/a` (no currency) |
 
@@ -57,9 +57,11 @@ What the extension does on a page and in the panel, from the user's point of vie
   from: *Auction*, *House*, *Site* or *Defaults*. The page calculates with the
   same settings (see [Configuration](configuration.md#which-saved-settings-apply)). Each input's hint is hidden until the `?`
   icon next to its label is clicked (a second click hides it again).
-- Selecting a currency (EUR, USD, GBP, CHF; default EUR) immediately updates the
-  shipment's currency hint and loads the rates against the other three from the
-  Frankfurter API (through the background script) and saves them with the
+- The shipment is entered in the auction's currency: next to it the panel shows
+  the currency of the active tab's prices ("–" while none was found, all of them
+  when the page mixes several), and it is converted together with the price.
+- Selecting a currency (EUR, USD, GBP, CHF; default EUR) immediately loads the
+  rates against the other three from the Frankfurter API (through the background script) and saves them with the
   settings. The *Plugin status* card only shows the rates the active tab needs:
   from the currencies of its prices into the selected one (e.g. `1 USD = 0.8333 GBP`).
   The background refreshes the saved rates of every currency in use (and of the

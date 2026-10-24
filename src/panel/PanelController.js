@@ -78,11 +78,10 @@ export class PanelController {
   }
 
   /**
-   * Follow a (newly) selected currency: shipment hint and exchange rates.
+   * Follow a (newly) selected currency: load its exchange rates.
    * @param {string} code
    */
   async selectCurrency(code) {
-    this.form.showCurrency(code);
     this.#rates = undefined;
     this.#showRates();
     const { rates, latest } = await this.rates.load(code);
@@ -123,6 +122,7 @@ export class PanelController {
     this.status.render(this.#state);
     this.auctionView.render(this.#state);
     this.inactiveView.render(this.#state);
+    this.form.showShipmentCurrency(this.#state.currencies);
     this.#showRates();
     const key = AuctionKey.from(this.#state);
     if (key.equals(this.#key)) return;

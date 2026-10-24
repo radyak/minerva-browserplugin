@@ -54,8 +54,8 @@ const nextFrame = (window) => new Promise((resolve) => window.requestAnimationFr
 
 test("annotates on start and reports the state once", async () => {
   const { bus, annotation } = await startOn("https://shop.test/lot/1");
-  // 500 USD -> 250 EUR, +20 % -> 300, +10 shipment.
-  assert.equal(annotation(), "310 EUR");
+  // 500 USD +20 % -> 600, +10 USD shipment -> 610 USD = 305 EUR.
+  assert.equal(annotation(), "305 EUR");
   assert.deepEqual(bus.sent, [
     {
       type: MSG.STATE_CHANGED,
@@ -107,7 +107,7 @@ test("recalculates when the settings change", async () => {
   await store.change({
     book: everywhere(new Settings({ auctionPremium: 0, shipment: 5, currency: "EUR" })),
   });
-  assert.equal(annotation(), "255 EUR");
+  assert.equal(annotation(), "252.50 EUR"); // 505 USD
 });
 
 test("shows n/a when the new currency has no rates yet", async () => {
@@ -125,7 +125,7 @@ test("follows prices the page changes, once per animation frame", async () => {
   window.document.querySelector(".price").textContent = "200 USD";
   await nextFrame(window);
   await nextFrame(window);
-  assert.equal(annotation(), "130 EUR");
+  assert.equal(annotation(), "125 EUR"); // 250 USD
   // Same number of annotated prices: nothing new to report.
   assert.equal(bus.sent.length, 1);
 });
@@ -154,7 +154,7 @@ test("uses the price selectors of the matching site", async () => {
 
 test("cleans up what an earlier run left behind off the sites", async () => {
   const { window, controller, annotation } = await startOn("https://shop.test/lot/1");
-  assert.equal(annotation(), "310 EUR");
+  assert.equal(annotation(), "305 EUR");
   window.history.pushState({}, "", "/account");
   assert.equal(controller.sync("test").active, false);
   assert.equal(annotation(), undefined);
@@ -185,7 +185,7 @@ test("each site uses its own calculator", async () => {
     }).start();
     return window.document.querySelector(`.${ANNOTATION_CLASS}`)?.textContent;
   };
-  assert.equal(await annotationOn("https://shop.test/lot/1"), "310 EUR");
+  assert.equal(await annotationOn("https://shop.test/lot/1"), "305 EUR");
   assert.equal(await annotationOn("https://flat.test/lot/1"), "42 EUR");
 });
 
@@ -201,15 +201,15 @@ test("uses the settings saved for the auction, its house or its site", async () 
     ],
   );
   const { window, annotation } = await startOn("https://shop.test/lot/1", { book });
-  assert.equal(annotation(), "310 EUR"); // the auction's own settings
+  assert.equal(annotation(), "305 EUR"); // the auction's own settings
   const visit = (path) => {
     window.history.pushState({}, "", path);
     window.dispatchEvent(new window.PopStateEvent("popstate"));
     return annotation();
   };
   assert.equal(visit("/lot/2"), "n/a"); // CHF, without rates
-  assert.equal(visit("/lot/3?h=leu"), "310 EUR"); // auction 1's house
-  assert.equal(visit("/lot/4?h=nac"), "251 EUR"); // the newest on the site
+  assert.equal(visit("/lot/3?h=leu"), "305 EUR"); // auction 1's house
+  assert.equal(visit("/lot/4?h=nac"), "250.50 EUR"); // the newest on the site
   await settle();
 });
 

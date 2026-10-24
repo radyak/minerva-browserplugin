@@ -4,7 +4,7 @@ Minerva — a cross-browser (Chrome + Firefox) MV3 WebExtension that reads the p
 configured element on a configured auction site, calculates the effective price from the
 settings entered in the side panel and inserts the result as a sibling element next to it. The
 side panel shows status and exchange rates and holds the persisted auction premium, shipment
-and currency inputs.
+(in the auction's currency) and currency inputs.
 
 `README.md` is the entry point; the chapters live in `docs/` (`how-it-works.md`: user-facing
 behaviour and the price-format table, `architecture.md`: components, messages, storage and event
@@ -139,8 +139,10 @@ checked by `tsc` via `jsconfig.json`; build-time globals such as `__TARGET__` ar
 - **The calculation is per site:** every `AuctionSite` has a `calculator`, a `PriceCalculator`
   (`src/core/pricing/`) whose `calculate(amount, currency, settings, rates)` `PriceAnnotator`
   uses for that site's prices. The default is `EffectivePriceCalculator`:
-  `rates.convert(amount, currency) * (1 + auctionPremium / 100) + shipment`, in
-  `settings.currency`. A site with different fees gets a subclass, passed as `calculator` in
+  `rates.convert(amount * (1 + auctionPremium / 100) + shipment, currency)`, in
+  `settings.currency`. The shipment is entered in the auction's currency (the price's, not
+  `settings.currency`), so it is converted together with the price; the panel shows the
+  `TabState#currencies` next to it. A site with different fees gets a subclass, passed as `calculator` in
   `sites.config.js`. `currency` is the input currency read from the price text,
   `rates` an `ExchangeRates` with `settings.currency` as base. A missing currency or rate returns
   `undefined`, which `convertPrice()` turns into `null` and the annotator into `n/a` — no

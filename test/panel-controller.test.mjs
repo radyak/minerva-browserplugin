@@ -112,7 +112,8 @@ test("shows the saved settings, the rates and the status on open", async () => {
   assert.equal($("#currency").value, "GBP");
   assert.equal($("#auction-premium").value, "20");
   assert.equal($("#shipment").value, "7");
-  assert.equal($("#shipment-currency").textContent, "GBP");
+  // Entered in the currency of the page's prices, not the selected one.
+  assert.equal($("#shipment-currency").textContent, "USD");
   assert.equal(source($), "Saved for this site.");
   assert.equal($("#auction-premium").max, "100");
   // Only the rate the page needs: 1 GBP = 1.2 USD.
@@ -288,7 +289,7 @@ test("only shows the rates of the currency picked last", async () => {
   client.answer(); // CHF
   await settle();
   assert.match(rateRows($)[0], /^1 USD =.* CHF$/);
-  assert.equal($("#shipment-currency").textContent, "CHF");
+  assert.equal($("#shipment-currency").textContent, "USD"); // the page's, whatever is picked
 });
 
 test("saves settings without rates when they could not be loaded", async () => {
@@ -319,6 +320,21 @@ test("refreshes the status on state changes, tab switches and navigation", async
   tabs.updated[0](2, { status: "loading" }); // not yet: ignored
   await settle();
   assert.equal(statusRequests(), before + 3);
+});
+
+test("shows the currencies of the page's prices next to the shipment", async () => {
+  /** @type {any} */
+  let state = { ...ON_USD_PAGE, currencies: [] };
+  const { bus, $, started } = await openPanel({ state });
+  bus.send = async (message) =>
+    message.type === MSG.GET_ACTIVE_STATE ? state : { rates: ratesOf(message.base).toJSON() };
+  await started;
+  assert.equal($("#shipment-currency").textContent, "–"); // no price found yet
+
+  state = { ...ON_USD_PAGE, currencies: ["USD", "CHF"] };
+  bus.deliver({ type: MSG.STATE_CHANGED });
+  await settle();
+  assert.equal($("#shipment-currency").textContent, "CHF / USD");
 });
 
 test("fills the form with the settings of the auction the active tab is on", async () => {
@@ -356,7 +372,6 @@ test("fills the form with the settings of the auction the active tab is on", asy
   assert.deepEqual(showing(), ["CHF", "10", "Saved for this site."]);
   await navigate({ site: "https://other.test", house: "leu", auction: "1" });
   assert.deepEqual(showing(), ["EUR", "0", "Nothing saved yet: defaults."]);
-  assert.equal($("#shipment-currency").textContent, "EUR");
   assert.equal(window.document.querySelector("#settings").hidden, false);
   await navigate({ house: null, auction: null });
   assert.equal(window.document.querySelector("#settings").hidden, true);

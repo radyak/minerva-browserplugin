@@ -164,7 +164,7 @@ The panel is a single Bootstrap page shared by both browsers. Its DOM is only to
 | `#currency` (select) | options built from `Currency.CODES` | `SettingsFormView` | `change` → `PanelController.selectCurrency()` |
 | `#auction-premium` (input) | premium in %, `min`/`max` from `Settings.RANGES` | `SettingsFormView` | `input` → clears the invalid marker |
 | `#shipment` (input) | shipping cost, `min` from `Settings.RANGES` | `SettingsFormView` | `input` → clears the invalid marker |
-| `#shipment-currency` | the selected currency next to the shipment | `SettingsFormView` | – |
+| `#shipment-currency` | the currencies of the active tab's prices (`TabState#currencies`, "–" for none), which the shipment is entered in | `SettingsFormView` | – |
 | `#saved` | "Saved." note, hidden after 2 s | `SettingsFormView` | – |
 | `#auction-ids` (`#auction-house`, `#auction-id`), top of the panel | house and auction ID from the URL, "unknown" when not found; shown together with `#settings` | `AuctionView` | – |
 | `#settings-source`, below the IDs | "Values from" pills, one per `SETTINGS_SCOPES` entry plus *Defaults*; the one the form's values come from is highlighted (`aria-current`, tooltip "Saved for this auction house.") | `AuctionView` | – |
@@ -243,9 +243,9 @@ The settings of a page are found by `SettingsBook#resolve()`, which tries `SETTI
 | Background | `GET_ACTIVE_STATE`, `GET_RATES` | answer (see [Messages](#messages)) |
 | Background | toolbar button | Chrome: opens the side panel natively; Firefox: `action.onClicked` toggles the sidebar |
 | Panel | panel opens | ask for the active tab's state, show the settings resolved for its auction, load their rates |
-| Panel | `#currency` `change` | show the currency next to the shipment, load its rates |
+| Panel | `#currency` `change` | load the rates of the picked currency |
 | Panel | `#settings` `submit` | validate, save settings + rates under the active tab's `AuctionKey`, refresh the status |
-| Panel | `STATE_CHANGED`, `tabs.onActivated`, `tabs.onUpdated` | refresh the status; on another `AuctionKey`, show the settings resolved for it |
+| Panel | `STATE_CHANGED`, `tabs.onActivated`, `tabs.onUpdated` | refresh the status and the shipment's currency; on another `AuctionKey`, show the settings resolved for it |
 
 ### Page load and navigation
 

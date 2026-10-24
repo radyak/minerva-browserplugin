@@ -100,9 +100,14 @@ export class SettingsFormView {
     this.saveButton.classList.toggle("btn-outline-primary", !changed);
   }
 
-  /** @param {string} code the currency the shipment is entered in */
-  showCurrency(code) {
-    this.shipmentCurrency.textContent = code;
+  /**
+   * Show the currency the shipment is entered in: the one of the auction's prices.
+   * @param {readonly string[]} codes currencies of the prices on the page; "–" while none is
+   *   known, all of them when the page mixes several
+   */
+  showShipmentCurrency(codes) {
+    const text = codes.length ? codes.join(" / ") : "–";
+    if (this.shipmentCurrency.textContent !== text) this.shipmentCurrency.textContent = text;
   }
 
   /**
