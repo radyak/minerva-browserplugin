@@ -4,9 +4,9 @@ Minerva is a Manifest V3 WebExtension for Chrome and Firefox. It runs in three s
 
 | Context | Entry point | Controller | Runs … |
 | --- | --- | --- | --- |
-| **Content script** | `src/content/content.js` | `ContentController` | in every tab on a configured auction site (injected by the manifest) |
-| **Background** | `src/background/background.js` | `BackgroundController` | once per browser: Chrome service worker, Firefox event page |
-| **Panel** | `src/panel/panel.js` (+ `panel.html`) | `PanelController` | while the side panel (Chrome) / sidebar (Firefox) is open |
+| **Content script** | `src/entrypoints/content.js` | `ContentController` | in every tab on a configured auction site (injected by the manifest) |
+| **Background** | `src/entrypoints/background.js` | `BackgroundController` | once per browser: Chrome service worker, Firefox event page |
+| **Panel** | `src/entrypoints/sidepanel/main.js` (+ `index.html`) | `PanelController` | while the side panel (Chrome) / sidebar (Firefox) is open |
 
 Each entry point only *wires things up*: it creates its controller with the real browser objects (`window`/`document`, `ext`, `MessageBus`, `SettingsStore`) and calls `start()`. All behaviour lives in the controllers, which get every dependency through their constructor and are therefore tested with jsdom and fakes (`test/*-controller.test.mjs`).
 
@@ -15,9 +15,9 @@ Each entry point only *wires things up*: it creates its controller with the real
 ```mermaid
 flowchart TB
   subgraph entry["Entry points (wiring only)"]
-    content_js["content/content.js"]
-    background_js["background/background.js"]
-    panel_js["panel/panel.js"]
+    content_js["entrypoints/content.js"]
+    background_js["entrypoints/background.js"]
+    panel_js["entrypoints/sidepanel/"]
   end
   subgraph controllers["Controllers"]
     CC["ContentController"]
@@ -25,7 +25,7 @@ flowchart TB
     PC["PanelController<br/>+ views + SelectedRates"]
   end
   subgraph browser["src/browser/ (extension API)"]
-    ext["ext.js<br/>browser ?? chrome"]
+    ext["ext.js<br/>wxt/browser"]
     bus["MessageBus"]
     store["SettingsStore"]
     side["side-panel.js<br/>sidePanel vs sidebarAction"]
@@ -48,10 +48,10 @@ flowchart TB
 | Layer | Rule |
 | --- | --- |
 | `src/core/` | Never touches an extension API; works on plain strings and a plain `Document`. Unit tested with jsdom. |
-| `src/browser/` | The only code using `chrome.*` / `browser.*`. Classes take `ext` as constructor argument, so they are testable with a fake. `ext.js` reads the build constant `__TARGET__` and is therefore only imported by entry points. |
+| `src/browser/` | The only code using `chrome.*` / `browser.*`. Classes take `ext` as constructor argument, so they are testable with a fake. `ext.js` re-exports `wxt/browser` and is therefore only imported by entry points. |
 | Controllers | Behaviour of one context; everything injected. |
 | Entry points | Create the controller with the real objects. |
-| `platforms/<target>/manifest.json` | The only other place where Chrome and Firefox differ. |
+| `wxt.config.js` (`manifest`) | The only other place where Chrome and Firefox differ. |
 
 ## Components and dependencies
 
@@ -125,15 +125,16 @@ src/
                    currencies, site, house and auction IDs)
   browser/     the thin browser abstraction (API alias, messaging, settings storage,
                side panel vs. sidebar)
-  background/  background script / service worker (BackgroundController, RatesService + wiring)
-  content/     content script (ContentController + wiring) + the annotation stylesheet
-  panel/       side panel UI (Bootstrap): PanelController, views/, SelectedRates + wiring
-platforms/
-  chrome/manifest.json     MV3 + `side_panel`, service worker background
-  firefox/manifest.json    MV3 + `sidebar_action`, event page background
-scripts/       build, packaging, icon generation
+  entrypoints/ the WXT entry points, wiring only: background.js, content.js,
+               sidepanel/ (index.html + main.js)
+  background/  background script / service worker (BackgroundController, RatesService)
+  content/     content script (ContentController) + the annotation stylesheet
+  panel/       side panel UI (Bootstrap): PanelController, views/, SelectedRates
+wxt.config.js  build and manifest for both browsers (WXT)
+public/icons/  the PNGs generated from icons/base.png (npm run icons), copied as is
+icons/         base.png, the source of the icons
+scripts/       icon generation
 test/          node:test + jsdom: core units, browser layer and controllers (fakes in test/support/)
-icons/         base.png + the PNGs generated from it (npm run icons)
 ```
 
 ### Controllers and their dependencies
@@ -154,7 +155,7 @@ icons/         base.png + the PNGs generated from it (npm run icons)
 
 ## HTML components
 
-### Side panel (`src/panel/panel.html`)
+### Side panel (`src/entrypoints/sidepanel/index.html`)
 
 The panel is a single Bootstrap page shared by both browsers. Its DOM is only touched through its view classes:
 
@@ -342,14 +343,15 @@ sequenceDiagram
 
 ## Build time
 
-The manifests are generated from `platforms/<target>/manifest.json`: `scripts/build.mjs` replaces `$VERSION` (from `package.json`) and `$CONTENT_MATCHES` (from `SITES.matchPatterns()`), so the configured sites decide where the content script is injected.
+WXT generates the manifest of each browser from `wxt.config.js` and the entry points: the version comes from `package.json`, the content script's `matches` and the `host_permissions` from `SITES.matchPatterns()` (read at build time), so the configured sites decide where the content script is injected. Background, content script and side panel keys follow from the files in `src/entrypoints/` - Chrome gets `side_panel` + the `sidePanel` permission and a service worker, Firefox `sidebar_action` and an event page (`background.scripts`). `import.meta.env.BROWSER` is replaced per build, so `side-panel.js` keeps only its own branch.
 
 ```mermaid
 flowchart LR
-  sites["src/core/sites/sites.config.js"] -->|matchPatterns| build["scripts/build.mjs<br/>(esbuild, IIFE, __TARGET__)"]
+  sites["src/core/sites/sites.config.js"] -->|matchPatterns| build["WXT / Vite<br/>(wxt build -b #lt;browser#gt;)"]
   pkg["package.json<br/>version"] --> build
-  tpl["platforms/#lt;target#gt;/manifest.json"] --> build
-  src["src/**"] --> build
+  cfg["wxt.config.js<br/>manifest"] --> build
+  entry["src/entrypoints/**"] --> build
+  pub["public/icons"] --> build
   build --> dist["dist/chrome<br/>dist/firefox"]
-  dist -->|npm run package| zip["build/minerva-#lt;version#gt;-#lt;target#gt;.zip"]
+  dist -->|npm run package| zip["dist/minerva-#lt;version#gt;-#lt;browser#gt;.zip<br/>+ sources zip"]
 ```

@@ -40,7 +40,7 @@ Load `dist/chrome` via *Load unpacked* in `chrome://extensions`, or `dist/firefo
 * URL-based auction detection & persistence in auction scope
 * Backend: Auction database
 * Tweak "your bid" price, too
-* Migration to [WXT](https://wxt.dev) (build, type safety, messaging)
+* Migration to [WXT](https://wxt.dev): build done (see [plan](docs/dev/wxt-migration-plan.md)); next: type safety, messaging, storage
 
 ### Further factors of the effective price
 

@@ -10,5 +10,5 @@
     "lib": ["es2023", "dom", "dom.iterable"],
     "types": ["node"]
   },
-  "include": ["src/**/*.js", "src/**/*.d.ts", "test/**/*.mjs", "scripts/**/*.mjs"]
+  "include": [".wxt/wxt.d.ts", "src/**/*.js", "test/**/*.mjs", "scripts/**/*.mjs", "wxt.config.js"]
 }

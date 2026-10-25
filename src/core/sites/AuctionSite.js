@@ -12,7 +12,7 @@ export class AuctionSite {
   /**
    * @param {object} config
    * @param {string} config.origin Protocol + host of the site, optionally with a port, no path
-   *   (e.g. "https://www.biddr.com"). scripts/build.mjs turns it into the content script
+   *   (e.g. "https://www.biddr.com"). The build (wxt.config.js) turns it into the content script
    *   match pattern "<protocol>//<host>/*".
    * @param {string[]} config.paths Path globs on that host (e.g. "/live/*"). The extension only
    *   acts while the page path matches one of them; query and hash are ignored. "*" matches any

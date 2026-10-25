@@ -12,7 +12,7 @@ import { bookOf, fakeBus, fakeStore, settle } from "./support/fakes.mjs";
 
 /** The real panel markup, without its script. */
 const PANEL_HTML = readFileSync(
-  new URL("../src/panel/panel.html", import.meta.url),
+  new URL("../src/entrypoints/sidepanel/index.html", import.meta.url),
   "utf8",
 ).replace(/<script[^>]*><\/script>/, "");
 

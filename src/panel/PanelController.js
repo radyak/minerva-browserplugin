@@ -29,7 +29,7 @@ export class PanelController {
 
   /**
    * @param {object} deps
-   * @param {Document} deps.document the panel document (panel.html)
+   * @param {Document} deps.document the panel document (src/entrypoints/sidepanel/index.html)
    * @param {any} deps.tabs the extension `tabs` API (`onActivated`, `onUpdated`)
    * @param {Pick<import("../browser/MessageBus.js").MessageBus, "on" | "send">} deps.bus
    * @param {Pick<import("../browser/SettingsStore.js").SettingsStore, "load" | "save">} deps.store

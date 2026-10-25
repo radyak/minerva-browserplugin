@@ -1,5 +1,6 @@
 dist/
-build/
+.wxt/
+.output/
 .poc/
 node_modules/
 package-lock.json

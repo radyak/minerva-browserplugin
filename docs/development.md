@@ -4,22 +4,27 @@
 
 ```bash
 npm install
-npm run build            # both targets -> dist/chrome, dist/firefox
-npm run build:chrome     # one target only
-npm run watch            # rebuild on change (unminified, inline source maps)
+npm run build            # both browsers -> dist/chrome, dist/firefox
+npm run build:chrome     # one browser only (or :firefox)
+npm run dev              # dev mode: Chrome with the extension loaded, auto-reload on change
+npm run dev:firefox      # the same for Firefox
 npm test                 # lint + typecheck + unit and controller tests
 npm run format           # apply Prettier and ESLint fixes
-npm run package          # zips dist/<target> -> build/<name>-<version>-<target>.zip
-npm run icons            # scale icons/base.png to the icon sizes (sharp)
+npm run package          # dist/<name>-<version>-<browser>.zip, plus the sources zip for AMO
+npm run icons            # scale icons/base.png to public/icons/ (sharp)
 ```
 
-`scripts/build.mjs` bundles each entry point with esbuild (IIFE - content scripts
-cannot be ES modules) - `content.js` imports `content.css`, which esbuild emits next to it
-with the icon inlined as a `data:` URL - copies the static assets plus
-`node_modules/bootstrap/dist/css/bootstrap.min.css` into `dist/<target>/vendor/`
-and resolves the `$VERSION` / `$CONTENT_MATCHES` placeholders in the manifest.
+The build is [WXT](https://wxt.dev) (Vite underneath), configured in `wxt.config.js`.
+It finds the entry points in `src/entrypoints/` (`background.js`, `content.js`,
+`sidepanel/`), generates the manifest for each browser - version from `package.json`,
+content script `matches` and `host_permissions` from `SITES.matchPatterns()`, `side_panel`
+for Chrome and `sidebar_action` for Firefox - bundles content script and background as
+IIFE, copies `public/` (the icons) as is and inlines the icon referenced by
+`content.css` as a `data:` URL. Bootstrap's CSS is imported by the side panel and
+bundled with `panel.css`. Dev mode writes to `dist/<browser>-dev` and starts a
+throwaway browser profile with the extension loaded (via `web-ext`).
 
-Tests use `node:test` and jsdom. Core modules are tested directly, the browser layer and the three controllers with fakes (`test/support/fakes.mjs`); the panel test runs against the real `panel.html`. `CLAUDE.md` lists the conventions and invariants to keep when changing the code.
+Tests use `node:test` and jsdom. Core modules are tested directly, the browser layer and the three controllers with fakes (`test/support/fakes.mjs`); the panel test runs against the real `src/entrypoints/sidepanel/index.html`. `CLAUDE.md` lists the conventions and invariants to keep when changing the code.
 
 GitHub Actions (`.github/workflows/ci.yml`) runs on every push to `main` and every pull request: lint, typecheck, unit tests, the build of both targets, the AMO linter on the Firefox build and `npm run package`. The zips are attached to the run as the `minerva-extensions` artifact.
 
@@ -37,8 +42,9 @@ GitHub Actions (`.github/workflows/ci.yml`) runs on every push to `main` and eve
 3. *Load Temporary Add-on…* → select `dist/firefox/manifest.json`
 4. Click the toolbar icon to toggle the sidebar
 
-`npm run dev:firefox` starts a throwaway Firefox profile with the add-on already
-loaded (via `web-ext`), `npm run lint:firefox` runs the AMO validator.
+`npm run dev` / `npm run dev:firefox` start a throwaway profile with the extension
+already loaded and reload it on change; `npm run lint:firefox` runs the AMO validator
+on `dist/firefox`.
 
 ## Verified in real browsers
 

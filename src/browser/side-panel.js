@@ -1,11 +1,12 @@
-import { ext, TARGET } from "./ext.js";
+import { ext } from "./ext.js";
 
 /**
  * The one place where Chrome and Firefox really diverge: Chrome has
  * `chrome.sidePanel` (manifest key `side_panel`), Firefox has
  * `browser.sidebarAction` (manifest key `sidebar_action`).
  *
- * esbuild strips the branch that does not belong to the current build target.
+ * `import.meta.env.BROWSER` is replaced at build time, so the bundler strips
+ * the branch that does not belong to the browser being built.
  */
 
 /**
@@ -13,7 +14,7 @@ import { ext, TARGET } from "./ext.js";
  * Call once from the background script.
  */
 export function registerPanelOpener() {
-  if (TARGET === "chrome") {
+  if (import.meta.env.BROWSER === "chrome") {
     // Chrome can do this natively; no click listener needed afterwards.
     ext.sidePanel
       ?.setPanelBehavior({ openPanelOnActionClick: true })
@@ -22,8 +23,10 @@ export function registerPanelOpener() {
   }
 
   // Firefox: sidebarAction.open() must be called from a user gesture,
-  // the action click qualifies as one.
+  // the action click qualifies as one. WXT types `browser` after Chrome's API,
+  // which has no sidebarAction.
+  const { sidebarAction } = /** @type {any} */ (ext);
   ext.action?.onClicked.addListener(() => {
-    ext.sidebarAction?.toggle();
+    sidebarAction?.toggle();
   });
 }

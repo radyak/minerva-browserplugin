@@ -1,6 +1,7 @@
 /*
- * Injected into every matching page and bundled by esbuild (imported from
- * content.js), which inlines the icon as a data: URL - so it needs neither
+ * Injected into every matching page and bundled by WXT (imported from
+ * src/entrypoints/content.js), which inlines the icon as a data: URL (see
+ * `assetsInlineLimit` in wxt.config.js) - so it needs neither
  * web_accessible_resources nor a browser specific extension URL.
  *
  * The annotation is a speech bubble with Minerva on its left, saying the
@@ -37,7 +38,7 @@
   width: var(--minerva-avatar);
   height: var(--minerva-avatar);
   transform: translateY(-50%);
-  background: url("../../icons/icon-64.png") center / contain no-repeat;
+  background: url("../../public/icons/icon-64.png") center / contain no-repeat;
 }
 
 /* The tail pointing at her: a rotated square showing only two of its borders. */

@@ -2,12 +2,12 @@ import js from "@eslint/js";
 import globals from "globals";
 
 export default [
-  { ignores: ["dist/", "build/", ".poc/", "node_modules/"] },
+  { ignores: ["dist/", ".output/", ".wxt/", ".poc/", "node_modules/"] },
   js.configs.recommended,
   {
     files: ["src/**/*.js"],
     languageOptions: {
-      globals: { ...globals.browser, ...globals.webextensions, __TARGET__: "readonly" },
+      globals: { ...globals.browser, ...globals.webextensions },
     },
   },
   {

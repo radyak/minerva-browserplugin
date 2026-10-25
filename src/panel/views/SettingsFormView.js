@@ -6,7 +6,7 @@ const SAVED_NOTE_MS = 2000;
 
 /**
  * The settings form: currency, auction premium and shipment. Knows the markup
- * of panel.html; turns Settings into inputs and back.
+ * of the side panel page; turns Settings into inputs and back.
  */
 export class SettingsFormView {
   /** @type {ReturnType<typeof setTimeout> | undefined} */

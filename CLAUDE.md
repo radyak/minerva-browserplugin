@@ -10,7 +10,7 @@ side panel shows status and exchange rates and holds the persisted auction premi
 behaviour and the price-format table, `architecture.md`: components, messages, storage and event
 lifecycles with Mermaid diagrams, `configuration.md`, `development.md`: build and install steps;
 `dev/architecture-review.md`: the review behind the refactoring, `dev/wxt-migration-plan.md`:
-the planned switch to WXT). Keep `docs/architecture.md` in
+the switch to WXT). Keep `docs/architecture.md` in
 sync when components, messages, storage keys or listeners change. This file covers what is needed
 to change the code safely.
 
@@ -23,19 +23,19 @@ npm run test:unit        # node:test + jsdom, src/core only — fast
 npm run lint             # ESLint + Prettier check
 npm run format           # Prettier + ESLint --fix
 npm run typecheck        # tsc checkJs over the JSDoc types (non-strict, jsconfig.json)
-npm run build            # -> dist/chrome and dist/firefox
+npm run build            # wxt build -> dist/chrome and dist/firefox
 npm run build:chrome     # or :firefox
-npm run watch            # rebuild on change, unminified + inline sourcemaps
-npm run package          # zip dist/<target> -> build/<name>-<version>-<target>.zip
-npm run icons            # scale icons/base.png to icons/icon-{16,32,64,128}.png (sharp)
-npm run dev:firefox      # web-ext run against dist/firefox (throwaway profile)
+npm run dev              # WXT dev mode, Chrome: dist/chrome-dev, auto-reload, throwaway profile
+npm run dev:firefox      # the same for Firefox (dist/firefox-dev)
+npm run package          # wxt zip -> dist/<name>-<version>-<browser>.zip (+ AMO sources zip)
+npm run icons            # scale icons/base.png to public/icons/icon-{16,32,48,64,128}.png (sharp)
 npm run lint:firefox     # AMO validator
 ```
 
 Formatting is Prettier (`.prettierrc.json`, width 100; Markdown is excluded and formatted by
 hand), linting is ESLint's recommended set (`eslint.config.js`). Types are the JSDoc comments,
-checked by `tsc` via `jsconfig.json`; build-time globals such as `__TARGET__` are declared in
-`src/types/globals.d.ts`. Keep JSDoc block comments on every exported function.
+checked by `tsc` via `jsconfig.json`, which includes WXT's generated `.wxt/wxt.d.ts`
+(`import.meta.env`, CSS imports; `npm run typecheck` runs `wxt prepare` first). Keep JSDoc block comments on every exported function.
 
 ## Architecture invariants
 
@@ -44,37 +44,52 @@ checked by `tsc` via `jsconfig.json`; build-time globals such as `__TARGET__` ar
   `chrome.*`/`browser.*` goes through `src/browser/` (the `ext` alias in `ext.js`, messaging in
   `MessageBus.js`) and is imported from `content/`, `background/` or `panel/`. Classes in
   `src/browser/` take `ext` as a constructor argument, so they are testable with a fake one.
-- **Browser differences are confined to two places:** `platforms/<target>/manifest.json` and
-  `src/browser/side-panel.js` (Chrome `sidePanel` vs. Firefox `sidebarAction`). Do not add a
-  `TARGET === "chrome"` branch anywhere else; extend `src/browser/` instead.
+- **Browser differences are confined to two places:** the `manifest` function in
+  `wxt.config.js` (only `browser_specific_settings` for Firefox; WXT itself emits `side_panel`
+  vs. `sidebar_action` and the background key per browser) and `src/browser/side-panel.js`
+  (Chrome `sidePanel` vs. Firefox `sidebarAction`). Do not add an
+  `import.meta.env.BROWSER === "chrome"` branch anywhere else; extend `src/browser/` instead.
 - **`src/core/sites/sites.config.js` is the single source of truth for the targets.** `SITES` is
   a `SiteRegistry` of `AuctionSite`s (`origin`, `paths`, `priceSelectors`, `ids` for the house
   and auction ID in the URL, read by `UrlParam`); plugin-wide constants
-  live in `src/core/config.js`. The manifests carry `$VERSION` and `$CONTENT_MATCHES` placeholders
-  that `scripts/build.mjs` resolves from `package.json` and from `SITES.matchPatterns()`.
-  Changing what the extension targets should mean editing only `sites.config.js`.
-- **"platform" means the browser target, never an auction site:** `platforms/<target>/` holds
-  the per-browser manifests; auction sites are always "sites".
-- **`__TARGET__` is an esbuild `define`,** not a runtime variable. It only exists inside the three
-  bundled entry points (`background`, `content`, `panel/panel`). Importing a module that reads it
-  from a test will throw (`src/browser/ext.js` reads it) — that is another reason core code
-  stays free of `src/browser/`, and why tests inject a fake `ext` instead.
-- **Entry points only wire things up.** `content/content.js`, `background/background.js` and
-  `panel/panel.js` create a `ContentController` / `BackgroundController` / `PanelController`
+  live in `src/core/config.js`. WXT takes the version from `package.json`; the content script's
+  `matches` (`src/entrypoints/content.js`) and the `host_permissions` (`wxt.config.js`) both
+  come from `SITES.matchPatterns()`, read at build time. Changing what the extension targets
+  should mean editing only `sites.config.js`.
+- **Auction sites are always "sites"**, never "platforms"; the browsers are "browsers" (WXT's
+  `-b chrome|firefox`).
+- **`import.meta.env.BROWSER` is replaced at build time,** not a runtime variable, and only
+  exists in code bundled by WXT. `src/browser/ext.js` re-exports `browser` from `wxt/browser`,
+  which tests cannot load — that is another reason core code stays free of `src/browser/`, and
+  why tests inject a fake `ext` instead.
+- **Entry points only wire things up.** They live in `src/entrypoints/` (WXT's `srcDir` is
+  `src`): `content.js` (`defineContentScript`), `background.js` (`defineBackground`) and
+  `sidepanel/main.js` (+ `index.html`) create a `ContentController` / `BackgroundController` /
+  `PanelController`
   with the real `window`/`ext`/`document`, `MessageBus` and `SettingsStore`; all behaviour lives
   in the controllers, which get their dependencies through the constructor and are tested with
   jsdom and the fakes in `test/support/fakes.mjs`. Controllers never import
-  `src/browser/ext.js` (it reads `__TARGET__`).
+  `src/browser/ext.js` (it imports `wxt/browser`). Nothing may run at an entry point's top
+  level besides imports: WXT imports `content.js` and `background.js` in Node at build time to
+  read their options, so all wiring sits inside `main()` / the `defineBackground` callback.
   The panel's DOM work is split into views (`src/panel/views/`: settings form, status badge,
   auction IDs and settings source on top, "no auction" notice, rates for the active tab's price
   currencies); the form and the IDs are only shown while `TabState#onAuction` (active with a
-  house or auction ID). Its test runs against the real `panel.html`.
-- **Bundles are IIFE, not ESM** (`format: "iife"` in `scripts/build.mjs`): content scripts and the
-  Firefox event page cannot be ES modules. Adding a new entry point means adding it to
-  `entryPoints` there, and any new static file to `copyStaticAssets()`. `content.css` is the
-  exception: `content.js` imports it, so esbuild emits it and inlines the PNGs it references as
-  `data:` URLs — content-script CSS cannot use relative URLs into the extension, and this avoids
-  `web_accessible_resources` and a per-browser `chrome-extension://`/`moz-extension://` URL.
+  house or auction ID). Its test runs against the real `src/entrypoints/sidepanel/index.html`.
+- **WXT config (`wxt.config.js`):** `imports: false` — no auto-imports, every module imports
+  `defineBackground` etc. explicitly (`wxt/utils/define-background`), so files stay loadable by
+  `node --test`; `manifestVersion: 3` for both browsers (WXT defaults Firefox to MV2). A new entry
+  point is a new file in `src/entrypoints/` following WXT's naming; files that go into the build
+  as they are belong in `public/` (the icons). Content script and background are bundled as IIFE
+  (WXT's default — they cannot be ES modules), the side panel page as ES module. Bootstrap and
+  `panel.css` are imported from `sidepanel/main.js`; the Firefox sidebar's title and icon come
+  from `<meta name="manifest.…">` tags in `index.html`.
+- **`content.css` inlines its PNGs:** the content entry point imports it, WXT lists it under
+  `content_scripts[].css`, and `assetsInlineLimit` in `wxt.config.js` forces the PNGs it
+  references inline as `data:` URLs — content-script CSS cannot use relative URLs into the
+  extension, and this avoids `web_accessible_resources` and a per-browser
+  `chrome-extension://`/`moz-extension://` URL. It references the source file
+  (`../../public/icons/icon-64.png`), not `/icons/…`, which Vite would leave as a page URL.
 
 ## Things that bite
 
@@ -110,7 +125,8 @@ checked by `tsc` via `jsconfig.json`; build-time globals such as `__TARGET__` ar
 - **`Currency.ALL` (`src/core/currency/Currency.js`) is the one list of supported currencies:**
   code, output symbol and the tokens recognised in page text. Detection, the panel's currency
   options and the exchange rates request are all derived from it.
-- `dist/`, `build/` and `.poc/` are gitignored. `.poc/` holds unrelated reference extensions
+- `dist/`, `.wxt/`, `.output/` and `.poc/` are gitignored. `.wxt/` is generated by `wxt prepare`
+  (also run on `npm install`). `.poc/` holds unrelated reference extensions
   (Mozilla samples etc.) — not part of the build, safe to ignore.
 
 ## Settings and the effective price
