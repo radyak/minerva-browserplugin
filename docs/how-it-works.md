@@ -36,10 +36,14 @@ What the extension does on a page and in the panel, from the user's point of vie
   | `USD 1.359` | `EUR 729,50` |
   | `$49.99` | `€75.00` |
   | `1.234,56 EUR` | `1.334,56 EUR` |
+  | `1'200 EUR (20)` | `1'300 EUR` (bracketed asides are dropped) |
   | `500` | `n/a` (no currency) |
 
   A single separator followed by exactly three digits is read as grouping
   (`1.359` = 1359), anything else as a decimal separator (`1.35` = 1.35).
+  Bracketed asides - a bid count, an estimate, a conversion - are never the
+  price: they are skipped when looking for the number and left out of the
+  output, unless the whole text is one.
 - The background script watches `tabs.onUpdated` (covers SPA `pushState`
   navigation), sets a badge on the toolbar icon and relays sync requests.
 - The panel is one HTML file used by both browsers - Chrome shows it via

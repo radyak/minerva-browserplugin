@@ -37,6 +37,20 @@ test("distinguishes decimal separator from grouping", () => {
   assert.equal(parsePrice("1.234.567").amount, 1234567);
 });
 
+test("ignores bracketed asides", () => {
+  // biddr: price realized followed by the bid count.
+  assert.equal(parsePrice("1'200 EUR (20)").amount, 1200);
+  assert.equal(plus20("1'200 EUR (20)"), "1'440 EUR");
+  assert.equal(plus20("340 EUR\n   (14)"), "408 EUR");
+  // Before the number, in the middle, nested, other bracket kinds.
+  assert.equal(plus20("(3 bids) 500 EUR"), "600 EUR");
+  assert.equal(plus20("Preis (netto): 500 EUR"), "Preis: 600 EUR");
+  assert.equal(plus20("500 EUR (approx. (ca.) 580 USD)"), "600 EUR");
+  assert.equal(plus20("500 EUR [12] {x}"), "600 EUR");
+  // A price that is nothing but an aside is still a price.
+  assert.equal(plus20("(500 EUR)"), "(600 EUR)");
+});
+
 test("handles negative amounts", () => {
   assert.equal(plus20("-500 EUR"), "-600 EUR");
 });
