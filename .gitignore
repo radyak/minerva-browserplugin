@@ -3,3 +3,4 @@ dist/
 build/
 web-ext-artifacts/
 .poc
+.private

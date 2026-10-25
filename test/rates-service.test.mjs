@@ -4,7 +4,7 @@ import test from "node:test";
 import { RatesService } from "../src/background/RatesService.js";
 import { ExchangeRates } from "../src/core/rates/ExchangeRates.js";
 import { Settings } from "../src/core/settings/Settings.js";
-import { fakeStore } from "./support/fakes.mjs";
+import { bookOf, fakeStore } from "./support/fakes.mjs";
 
 const HOUR = 60 * 60 * 1000;
 const GBP = new Settings({ auctionPremium: 0, shipment: 0, currency: "GBP" });
@@ -47,30 +47,28 @@ test("fails when the rates cannot be loaded", async () => {
   await assert.rejects(service.get("GBP"), /offline/);
 });
 
-test("refreshes the saved rates for the saved currency", async () => {
-  const store = fakeStore(GBP);
-  const service = new RatesService({ store, client: countingClient() });
-  assert.equal(await service.refreshSaved(), true);
-  assert.deepEqual(store.savedRates, [new ExchangeRates("GBP", "1", { EUR: 1.1 })]);
+test("refreshes the rates of every saved currency and of the default one", async () => {
+  const store = fakeStore({ book: bookOf([{ site: "https://a.test" }, GBP]) });
+  const client = countingClient();
+  const service = new RatesService({ store, client });
+  assert.deepEqual(await service.refreshSaved(), ["EUR", "GBP"]);
+  assert.deepEqual(client.requests, ["EUR", "GBP"]);
+  assert.deepEqual(store.savedRates, [
+    new ExchangeRates("EUR", "1", { EUR: 1.1 }),
+    new ExchangeRates("GBP", "2", { EUR: 1.1 }),
+  ]);
 });
 
-test("keeps the saved rates when the refresh fails", async (t) => {
+test("keeps the saved rates of a currency whose refresh fails", async (t) => {
   t.mock.method(console, "warn", () => {});
-  const store = fakeStore(GBP);
-  const service = new RatesService({ store, client: countingClient({ fail: true }) });
-  assert.equal(await service.refreshSaved(), false);
-  assert.deepEqual(store.savedRates, []);
-});
-
-test("does not save rates for a currency that was changed meanwhile", async () => {
-  const store = fakeStore(GBP);
+  const store = fakeStore({ book: bookOf([{ site: "https://a.test" }, GBP]) });
   const client = {
     async fetch(base) {
-      await store.change(new Settings({ auctionPremium: 0, shipment: 0, currency: "USD" }));
+      if (base === "GBP") throw new Error("offline");
       return ExchangeRates.empty(base);
     },
   };
   const service = new RatesService({ store, client });
-  assert.equal(await service.refreshSaved(), false);
-  assert.deepEqual(store.savedRates, []);
+  assert.deepEqual(await service.refreshSaved(), ["EUR"]);
+  assert.deepEqual(store.savedRates, [ExchangeRates.empty("EUR")]);
 });

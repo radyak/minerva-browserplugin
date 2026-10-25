@@ -6,10 +6,16 @@ import { MSG } from "../src/core/messages.js";
 import { ExchangeRates } from "../src/core/rates/ExchangeRates.js";
 import { AuctionSite } from "../src/core/sites/AuctionSite.js";
 import { SiteRegistry } from "../src/core/sites/SiteRegistry.js";
+import { UrlParam } from "../src/core/sites/UrlParam.js";
 import { fakeBus } from "./support/fakes.mjs";
 
 const SITES = new SiteRegistry([
-  new AuctionSite({ origin: "https://shop.test", paths: ["/lot/*"], priceSelectors: [".price"] }),
+  new AuctionSite({
+    origin: "https://shop.test",
+    paths: ["/lot/*"],
+    priceSelectors: [".price"],
+    ids: { house: UrlParam.query("h"), auction: UrlParam.path("/lot/:id") },
+  }),
 ]);
 
 /** The parts of the extension API the controller uses, recording badges and listeners. */
@@ -56,7 +62,7 @@ function fakeRates() {
     },
     async refreshSaved() {
       this.refreshes += 1;
-      return true;
+      return [];
     },
   };
 }
@@ -65,15 +71,16 @@ function start({ activeTab = undefined, tabAnswer = undefined } = {}) {
   const ext = fakeExt({ activeTab });
   const bus = fakeBus({ answers: { tab: tabAnswer } });
   const rates = fakeRates();
-  let migrations = 0;
+  /** @type {Array<readonly string[]>} the sites of each migration */
+  const migrations = [];
   const store = {
-    migrate: async () => {
-      migrations += 1;
+    migrate: async (sites) => {
+      migrations.push(sites);
       return true;
     },
   };
   new BackgroundController({ ext, bus, store, rates, sites: SITES }).start();
-  return { ext, bus, rates, migrations: () => migrations };
+  return { ext, bus, rates, migrations };
 }
 
 test("marks the badge and asks the tab to sync on navigation", () => {
@@ -113,13 +120,16 @@ test("answers the active tab's state as synced by its content script", async () 
 });
 
 test("judges by the URL when the active tab has no content script", async () => {
-  const { bus } = start({ activeTab: { id: 9, url: "https://shop.test/lot/1" } });
+  const { bus } = start({ activeTab: { id: 9, url: "https://shop.test/lot/1?h=leu" } });
   assert.deepEqual(await bus.deliver({ type: MSG.GET_ACTIVE_STATE }), {
-    url: "https://shop.test/lot/1",
+    url: "https://shop.test/lot/1?h=leu",
     active: true,
     annotated: 0,
     unparsable: 0,
     currencies: [],
+    site: "https://shop.test",
+    house: "leu",
+    auction: "1",
   });
 });
 
@@ -131,13 +141,16 @@ test("is inactive without an active tab", async () => {
     annotated: 0,
     unparsable: 0,
     currencies: [],
+    site: null,
+    house: null,
+    auction: null,
   });
 });
 
 test("on install or update: migrates, schedules the daily refresh and refreshes the rates", async () => {
   const { ext, rates, migrations } = start();
   await ext.onInstalled[0]({ reason: "update" });
-  assert.equal(migrations(), 1);
+  assert.deepEqual(migrations, [["https://shop.test"]]);
   assert.deepEqual([...ext.scheduled.keys()], ["refresh-exchange-rates"]);
   assert.equal(rates.refreshes, 1);
 });

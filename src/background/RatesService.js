@@ -1,4 +1,5 @@
 import { RatesClient } from "../core/rates/RatesClient.js";
+import { Settings } from "../core/settings/Settings.js";
 
 /** How long fetched rates are reused before asking the API again. */
 const CACHE_MS = 60 * 60 * 1000;
@@ -43,22 +44,22 @@ export class RatesService {
   }
 
   /**
-   * Replace the saved rates with fresh ones for the saved currency. Failures
-   * (offline, API down) keep the saved rates.
-   * @returns {Promise<boolean>} whether fresh rates were saved
+   * Replace the saved rates of every currency in use - those of the saved
+   * settings and the default one, used where nothing saved applies - with fresh
+   * ones. A failure (offline, API down) keeps the saved rates of that currency.
+   * @returns {Promise<string[]>} the currencies whose fresh rates were saved
    */
   async refreshSaved() {
-    try {
-      const { settings } = await this.store.load();
-      const rates = await this.get(settings.currency, { fresh: true });
-      // The currency may have been changed while the request was running.
-      const { settings: current } = await this.store.load();
-      if (current.currency !== rates.base) return false;
-      await this.store.saveRates(rates);
-      return true;
-    } catch (error) {
-      console.warn("[minerva] refreshing the exchange rates failed:", error);
-      return false;
+    const { book } = await this.store.load();
+    const refreshed = [];
+    for (const base of new Set([Settings.DEFAULT.currency, ...book.currencies()])) {
+      try {
+        await this.store.saveRates(await this.get(base, { fresh: true }));
+        refreshed.push(base);
+      } catch (error) {
+        console.warn(`[minerva] refreshing the ${base} exchange rates failed:`, error);
+      }
     }
+    return refreshed;
   }
 }

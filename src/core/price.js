@@ -16,6 +16,25 @@ import { CurrencyDetector } from "./currency/CurrencyDetector.js";
  */
 const NUMBER_RE = /-?\d(?:[\d.,\u202f\u00a0 ']*\d)?/;
 
+/** An innermost bracketed aside with the whitespace before it: " (20)", "[est.]". */
+const ASIDE_RE = /\s*(?:\([^()]*\)|\[[^[\]]*\]|\{[^{}]*\})/g;
+
+/**
+ * `text` without its bracketed asides - a bid count, an estimate, a
+ * conversion ("1'200 EUR (20)", "GBP 500 (approx. 580 EUR)") is never the
+ * price itself. Nested brackets go from the inside out. A text that is nothing
+ * but an aside ("(500 EUR)") is kept as it is.
+ */
+function withoutAsides(text) {
+  let stripped = text;
+  for (let previous; previous !== stripped;) {
+    previous = stripped;
+    stripped = stripped.replace(ASIDE_RE, "");
+  }
+  stripped = stripped.trim();
+  return NUMBER_RE.test(stripped) ? stripped : text;
+}
+
 /**
  * Work out which of "." and "," separates the decimals.
  * Returns null when the number carries no decimals at all.
@@ -79,13 +98,15 @@ function detectCurrency(prefix, suffix) {
 }
 
 /**
- * Parse a price out of arbitrary text.
+ * Parse a price out of arbitrary text. Bracketed asides are not part of it:
+ * they are skipped when looking for the number and left out of prefix and
+ * suffix, so they do not show up in the output either.
  * @param {string} text
  * @returns {ParsedPrice | null} null when no number could be found
  */
 export function parsePrice(text) {
   if (typeof text !== "string") return null;
-  const raw = text.replace(/\s+/g, " ").trim();
+  const raw = withoutAsides(text.replace(/\s+/g, " ").trim());
   const match = raw.match(NUMBER_RE);
   if (!match) return null;
 

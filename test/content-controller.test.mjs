@@ -10,23 +10,35 @@ import { PriceCalculator } from "../src/core/pricing/PriceCalculator.js";
 import { Settings } from "../src/core/settings/Settings.js";
 import { AuctionSite } from "../src/core/sites/AuctionSite.js";
 import { SiteRegistry } from "../src/core/sites/SiteRegistry.js";
-import { fakeBus, fakeStore, settle } from "./support/fakes.mjs";
+import { UrlParam } from "../src/core/sites/UrlParam.js";
+import { bookOf, fakeBus, fakeStore, settle } from "./support/fakes.mjs";
 
 const SITES = new SiteRegistry([
-  new AuctionSite({ origin: "https://shop.test", paths: ["/lot/*"], priceSelectors: [".price"] }),
+  new AuctionSite({
+    origin: "https://shop.test",
+    paths: ["/lot/*"],
+    priceSelectors: [".price"],
+    ids: { house: UrlParam.query("h"), auction: UrlParam.path("/lot/:id") },
+  }),
   new AuctionSite({ origin: "https://other.test", paths: ["/*"], priceSelectors: [".other"] }),
 ]);
 const EUR = new Settings({ auctionPremium: 20, shipment: 10, currency: "EUR" });
 const INTO_EUR = new ExchangeRates("EUR", "", { USD: 2 });
+/** A book with `settings` saved for both test sites as a whole. */
+const everywhere = (settings) =>
+  bookOf([{ site: "https://shop.test" }, settings], [{ site: "https://other.test" }, settings]);
 
 /** A page with one price, a controller on it and its fakes. */
-async function startOn(url, { price = "500 USD", settings = EUR, rates = INTO_EUR } = {}) {
+async function startOn(
+  url,
+  { price = "500 USD", book = everywhere(EUR), rates = [INTO_EUR] } = {},
+) {
   const { window } = new JSDOM(`<span class="price">${price}</span><b class="other">999 EUR</b>`, {
     url,
     pretendToBeVisual: true, // requestAnimationFrame
   });
   const bus = fakeBus();
-  const store = fakeStore(settings, rates);
+  const store = fakeStore({ book, rates });
   const controller = new ContentController({
     window: /** @type {any} */ (window),
     bus,
@@ -42,8 +54,8 @@ const nextFrame = (window) => new Promise((resolve) => window.requestAnimationFr
 
 test("annotates on start and reports the state once", async () => {
   const { bus, annotation } = await startOn("https://shop.test/lot/1");
-  // 500 USD -> 250 EUR, +20 % -> 300, +10 shipment.
-  assert.equal(annotation(), "310 EUR");
+  // 500 USD +20 % -> 600, +10 USD shipment -> 610 USD = 305 EUR.
+  assert.equal(annotation(), "305 EUR");
   assert.deepEqual(bus.sent, [
     {
       type: MSG.STATE_CHANGED,
@@ -52,9 +64,18 @@ test("annotates on start and reports the state once", async () => {
       annotated: 1,
       unparsable: 0,
       currencies: ["USD"],
+      site: "https://shop.test",
+      house: null,
+      auction: "1",
       reason: "load",
     },
   ]);
+});
+
+test("reports the auction house and auction named in the URL", async () => {
+  const { bus } = await startOn("https://shop.test/lot/42?h=leu");
+  assert.equal(bus.sent[0].house, "leu");
+  assert.equal(bus.sent[0].auction, "42");
 });
 
 test("stays inactive off the configured sites", async () => {
@@ -65,26 +86,35 @@ test("stays inactive off the configured sites", async () => {
 
 test("answers a sync request with the current state, after re-reading the settings", async () => {
   const { bus, store, annotation } = await startOn("https://shop.test/lot/1");
-  await store.change(new Settings({ auctionPremium: 0, shipment: 0, currency: "EUR" }), INTO_EUR);
+  await store.change({
+    book: everywhere(new Settings({ auctionPremium: 0, shipment: 0, currency: "EUR" })),
+  });
   assert.deepEqual(await bus.deliver({ type: MSG.SYNC_REQUEST }), {
     url: "https://shop.test/lot/1",
     active: true,
     annotated: 1,
     unparsable: 0,
     currencies: ["USD"],
+    site: "https://shop.test",
+    house: null,
+    auction: "1",
   });
   assert.equal(annotation(), "250 EUR");
 });
 
 test("recalculates when the settings change", async () => {
   const { store, annotation } = await startOn("https://shop.test/lot/1");
-  await store.change(new Settings({ auctionPremium: 0, shipment: 5, currency: "EUR" }), INTO_EUR);
-  assert.equal(annotation(), "255 EUR");
+  await store.change({
+    book: everywhere(new Settings({ auctionPremium: 0, shipment: 5, currency: "EUR" })),
+  });
+  assert.equal(annotation(), "252.50 EUR"); // 505 USD
 });
 
 test("shows n/a when the new currency has no rates yet", async () => {
   const { bus, store, annotation } = await startOn("https://shop.test/lot/1");
-  await store.change(new Settings({ auctionPremium: 0, shipment: 0, currency: "GBP" }));
+  await store.change({
+    book: everywhere(new Settings({ auctionPremium: 0, shipment: 0, currency: "GBP" })),
+  });
   assert.equal(annotation(), "n/a");
   assert.equal(bus.sent.at(-1).unparsable, 1);
 });
@@ -95,7 +125,7 @@ test("follows prices the page changes, once per animation frame", async () => {
   window.document.querySelector(".price").textContent = "200 USD";
   await nextFrame(window);
   await nextFrame(window);
-  assert.equal(annotation(), "130 EUR");
+  assert.equal(annotation(), "125 EUR"); // 250 USD
   // Same number of annotated prices: nothing new to report.
   assert.equal(bus.sent.length, 1);
 });
@@ -124,7 +154,7 @@ test("uses the price selectors of the matching site", async () => {
 
 test("cleans up what an earlier run left behind off the sites", async () => {
   const { window, controller, annotation } = await startOn("https://shop.test/lot/1");
-  assert.equal(annotation(), "310 EUR");
+  assert.equal(annotation(), "305 EUR");
   window.history.pushState({}, "", "/account");
   assert.equal(controller.sync("test").active, false);
   assert.equal(annotation(), undefined);
@@ -150,11 +180,41 @@ test("each site uses its own calculator", async () => {
     await new ContentController({
       window: /** @type {any} */ (window),
       bus: fakeBus(),
-      store: fakeStore(EUR, INTO_EUR),
+      store: fakeStore({ book: bookOf([{ site: "https://shop.test" }, EUR]), rates: [INTO_EUR] }),
       sites,
     }).start();
     return window.document.querySelector(`.${ANNOTATION_CLASS}`)?.textContent;
   };
-  assert.equal(await annotationOn("https://shop.test/lot/1"), "310 EUR");
+  assert.equal(await annotationOn("https://shop.test/lot/1"), "305 EUR");
   assert.equal(await annotationOn("https://flat.test/lot/1"), "42 EUR");
+});
+
+test("uses the settings saved for the auction, its house or its site", async () => {
+  const CHF = new Settings({ auctionPremium: 0, shipment: 0, currency: "CHF" });
+  const book = bookOf(
+    [{ site: "https://shop.test", house: "cng", auction: "2" }, CHF],
+    [{ site: "https://shop.test", house: "leu", auction: "1" }, EUR],
+    // The newest entry on the site.
+    [
+      { site: "https://shop.test" },
+      new Settings({ auctionPremium: 0, shipment: 1, currency: "EUR" }),
+    ],
+  );
+  const { window, annotation } = await startOn("https://shop.test/lot/1", { book });
+  assert.equal(annotation(), "305 EUR"); // the auction's own settings
+  const visit = (path) => {
+    window.history.pushState({}, "", path);
+    window.dispatchEvent(new window.PopStateEvent("popstate"));
+    return annotation();
+  };
+  assert.equal(visit("/lot/2"), "n/a"); // CHF, without rates
+  assert.equal(visit("/lot/3?h=leu"), "305 EUR"); // auction 1's house
+  assert.equal(visit("/lot/4?h=nac"), "250.50 EUR"); // the newest on the site
+  await settle();
+});
+
+test("calculates with the defaults when nothing saved applies", async () => {
+  const { annotation } = await startOn("https://shop.test/lot/1", { book: bookOf() });
+  // Settings.DEFAULT: EUR, no premium, no shipment.
+  assert.equal(annotation(), "250 EUR");
 });

@@ -16,7 +16,8 @@ export class Settings {
   /**
    * @param {object} values
    * @param {number} values.auctionPremium Buyer's premium in percent, within `RANGES`.
-   * @param {number} values.shipment Flat shipping cost per item in `currency`, within `RANGES`.
+   * @param {number} values.shipment Flat shipping cost per item, within `RANGES`; in
+   *   the currency of the auction's prices, not in `currency`.
    * @param {string} values.currency ISO code, one of `Currency.CODES`.
    */
   constructor({ auctionPremium, shipment, currency }) {

@@ -56,8 +56,8 @@ test("leaves the price element itself untouched", () => {
   const doc = documentWithPrice("USD 1.359");
   annotate(doc);
   assert.equal(doc.querySelector(SELECTOR).textContent, "USD 1.359");
-  // 1359 USD * 0.5 + 100 EUR shipment, written in the input's notation.
-  assert.equal(annotations(doc)[0].textContent, "EUR 779,50");
+  // (1359 USD + 100 USD shipment) * 0.5, written in the input's notation.
+  assert.equal(annotations(doc)[0].textContent, "EUR 729,50");
 });
 
 for (const price of ["GBP 500", "500", "¥500"]) {
@@ -131,7 +131,7 @@ for (const price of ["500 EUR", "sold out"]) {
 test("the site's calculator works out the price", () => {
   class Doubling extends PriceCalculator {
     calculate(amount, currency, settings, rates) {
-      return rates.convert(amount, currency) * 2 + settings.shipment;
+      return rates.convert(amount * 2 + settings.shipment, currency);
     }
   }
   const doc = documentWithPrice();
@@ -146,7 +146,7 @@ test("nested matches: only the innermost element is annotated", () => {
   assert.deepEqual(annotate(doc), { annotated: 1, unparsable: 0 });
   assert.deepEqual(
     annotations(doc).map((annotation) => annotation.textContent),
-    ["350 EUR"],
+    ["300 EUR"],
   );
   // Stable on re-runs, the inner annotation is never read back as a price.
   assert.deepEqual(annotate(doc), { annotated: 1, unparsable: 0 });
@@ -167,7 +167,7 @@ test("a wrapper's annotation from an earlier run is removed", () => {
   assert.deepEqual(annotate(doc), { annotated: 1, unparsable: 0 });
   assert.deepEqual(
     annotations(doc).map((annotation) => annotation.textContent),
-    ["350 EUR"],
+    ["300 EUR"],
   );
 });
 
@@ -199,6 +199,9 @@ test("reports an active state with the counts", () => {
     annotated: 1,
     unparsable: 0,
     currencies: ["EUR"],
+    site: null,
+    house: null,
+    auction: null,
   });
 });
 

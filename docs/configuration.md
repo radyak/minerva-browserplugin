@@ -9,7 +9,15 @@ The auction sites the extension acts on live in
 | `origin` | `https://www.biddr.com` | protocol + host (optionally a port), no path; `<protocol>//<host>/*` is baked into both manifests as the content script match pattern |
 | `paths` | `["/*"]` | path globs on that host, e.g. `/live/g-m-auction` or `/live/*`; the extension only acts while the page path matches one of them (`*` = any characters, otherwise exact; query and hash are ignored) |
 | `priceSelectors` | `[".current-bid"]` | the elements whose text holds the price |
+| `ids` | `{ house: UrlParam.path("/:id/auction"), auction: UrlParam.query("a") }` | where the page URL names the auction house *(optional)* and the auction; shown in the *Plugin status* card and part of the key the settings are saved under |
 | `calculator` | *(optional)* | a `PriceCalculator` for sites whose fees differ; `EffectivePriceCalculator` by default |
+
+An ID is read by a `UrlParam` (`src/core/sites/UrlParam.js`), either from a query
+parameter - `UrlParam.query("a")` reads `7522` from `?a=7522` - or from one path
+segment - `UrlParam.path("/sale/:id*")` reads `7123` from `/sale/7123/lot/45`. In
+a path pattern `:id` marks the segment (exactly once), `*` matches any characters
+and the rest must match literally, against the whole path. An ID the URL does
+not contain is shown as "unknown".
 
 On a given URL the first site on the same origin with a matching `paths` entry
 is used. biddr.com and numisbids.com are configured.
@@ -30,5 +38,26 @@ Note: a port in `origin` is allowed.
 cannot contain one, so the manifest entry drops it (the content script is then
 injected on every port of that host), but the runtime origin check still
 requires the exact port.
+
+## Which saved settings apply
+
+The panel saves the settings under the page's `AuctionKey`: site (`origin`), auction
+house and auction ID, as far as the URL tells. Which saved settings a page uses is
+decided by `SETTINGS_SCOPES` in
+[`src/core/settings/SettingsScope.js`](../src/core/settings/SettingsScope.js), tried
+in order, the first one holding saved settings wins (and within it the most recently
+saved entry):
+
+| Scope | Key parts that must match | Panel highlights (tooltip) |
+| --- | --- | --- |
+| `auction` | site + auction ID | *Auction* (Saved for this auction.) |
+| `house` | site + auction house ID | *House* (Saved for this auction house.) |
+| `site` | site | *Site* (Saved for this site.) |
+
+A scope is skipped when one of its key parts is unknown on the page (no auction
+house in numisbids URLs, for example). Without any match the page uses the defaults
+(`Settings.DEFAULT`) and the panel highlights *Defaults*. Reorder,
+add or drop scopes in that list to change the lookup - saving always stores the
+full key, so the stored data does not depend on it.
 
 To give a site its own calculation (other fees), subclass `PriceCalculator` (`src/core/pricing/`) and pass an instance as `calculator` - see [Architecture](architecture.md#controllers-and-their-dependencies).

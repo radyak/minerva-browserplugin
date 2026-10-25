@@ -39,9 +39,11 @@ test("adds the auction premium before the shipment", () => {
   assert.equal(calculate(500, "EUR", { auctionPremium: 20, shipment: 10 }), 610);
 });
 
-test("converts into the output currency first", () => {
-  // 500 USD -> 250 EUR, +20% premium, +10 EUR shipment (entered in the output currency).
-  assert.equal(calculate(500, "USD", { auctionPremium: 20, shipment: 10 }), 310);
+test("converts the shipment along with the price", () => {
+  // 500 USD +20% premium, +10 USD shipment (entered in the auction's currency) -> 610 USD.
+  assert.equal(calculate(500, "USD", { auctionPremium: 20, shipment: 10 }), 305);
+  const effective = (amount, currency) => calculate(amount, currency, { shipment: 100 });
+  assert.equal(convertPrice("$49.90", effective, "EUR"), "€74.95");
 });
 
 test("is undefined without currency or rate", () => {

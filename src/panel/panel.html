@@ -9,15 +9,35 @@
   </head>
   <body class="bg-body-tertiary">
     <div class="d-flex flex-column gap-3 p-3 min-vh-100">
-      <header class="d-flex align-items-center justify-content-between gap-2"></header>
+      <!-- The auction the active tab is on, from its URL (AuctionSite ids); shown with the form. -->
+      <header id="auction-ids" hidden>
+        <table class="table table-sm small mb-0">
+          <tbody>
+            <tr>
+              <td>Auction house</td>
+              <td id="auction-house" class="text-end fw-semibold"></td>
+            </tr>
+            <tr>
+              <td>Auction</td>
+              <td id="auction-id" class="text-end fw-semibold"></td>
+            </tr>
+          </tbody>
+        </table>
+        <!-- Which saved settings the form shows: one pill per SettingsScope plus the defaults,
+             filled in by AuctionView; the one in use is highlighted. -->
+        <div class="d-flex align-items-center flex-wrap gap-1 px-1 pt-1 small">
+          <span class="text-body-secondary me-1">Values from</span>
+          <span id="settings-source" class="d-flex flex-wrap gap-1"></span>
+        </div>
+      </header>
 
-      <!-- Instead of the form while the extension is inactive in the active tab. -->
+      <!-- Instead of the form while the active tab is on no auction (see InactiveView). -->
       <section id="inactive" class="my-auto text-center text-body-secondary" hidden>
         <div class="minerva-idle">
           <img src="../icons/icon-128.png" alt="Minerva" width="96" height="96" />
           <span class="minerva-bubble" aria-hidden="true">?</span>
         </div>
-        <p class="mt-3 mb-0">No auction or platform active</p>
+        <p id="inactive-text" class="mt-3 mb-0">No auction or platform active</p>
       </section>
 
       <!-- Hidden until the state of the active tab is known (see InactiveView). -->
@@ -106,7 +126,8 @@
               <div class="invalid-feedback">Enter an amount of 0 or more.</div>
             </div>
             <div id="shipment-help" class="form-text" hidden>
-              Flat shipping cost per item, added to every price on the page.
+              Flat shipping cost per item in the auction's currency, added to every price on the
+              page before it is converted.
             </div>
           </div>
 

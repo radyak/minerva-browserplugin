@@ -8,8 +8,8 @@ What the extension does on a page and in the panel, from the user's point of vie
   caught) or the background script reports a URL change.
 - For every match, the element's text is parsed by `src/core/price.js`, the
   effective price is calculated by the site's calculator - by default
-  `EffectivePriceCalculator` in `src/core/pricing/` (price converted into the selected currency,
-  plus premium, plus shipment), and the result is inserted as a sibling right
+  `EffectivePriceCalculator` in `src/core/pricing/` (price plus premium, plus shipment - which
+  is entered in the auction's currency, like the price - converted into the selected currency), and the result is inserted as a sibling right
   after the
   price element (same tag, class `minerva-effective-price`, `aria-live="polite"`). The
   price element itself is never modified. Re-running is idempotent: the
@@ -30,37 +30,55 @@ What the extension does on a page and in the panel, from the user's point of vie
   decimal and grouping separators and surrounding text are preserved; only the
   currency is swapped (a symbol for a symbol, a code for a code):
 
-  | in | out (EUR, 1 USD = 0.5 EUR, +100 shipment) |
+  | in | out (EUR, 1 USD = 0.5 EUR, +100 shipment in the price's currency) |
   | --- | --- |
   | `500 EUR` | `600 EUR` |
-  | `USD 1.359` | `EUR 779,50` |
-  | `$49.99` | `€125.00` |
+  | `USD 1.359` | `EUR 729,50` |
+  | `$49.99` | `€75.00` |
   | `1.234,56 EUR` | `1.334,56 EUR` |
+  | `1'200 EUR (20)` | `1'300 EUR` (bracketed asides are dropped) |
   | `500` | `n/a` (no currency) |
 
   A single separator followed by exactly three digits is read as grouping
   (`1.359` = 1359), anything else as a decimal separator (`1.35` = 1.35).
+  Bracketed asides - a bid count, an estimate, a conversion - are never the
+  price: they are skipped when looking for the number and left out of the
+  output, unless the whole text is one.
 - The background script watches `tabs.onUpdated` (covers SPA `pushState`
   navigation), sets a badge on the toolbar icon and relays sync requests.
 - The panel is one HTML file used by both browsers - Chrome shows it via
-  `chrome.sidePanel`, Firefox via `sidebar_action`. It shows the saved settings;
-  *Save* persists them together with the matching exchange rates in one write to
-  `storage.local` (`settings`, `exchangeRates`) and makes the active tab
+  `chrome.sidePanel`, Firefox via `sidebar_action`. Settings are saved per
+  auction: *Save* stores them under the active tab's site, auction house and
+  auction ID, together with the exchange rates of their currency, in one write to
+  `storage.local` (`auctionSettings`, `exchangeRates`), and makes the active tab
   recalculate right away; other open tabs follow via `storage.onChanged`. An
-  emptied input keeps the saved value. Each input's hint is hidden until the `?`
+  emptied input keeps the value shown.
+- Whenever the active tab is on another auction (navigation, tab switch), the
+  panel fills the form with the settings that apply there: those saved for the
+  same auction on the same site, otherwise the latest saved for the same auction
+  house, otherwise the latest saved on the site, otherwise the defaults. Below
+  the auction IDs at the top, *Values from* highlights where the values come
+  from: *Auction*, *House*, *Site* or *Defaults*. The page calculates with the
+  same settings (see [Configuration](configuration.md#which-saved-settings-apply)). Each input's hint is hidden until the `?`
   icon next to its label is clicked (a second click hides it again).
-- Selecting a currency (EUR, USD, GBP, CHF; default EUR) immediately updates the
-  shipment's currency hint and loads the rates against the other three from the
-  Frankfurter API (through the background script) and saves them with the
-  currency. The *Plugin status* card only shows the rates the active tab needs:
+- The shipment is entered in the auction's currency: next to it the panel shows
+  the currency of the active tab's prices ("–" while none was found, all of them
+  when the page mixes several), and it is converted together with the price.
+- Selecting a currency (EUR, USD, GBP, CHF; default EUR) immediately loads the
+  rates against the other three from the Frankfurter API (through the background script) and saves them with the
+  settings. The *Plugin status* card only shows the rates the active tab needs:
   from the currencies of its prices into the selected one (e.g. `1 USD = 0.8333 GBP`).
-  The background refreshes the saved rates on install/update, on browser start and
-  once a day. Until rates for the
-  saved currency have been stored once, only prices already in that currency
-  are converted; all others show `n/a`.
-- While the extension is inactive in the active tab, the panel hides the settings
-  form and shows Minerva with a `?` speech bubble and "No auction or platform
-  active" instead; the *Plugin status* card stays visible.
+  The background refreshes the saved rates of every currency in use (and of the
+  default currency) on install/update, on browser start and once a day. Until
+  rates for a currency have been stored once, only prices already in that
+  currency are converted; all others show `n/a`.
+- The settings form is only shown while the active tab is on an actual auction:
+  on a configured site, with the auction house or auction ID found in the page
+  URL (per site, see [Configuration](configuration.md)). The IDs are shown at the
+  top of the panel, above the form ("unknown" for one not found). Otherwise the
+  panel shows Minerva with a `?` speech bubble and "No auction or platform active"
+  (no site) or "No auction detected on this page" (site, but no IDs) instead; prices
+  are still converted and the *Plugin status* card stays visible either way.
 - Below the *Plugin status* card the panel shows a disclaimer (bidding aid only, no
   responsibility for the prices shown) and links for bug reports and feature
   requests (email, GitHub repository).

@@ -40,7 +40,7 @@ export class BackgroundController {
   start() {
     this.ext.runtime.onInstalled.addListener(async () => {
       // Settings saved by an older version: convert them once, on update.
-      await this.store.migrate();
+      await this.store.migrate(this.sites.sites.map((site) => site.origin));
       await this.#scheduleRatesRefresh();
       await this.rates.refreshSaved();
     });
@@ -111,7 +111,12 @@ export class BackgroundController {
     if (!tab) return { url: null, ...TabState.inactive().toJSON() };
     const state = await this.bus.sendToTab(tab.id, { type: MSG.SYNC_REQUEST });
     // No content script there (yet): judge by the URL alone.
-    const fallback = new TabState({ active: this.sites.isTarget(tab.url) });
+    const site = this.sites.find(tab.url);
+    const fallback = new TabState({
+      active: site !== null,
+      site: site?.origin ?? null,
+      ...site?.identify(tab.url),
+    });
     return state ?? { url: tab.url ?? null, ...fallback.toJSON() };
   }
 }
