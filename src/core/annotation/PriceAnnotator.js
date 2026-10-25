@@ -19,6 +19,8 @@ export class PriceAnnotator {
    * element matching `site.priceSelectors`. An element whose text holds no
    * parsable price - or one in a currency that is unknown or has no rate -
    * still gets its sibling, showing UNPARSABLE_TEXT instead of an amount.
+   * Annotations of elements that are not annotated any more are removed, so
+   * the page never keeps a stale amount.
    * @param {import("../sites/AuctionSite.js").AuctionSite} site
    * @param {import("../settings/Settings.js").Settings} settings
    * @param {import("../rates/ExchangeRates.js").ExchangeRates} rates base `settings.currency`
@@ -32,13 +34,8 @@ export class PriceAnnotator {
 
     const matches = this.view.query(site.priceSelectors);
     const wrappers = findWrappers(matches);
-    for (const element of matches) {
-      if (wrappers.has(element)) {
-        // Drop what an earlier run may have put next to it.
-        this.view.removeFrom(element);
-        continue;
-      }
-
+    const shown = matches.filter((element) => !wrappers.has(element));
+    for (const element of shown) {
       const source = this.view.priceText(element);
       const converted = convertPrice(
         source,
@@ -57,6 +54,7 @@ export class PriceAnnotator {
       annotated += 1;
       if (converted === null) unparsable += 1;
     }
+    this.view.removeAllBut(shown);
 
     return new TabState({ active: true, annotated, unparsable, currencies });
   }

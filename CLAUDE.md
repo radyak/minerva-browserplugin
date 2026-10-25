@@ -106,6 +106,12 @@ checked by `tsc` via `jsconfig.json`, which includes WXT's generated `.wxt/wxt.d
   `span:first-child`), only the innermost one is annotated and wrappers lose any annotation, and
   the price text is read without our annotations (`priceText()`). Otherwise the wrapper reads
   "750 GBP1207.72 USD" and shows the price repeatedly.
+- **`priceSelectors` must not count from the end** (`:last-child`, `:last-of-type`,
+  `:only-child`, `:nth-last-…`): the annotation is inserted right after the price element, so
+  such a selector stops matching it from the second run on (`test/sites.test.mjs` rejects them).
+  Count from the start instead (`:nth-child(2)`). Annotations whose element is no longer
+  annotated are removed on every run (`AnnotationView#removeAllBut()`), so a lost match shows
+  as a missing annotation, never as a stale amount.
 - **`origin` is protocol + host only, `paths` are path globs only.** A URL is on a site
   (`AuctionSite.matches()`) when its origin equals the site's `origin` and its *pathname*
   (query/hash ignored) matches one of the paths via our tiny glob matcher

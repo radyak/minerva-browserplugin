@@ -212,6 +212,15 @@ test("every configured site is well formed", () => {
     assert.ok(site.ids.auction, `${name}: ids.auction must be configured`);
     // Every selector must be valid CSS, otherwise querySelectorAll throws at runtime.
     const doc = new JSDOM("").window.document;
-    for (const selector of site.priceSelectors) doc.querySelectorAll(selector);
+    for (const selector of site.priceSelectors) {
+      doc.querySelectorAll(selector);
+      // The annotation is inserted right after the price element, so anything counting
+      // from the end stops matching it after the first run.
+      assert.doesNotMatch(
+        selector,
+        /:(last-child|last-of-type|only-child|only-of-type|nth-last-child|nth-last-of-type)\b/,
+        `${name}: "${selector}" depends on the elements after the price`,
+      );
+    }
   }
 });

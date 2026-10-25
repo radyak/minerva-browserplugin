@@ -171,6 +171,30 @@ test("a wrapper's annotation from an earlier run is removed", () => {
   );
 });
 
+test("an element that is no longer matched loses its annotation", () => {
+  const doc = documentWithPrice("500 EUR");
+  annotate(doc);
+  doc.querySelector(SELECTOR).classList.remove("price");
+  assert.deepEqual(annotate(doc), { annotated: 0, unparsable: 0 });
+  assert.equal(annotations(doc).length, 0);
+});
+
+test("stays annotated with a selector the annotation could affect", () => {
+  // biddr's finished lots: the price is the second div of the row - and the
+  // annotation inserted after it must not change what matches.
+  const doc = new JSDOM(`
+    <div class="lot-price"><div>Price realized</div><div>340 EUR (<span>14</span>)</div></div>
+  `).window.document;
+  const selectors = [".lot-price > div:nth-child(2)"];
+  for (let run = 0; run < 3; run += 1) {
+    assert.deepEqual(annotate(doc, selectors), { annotated: 1, unparsable: 0 });
+  }
+  assert.deepEqual(
+    annotations(doc).map((annotation) => annotation.textContent),
+    ["440 EUR"],
+  );
+});
+
 test("our annotations inside a matched element are not part of its price", () => {
   const doc = documentWithPrice("500 EUR");
   doc

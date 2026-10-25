@@ -65,11 +65,17 @@ export class AnnotationView {
   }
 
   /**
-   * Remove the annotation next to `element`, if there is one.
-   * @param {Element} element
+   * Remove every annotation that does not sit next to one of `elements` - left
+   * over from an element that is no longer annotated (a wrapper now, or not
+   * matched any more). Removes nothing when there is no such annotation.
+   * @param {Iterable<Element>} elements
    */
-  removeFrom(element) {
-    this.#annotationOf(element)?.remove();
+  removeAllBut(elements) {
+    /** @type {Set<Element | null>} */
+    const kept = new Set([...elements].map((element) => this.#annotationOf(element)));
+    for (const annotation of this.doc.querySelectorAll(`.${ANNOTATION_CLASS}`)) {
+      if (!kept.has(annotation)) annotation.remove();
+    }
   }
 
   /**
