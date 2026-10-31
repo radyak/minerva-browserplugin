@@ -27,6 +27,10 @@ export function fakeBus({ answers = {} } = {}) {
       handlers.set(type, handler);
       return this;
     },
+    off(type) {
+      handlers.delete(type);
+      return this;
+    },
     async send(message) {
       this.sent.push(message);
       const answer = answers[message.type];
@@ -69,6 +73,7 @@ export function fakeStore({ book = new SettingsBook(), rates = [] } = {}) {
     },
     onChange(listener) {
       listeners.push(listener);
+      return () => listeners.splice(listeners.indexOf(listener), 1);
     },
     /** Replace what is stored and notify like storage.onChanged would. */
     async change({ book: newBook = book, rates: newRates = Object.values(saved) } = {}) {

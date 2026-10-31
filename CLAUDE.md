@@ -72,6 +72,10 @@ checked by `tsc` via `jsconfig.json`, which includes WXT's generated `.wxt/wxt.d
   `src/browser/ext.js` (it imports `wxt/browser`). Nothing may run at an entry point's top
   level besides imports: WXT imports `content.js` and `background.js` in Node at build time to
   read their options, so all wiring sits inside `main()` / the `defineBackground` callback.
+  `content.js` wires `ctx.onInvalidated(() => controller.stop())` and passes `() => ctx.isValid`
+  as the controller's `isValid`; the controller never gets `ctx`. Anything `ContentController#start()`
+  registers (listeners, observer, bus handler, storage subscription) must be undone in `stop()`,
+  which also removes the annotations — the old copy keeps running in open tabs after a reload.
   The panel's DOM work is split into views (`src/panel/views/`: settings form, status badge,
   auction IDs and settings source on top, "no auction" notice, rates for the active tab's price
   currencies); the form and the IDs are only shown while `TabState#onAuction` (active with a

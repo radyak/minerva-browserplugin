@@ -4,8 +4,8 @@
 
 | Phase | Content | State |
 | --- | --- | --- |
-| **1 — Build swap** | WXT replaces esbuild, the hand-written manifests, `__TARGET__` and the zip script; behaviour unchanged | **done** on branch `feature/WXT-migration`, except the browser check (R0) |
-| **2 — Follow-ups** | Steps R0–R7 below, each optional except R0, each its own commit | open |
+| **1 — Build swap** | WXT replaces esbuild, the hand-written manifests, `__TARGET__` and the zip script; behaviour unchanged | **done** on branch `feature/WXT-migration`; browser check (R0) done 2026-10-31 |
+| **2 — Follow-ups** | Steps R0–R7 below, each optional except R0, each its own commit | in progress (see the table in section 2) |
 
 ---
 
@@ -68,8 +68,8 @@ Recommended order. R0 is required before merging phase 1; R1 is a cheap clean-up
 
 | Step | What | Kind | Trigger / condition | Effort | State |
 | --- | --- | --- | --- | --- | --- |
-| R0 | Browser verification of phase 1 | required | before merging `feature/WXT-migration` | 1–2 h | open |
-| R1 | Content script teardown via WXT's `ctx` | clean-up | next, dev quality | 1–2 h | open |
+| R0 | Browser verification of phase 1 | required | before merging `feature/WXT-migration` | 1–2 h | **done** 2026-10-31 (basic manual test by the maintainer) |
+| R1 | Content script teardown via WXT's `ctx` | clean-up | next, dev quality | 1–2 h | **done** 2026-10-31 |
 | R2 | `@wxt-dev/auto-icons` instead of `make-icons.mjs` | clean-up, low value | only if the committed PNGs get in the way | 0.5 h | optional |
 | R3 | TypeScript, file by file | decision | when types start to pay (more casts, new storage schema) | 0.5–1 day | open |
 | R4 | `wxt/storage` in `SettingsStore` | decision | together with the next storage schema change (buyer settings, see README "Further factors") | 0.5 day | open |
@@ -107,6 +107,13 @@ Tasks:
 - Do **not** use WXT's content script UI helpers (`createShadowRootUi`, `createIntegratedUi`): `AnnotationView` must keep writing plain siblings.
 
 Check: in `npm run dev:firefox`, edit a controller, let it reload — the tab shows exactly one set of annotations, and the console of the page shows no "Extension context invalidated" errors.
+
+**Done (2026-10-31).** `MessageBus#off(type)`, `SettingsStore#onChange()` returns an unsubscribe function, `ContentController#stop()` undoes everything `start()` registers and removes the annotations; `content.js` calls it from `ctx.onInvalidated`. Findings:
+
+- **`ctx` only notices a dead runtime when asked.** WXT invalidates the context (a) when a newer copy of the same content script starts in the tab — it dispatches a `wxt:content-script-started` DOM event the old copy listens for — or (b) when `ctx.isValid` / `ctx.isInvalid` is read and `browser.runtime.id` is gone. WXT's own `ctx.setTimeout`/`ctx.requestAnimationFrame` read it on every call; we don't use those (the controller has no `ctx`), so the controller got an injected `isValid()` (= `() => ctx.isValid`) that it asks before each page-triggered sync. Case (b) matters for Chrome, which does not re-inject manifest content scripts into open tabs after a reload, so the orphan would otherwise run on forever.
+- **`stop()` must work before `start()` has finished** (settings still loading): `start()` checks the flag after its first `await` and registers nothing.
+- The `MessageBus` keeps its `runtime.onMessage` listener after `off()`; in an invalidated context it is never called again, so there is no `dispose()`.
+- **Verified** with the built `dist/*/content-scripts/content.js` in jsdom with a fake `chrome`: injected twice → the first copy removes its annotations, the second annotates, one set on the page; `runtime.id` removed + a DOM change → all annotations gone, no further message. Not yet checked in a real browser (dev-mode reload in Firefox and Chrome) — do that with the other open browser checks before merging.
 
 ### R2 — `@wxt-dev/auto-icons` (optional, low value)
 

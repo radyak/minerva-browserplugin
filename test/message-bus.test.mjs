@@ -69,6 +69,19 @@ test("ignores messages without a handler", () => {
   );
 });
 
+test("ignores a type again after off()", () => {
+  const ext = fakeExt();
+  const bus = new MessageBus(ext).on("ping", () => "pong").on("other", () => "x");
+  assert.equal(bus.off("ping"), bus);
+  assert.equal(
+    ext.listeners[0]({ type: "ping" }, {}, () => {}),
+    false,
+  );
+  let answer;
+  ext.listeners[0]({ type: "other" }, {}, (value) => (answer = value));
+  assert.equal(answer, "x");
+});
+
 test("answers undefined when an async handler fails", async (t) => {
   t.mock.method(console, "warn", () => {});
   const ext = fakeExt();

@@ -19,14 +19,24 @@ export class ContentController {
   #book = new SettingsBook();
   /** @type {import("../browser/SettingsStore.js").RatesByCurrency} */
   #rates = {};
+  #stopped = false;
+  /** @type {MutationObserver | null} */
+  #observer = null;
+  /** @type {number | null} the pending animation frame of a DOM change */
+  #frame = null;
+  /** @type {(() => void) | null} */
+  #unwatchStore = null;
 
   /**
    * @param {object} deps
    * @param {Window & typeof globalThis} deps.window the page
-   * @param {Pick<import("../browser/MessageBus.js").MessageBus, "on" | "send">} deps.bus
+   * @param {Pick<import("../browser/MessageBus.js").MessageBus, "on" | "off" | "send">} deps.bus
    * @param {Pick<import("../browser/SettingsStore.js").SettingsStore, "load" | "onChange">} deps.store
    * @param {import("../core/sites/SiteRegistry.js").SiteRegistry} [deps.sites]
    * @param {PriceAnnotator} [deps.annotator]
+   * @param {() => boolean} [deps.isValid] whether the extension is still there; asked
+   *   before each sync caused by the page (the content script entry point passes
+   *   WXT's `ctx.isValid`, which notices a dead runtime and invalidates the context)
    */
   constructor({
     window,
@@ -34,18 +44,21 @@ export class ContentController {
     store,
     sites = SITES,
     annotator = new PriceAnnotator(window.document),
+    isValid = () => true,
   }) {
     this.window = window;
     this.bus = bus;
     this.store = store;
     this.sites = sites;
     this.annotator = annotator;
+    this.isValid = isValid;
   }
 
   /** Load the settings, annotate the page and keep it annotated from now on. */
   async start() {
     // Settings first, so the page never shows an amount computed without them.
     await this.#loadSettings();
+    if (this.#stopped) return;
 
     this.bus.on(MSG.SYNC_REQUEST, async () => {
       // Re-read the settings: the panel sends this right after saving them, and
@@ -56,11 +69,11 @@ export class ContentController {
 
     // Single page apps swap the URL without reloading; the background script
     // notices and sends SYNC_REQUEST, these two cover the in-page cases.
-    this.window.addEventListener("popstate", () => this.sync("popstate"));
-    this.window.addEventListener("hashchange", () => this.sync("hashchange"));
+    this.window.addEventListener("popstate", this.#onPopState);
+    this.window.addEventListener("hashchange", this.#onHashChange);
 
     // Recalculate when the settings are saved in the panel or another tab.
-    this.store.onChange(async () => {
+    this.#unwatchStore = this.store.onChange(async () => {
       await this.#loadSettings();
       this.sync("settings");
     });
@@ -70,12 +83,32 @@ export class ContentController {
   }
 
   /**
+   * Undo `start()`: stop listening to the page, the messages and the storage,
+   * and remove every annotation. Called when the extension is reloaded or
+   * updated - this script then has a dead runtime, but keeps running in the tab.
+   * Syncs still in flight end without touching the page.
+   */
+  stop() {
+    if (this.#stopped) return;
+    this.#stopped = true;
+    this.#observer?.disconnect();
+    if (this.#frame !== null) this.window.cancelAnimationFrame(this.#frame);
+    this.#frame = null;
+    this.window.removeEventListener("popstate", this.#onPopState);
+    this.window.removeEventListener("hashchange", this.#onHashChange);
+    this.bus.off(MSG.SYNC_REQUEST);
+    this.#unwatchStore?.();
+    this.annotator.clear();
+  }
+
+  /**
    * Bring the page in line with the current URL and settings; report the
    * resulting state when it changed.
    * @param {string} reason what triggered the sync, sent along for debugging
    * @returns {TabState}
    */
   sync(reason) {
+    if (this.#stopped) return this.#lastState ?? TabState.inactive();
     const url = this.window.location.href;
     const site = this.sites.find(url);
     // Off every site, clean up whatever an earlier run left behind.
@@ -127,19 +160,29 @@ export class ContentController {
    * extra pass instead of looping.
    */
   #observeDom() {
-    let scheduled = false;
-    const observer = new this.window.MutationObserver(() => {
-      if (scheduled) return;
-      scheduled = true;
-      this.window.requestAnimationFrame(() => {
-        scheduled = false;
-        this.sync("mutation");
+    this.#observer = new this.window.MutationObserver(() => {
+      if (this.#frame !== null) return;
+      this.#frame = this.window.requestAnimationFrame(() => {
+        this.#frame = null;
+        this.#syncIfValid("mutation");
       });
     });
-    observer.observe(this.window.document.documentElement, {
+    this.#observer.observe(this.window.document.documentElement, {
       childList: true,
       characterData: true,
       subtree: true,
     });
+  }
+
+  #onPopState = () => this.#syncIfValid("popstate");
+  #onHashChange = () => this.#syncIfValid("hashchange");
+
+  /**
+   * Sync for a page event, unless the extension is gone: `isValid()` is what
+   * notices a dead runtime (and stops this controller) when nothing else does.
+   * @param {string} reason
+   */
+  #syncIfValid(reason) {
+    if (this.isValid()) this.sync(reason);
   }
 }

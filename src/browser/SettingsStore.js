@@ -77,12 +77,16 @@ export class SettingsStore {
   /**
    * Call `listener` whenever settings or rates change, from any extension page.
    * @param {() => void} listener
+   * @returns {() => void} stops calling `listener`
    */
   onChange(listener) {
     const keys = Object.values(SettingsStore.KEYS);
-    this.ext.storage.onChanged.addListener((changes, area) => {
+    /** @param {Record<string, unknown>} changes @param {string} area */
+    const onChanged = (changes, area) => {
       if (area === "local" && keys.some((key) => key in changes)) listener();
-    });
+    };
+    this.ext.storage.onChanged.addListener(onChanged);
+    return () => this.ext.storage.onChanged.removeListener(onChanged);
   }
 
   /**

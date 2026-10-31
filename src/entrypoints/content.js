@@ -10,17 +10,22 @@ import "../content/content.css";
 
 /**
  * Content script entry point: wires the ContentController to the page and the
- * extension API. The options are read at build time, so `matches` comes
- * straight from the site config.
+ * extension API, and tears it down when WXT invalidates the context (extension
+ * reloaded, updated or removed; a newer copy of this script started in the tab).
+ * The options are read at build time, so `matches` comes straight from the
+ * site config.
  */
 export default defineContentScript({
   matches: SITES.matchPatterns(),
   runAt: "document_idle",
-  main() {
-    new ContentController({
+  main(ctx) {
+    const controller = new ContentController({
       window,
       bus: new MessageBus(ext),
       store: new SettingsStore(ext),
-    }).start();
+      isValid: () => ctx.isValid,
+    });
+    ctx.onInvalidated(() => controller.stop());
+    controller.start();
   },
 });

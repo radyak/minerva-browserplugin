@@ -48,6 +48,11 @@ on `dist/firefox`.
 
 ## Verified in real browsers
 
+After the switch to WXT (phase 1 of [`dev/wxt-migration-plan.md`](dev/wxt-migration-plan.md)),
+the built extension got a basic manual test in the browser by the maintainer (2026-10-31, R0
+of the plan).
+
+
 Before the switch from the +20% surcharge to the shipment setting, built
 artifacts were smoke tested against a local fixture page in real browsers
 (Firefox via geckodriver, Chrome 145 via CDP), with identical results in both:

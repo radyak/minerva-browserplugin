@@ -236,6 +236,7 @@ The settings of a page are found by `SettingsBook#resolve()`, which tries `SETTI
 | Content | `popstate`, `hashchange` | `sync("popstate")` / `sync("hashchange")` |
 | Content | `storage.onChanged` (`auctionSettings`, `exchangeRates`) | reload settings/rates, `sync("settings")` |
 | Content | `SYNC_REQUEST` | reload settings/rates, `sync("request")`, answer the state |
+| Content | WXT `ctx.onInvalidated` (extension reloaded/updated/removed, or a newer copy of the script started in the tab) | `stop()`: disconnect the observer, cancel the pending frame, remove the listeners, `bus.off()`, unsubscribe from storage, remove all annotations |
 | Background | `runtime.onInstalled` | migrate old settings, schedule the daily alarm, refresh the saved rates |
 | Background | `runtime.onStartup` | schedule the alarm if missing (Firefox drops alarms on restart), refresh the saved rates |
 | Background | `alarms.onAlarm` (`refresh-exchange-rates`, daily) | refresh the saved rates |
@@ -247,6 +248,20 @@ The settings of a page are found by `SettingsBook#resolve()`, which tries `SETTI
 | Panel | `#currency` `change` | load the rates of the picked currency |
 | Panel | `#settings` `submit` | validate, save settings + rates under the active tab's `AuctionKey`, refresh the status |
 | Panel | `STATE_CHANGED`, `tabs.onActivated`, `tabs.onUpdated` | refresh the status and the shipment's currency; on another `AuctionKey`, show the settings resolved for it |
+
+### Content script lifecycle
+
+The content script outlives its extension: after a reload or update the old copy keeps running in open tabs with a dead runtime. WXT's `ContentScriptContext` (`ctx`, passed to `main()`) is invalidated when a newer copy starts in the same tab (it announces itself with a DOM event) or when `ctx.isValid` is read while `runtime.id` is gone; `content.js` then calls `ContentController#stop()`. Nothing polls `ctx.isValid` by itself, so the controller asks it (its `isValid` dependency) before each sync caused by the page - the first DOM change, `popstate` or `hashchange` after the extension went away tears the old copy down. The controller never sees `ctx`, which keeps it testable without WXT.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Loading: main(ctx) → start()
+  Loading --> Running: settings loaded → listeners, sync("load"), observer
+  Loading --> Stopped: stop() before loading finished (no listener is registered)
+  Running --> Running: DOM change / popstate / hashchange (isValid) · SYNC_REQUEST · storage change
+  Running --> Stopped: ctx.onInvalidated → stop()
+  Stopped --> [*]: annotations removed; late syncs return the last state without writing
+```
 
 ### Page load and navigation
 

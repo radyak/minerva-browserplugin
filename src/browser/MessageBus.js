@@ -29,6 +29,16 @@ export class MessageBus {
   }
 
   /**
+   * Stop handling messages of `type`; they are ignored from now on.
+   * @param {string} type
+   * @returns {this}
+   */
+  off(type) {
+    this.#handlers.delete(type);
+    return this;
+  }
+
+  /**
    * Send a runtime message (to background and panel) without caring about a
    * missing receiver - panel closed, background not listening yet.
    * @param {object} message

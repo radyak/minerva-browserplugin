@@ -30,7 +30,10 @@ function fakeExt(initial = {}) {
           for (const key of [keys].flat()) delete data[key];
         },
       },
-      onChanged: { addListener: (listener) => ext.listeners.push(listener) },
+      onChanged: {
+        addListener: (listener) => ext.listeners.push(listener),
+        removeListener: (listener) => ext.listeners.splice(ext.listeners.indexOf(listener), 1),
+      },
     },
   };
   return ext;
@@ -101,6 +104,14 @@ test("reports changes of its own keys in local storage only", () => {
   listener({ unrelated: {} }, "local");
   listener({ auctionSettings: {} }, "sync");
   assert.equal(calls, 2);
+});
+
+test("stops reporting changes once unsubscribed", () => {
+  const ext = fakeExt();
+  const unsubscribe = new SettingsStore(ext).onChange(() => {});
+  assert.equal(ext.listeners.length, 1);
+  unsubscribe();
+  assert.equal(ext.listeners.length, 0);
 });
 
 const SITES = [BIDDR, "https://www.numisbids.com"];
