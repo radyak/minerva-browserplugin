@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { BackgroundController } from "../src/background/BackgroundController.js";
-import { MSG } from "../src/core/messages.js";
-import { ExchangeRates } from "../src/core/rates/ExchangeRates.js";
-import { AuctionSite } from "../src/core/sites/AuctionSite.js";
-import { SiteRegistry } from "../src/core/sites/SiteRegistry.js";
-import { UrlParam } from "../src/core/sites/UrlParam.js";
+import { BackgroundController } from "../src/background/BackgroundController.ts";
+import { MSG } from "../src/core/messages.ts";
+import { ExchangeRates } from "../src/core/rates/ExchangeRates.ts";
+import { AuctionSite } from "../src/core/sites/AuctionSite.ts";
+import { SiteRegistry } from "../src/core/sites/SiteRegistry.ts";
+import { UrlParam } from "../src/core/sites/UrlParam.ts";
 import { fakeBus } from "./support/fakes.mjs";
 
 const SITES = new SiteRegistry([
@@ -18,7 +18,10 @@ const SITES = new SiteRegistry([
   }),
 ]);
 
-/** The parts of the extension API the controller uses, recording badges and listeners. */
+/**
+ * The parts of the extension API the controller uses, recording badges and listeners.
+ * @returns {any}
+ */
 function fakeExt({ activeTab } = /** @type {{activeTab?: any}} */ ({})) {
   const ext = {
     badges: /** @type {any[]} */ ([]),

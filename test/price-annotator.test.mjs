@@ -2,12 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { JSDOM } from "jsdom";
 
-import { ANNOTATION_CLASS, UNPARSABLE_TEXT } from "../src/core/config.js";
-import { PriceAnnotator } from "../src/core/annotation/PriceAnnotator.js";
-import { ExchangeRates } from "../src/core/rates/ExchangeRates.js";
-import { PriceCalculator } from "../src/core/pricing/PriceCalculator.js";
-import { Settings } from "../src/core/settings/Settings.js";
-import { AuctionSite } from "../src/core/sites/AuctionSite.js";
+import { ANNOTATION_CLASS, UNPARSABLE_TEXT } from "../src/core/config.ts";
+import { PriceAnnotator } from "../src/core/annotation/PriceAnnotator.ts";
+import { ExchangeRates } from "../src/core/rates/ExchangeRates.ts";
+import { PriceCalculator } from "../src/core/pricing/PriceCalculator.ts";
+import { Settings } from "../src/core/settings/Settings.ts";
+import { AuctionSite } from "../src/core/sites/AuctionSite.ts";
 
 const SELECTOR = ".price";
 const SETTINGS = new Settings({ auctionPremium: 0, shipment: 100, currency: "EUR" });
@@ -27,7 +27,7 @@ function documentWithPrice(price = "500 EUR") {
  * Annotate `doc`'s prices as a site with these selectors (and calculator); the resulting counts.
  * @param {Document} doc
  * @param {string[]} [priceSelectors]
- * @param {import("../src/core/pricing/PriceCalculator.js").PriceCalculator} [calculator]
+ * @param {import("../src/core/pricing/PriceCalculator.ts").PriceCalculator} [calculator]
  */
 const annotate = (doc, priceSelectors = [SELECTOR], calculator = undefined) => {
   const site = new AuctionSite({

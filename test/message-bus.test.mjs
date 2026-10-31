@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { MessageBus } from "../src/browser/MessageBus.js";
+import { MessageBus } from "../src/browser/MessageBus.ts";
 
 /**
  * The parts of the extension API MessageBus uses, recording its listeners.
  * @param {{sendMessage?: Function, tabsSendMessage?: Function}} [overrides]
+ * @returns {any}
  */
 function fakeExt({ sendMessage, tabsSendMessage } = {}) {
   const ext = {

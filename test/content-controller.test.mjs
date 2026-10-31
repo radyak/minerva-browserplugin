@@ -2,15 +2,15 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { JSDOM } from "jsdom";
 
-import { ContentController } from "../src/content/ContentController.js";
-import { ANNOTATION_CLASS } from "../src/core/config.js";
-import { MSG } from "../src/core/messages.js";
-import { ExchangeRates } from "../src/core/rates/ExchangeRates.js";
-import { PriceCalculator } from "../src/core/pricing/PriceCalculator.js";
-import { Settings } from "../src/core/settings/Settings.js";
-import { AuctionSite } from "../src/core/sites/AuctionSite.js";
-import { SiteRegistry } from "../src/core/sites/SiteRegistry.js";
-import { UrlParam } from "../src/core/sites/UrlParam.js";
+import { ContentController } from "../src/content/ContentController.ts";
+import { ANNOTATION_CLASS } from "../src/core/config.ts";
+import { MSG } from "../src/core/messages.ts";
+import { ExchangeRates } from "../src/core/rates/ExchangeRates.ts";
+import { PriceCalculator } from "../src/core/pricing/PriceCalculator.ts";
+import { Settings } from "../src/core/settings/Settings.ts";
+import { AuctionSite } from "../src/core/sites/AuctionSite.ts";
+import { SiteRegistry } from "../src/core/sites/SiteRegistry.ts";
+import { UrlParam } from "../src/core/sites/UrlParam.ts";
 import { bookOf, fakeBus, fakeStore, settle } from "./support/fakes.mjs";
 
 const SITES = new SiteRegistry([

@@ -3,12 +3,12 @@ import test from "node:test";
 
 import { JSDOM } from "jsdom";
 
-import { EffectivePriceCalculator } from "../src/core/pricing/EffectivePriceCalculator.js";
-import { AuctionSite } from "../src/core/sites/AuctionSite.js";
-import { SiteRegistry } from "../src/core/sites/SiteRegistry.js";
-import { SITES } from "../src/core/sites/sites.config.js";
-import { UrlParam } from "../src/core/sites/UrlParam.js";
-import { matchPatternFor, urlMatches, urlOnOrigin } from "../src/core/sites/url-matcher.js";
+import { EffectivePriceCalculator } from "../src/core/pricing/EffectivePriceCalculator.ts";
+import { AuctionSite } from "../src/core/sites/AuctionSite.ts";
+import { SiteRegistry } from "../src/core/sites/SiteRegistry.ts";
+import { SITES } from "../src/core/sites/sites.config.ts";
+import { UrlParam } from "../src/core/sites/UrlParam.ts";
+import { matchPatternFor, urlMatches, urlOnOrigin } from "../src/core/sites/url-matcher.ts";
 
 test("matches a plain prefix glob", () => {
   assert.equal(

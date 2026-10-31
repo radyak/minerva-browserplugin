@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { ExchangeRates } from "../src/core/rates/ExchangeRates.js";
-import { RatesClient } from "../src/core/rates/RatesClient.js";
+import { ExchangeRates } from "../src/core/rates/ExchangeRates.ts";
+import { RatesClient } from "../src/core/rates/RatesClient.ts";
 
 /** URL of the last request made through fakeFetch. */
 let lastUrl;

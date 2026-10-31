@@ -13,8 +13,8 @@ npm run format           # apply Prettier and ESLint fixes
 npm run package          # dist/<name>-<version>-<browser>.zip, plus the sources zip for AMO
 ```
 
-The build is [WXT](https://wxt.dev) (Vite underneath), configured in `wxt.config.js`.
-It finds the entry points in `src/entrypoints/` (`background.js`, `content.js`,
+The build is [WXT](https://wxt.dev) (Vite underneath), configured in `wxt.config.ts`.
+It finds the entry points in `src/entrypoints/` (`background.ts`, `content.ts`,
 `sidepanel/`), generates the manifest for each browser - version from `package.json`,
 content script `matches` and `host_permissions` from `SITES.matchPatterns()`, `side_panel`
 for Chrome and `sidebar_action` for Firefox - bundles content script and background as
@@ -23,6 +23,11 @@ greyscale in dev mode, so the dev build is easy to tell apart) and inlines the i
 referenced by `content.css` (`src/assets/minerva-64.png`) as a `data:` URL. Bootstrap's CSS is imported by the side panel and
 bundled with `panel.css`. Dev mode writes to `dist/<browser>-dev` and starts a
 throwaway browser profile with the extension loaded (via `web-ext`).
+
+The source is TypeScript (strict, `tsconfig.json`), the tests are JavaScript checked
+through their JSDoc (`test/tsconfig.json`); `npm run typecheck` runs both. `node --test`
+loads the `.ts` sources directly - Node 24 strips the types - so the code sticks to
+erasable TypeScript syntax (no `enum`, `namespace` or parameter properties).
 
 Tests use `node:test` and jsdom. Core modules are tested directly, the browser layer and the three controllers with fakes (`test/support/fakes.mjs`); the panel test runs against the real `src/entrypoints/sidepanel/index.html`. `CLAUDE.md` lists the conventions and invariants to keep when changing the code.
 

@@ -6,7 +6,7 @@ What the extension does on a page and in the panel, from the user's point of vie
   it loads, the DOM changes (`MutationObserver` on `childList` **and**
   `characterData`, so late-rendered elements and in-place price edits are both
   caught) or the background script reports a URL change.
-- For every match, the element's text is parsed by `src/core/price.js`, the
+- For every match, the element's text is parsed by `src/core/price.ts`, the
   effective price is calculated by the site's calculator - by default
   `EffectivePriceCalculator` in `src/core/pricing/` (price plus premium, plus shipment - which
   is entered in the auction's currency, like the price - converted into the selected currency), and the result is inserted as a sibling right

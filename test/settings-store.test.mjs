@@ -1,12 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { SettingsStore } from "../src/browser/SettingsStore.js";
-import { ExchangeRates } from "../src/core/rates/ExchangeRates.js";
-import { AuctionKey } from "../src/core/settings/AuctionKey.js";
-import { Settings } from "../src/core/settings/Settings.js";
+import { SettingsStore } from "../src/browser/SettingsStore.ts";
+import { ExchangeRates } from "../src/core/rates/ExchangeRates.ts";
+import { AuctionKey } from "../src/core/settings/AuctionKey.ts";
+import { Settings } from "../src/core/settings/Settings.ts";
 
-/** An in-memory storage.local that records every write, plus its onChanged listeners. */
+/**
+ * An in-memory storage.local that records every write, plus its onChanged listeners.
+ * @returns {any}
+ */
 function fakeExt(initial = {}) {
   const data = structuredClone(initial);
   const ext = {

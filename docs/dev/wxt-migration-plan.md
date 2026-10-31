@@ -18,7 +18,7 @@
 
 ## 1. Current state (after phase 1)
 
-**Versions:** WXT 0.21.4 (Vite 8), TypeScript 7 (`tsc` over JSDoc, `checkJs`, non-strict), Node 24, `node:test` + jsdom.
+**Versions:** WXT 0.21.4 (Vite 8), TypeScript 7 (`tsc` over JSDoc, `checkJs`, non-strict), Node 24, `node:test` + jsdom. *Since R3: TypeScript 6.0, `src/` in strict TypeScript, tests in JavaScript.*
 
 **Layout and config** — `wxt.config.js`:
 
@@ -71,7 +71,7 @@ Recommended order. R0 is required before merging phase 1; R1 is a cheap clean-up
 | R0 | Browser verification of phase 1 | required | before merging `feature/WXT-migration` | 1–2 h | **done** 2026-10-31 (basic manual test by the maintainer) |
 | R1 | Content script teardown via WXT's `ctx` | clean-up | next, dev quality | 1–2 h | **done** 2026-10-31 |
 | R2 | `@wxt-dev/auto-icons` instead of `make-icons.mjs` | clean-up, low value | only if the committed PNGs get in the way | 0.5 h | **done** 2026-10-31 |
-| R3 | TypeScript, file by file | decision | when types start to pay (more casts, new storage schema) | 0.5–1 day | open |
+| R3 | TypeScript, file by file | decision | when types start to pay (more casts, new storage schema) | 0.5–1 day | **done** 2026-10-31 (all of `src/` at once, strict) |
 | R4 | `wxt/storage` in `SettingsStore` | decision | together with the next storage schema change (buyer settings, see README "Further factors") | 0.5 day | open |
 | R5 | Release automation (`wxt submit`, CI on tag), final Gecko ID | decision | before the first store listing | 0.5 day | open |
 | R6 | Typed messaging (`@webext-core/messaging`) | conditional | only with clearly more than the current 4 message types | 0.5 day | open |
@@ -149,6 +149,16 @@ Constraints and approach:
 - Keep the JSDoc block comments on exported functions (CLAUDE.md), drop only the `@type`/`@param` type annotations that TypeScript now carries.
 - ESLint: add `typescript-eslint` (flat config) for `.ts` files; Prettier needs nothing.
 - Update `CLAUDE.md` (types section, commands) and `docs/development.md`.
+
+**Done (2026-10-31)**, in one commit and with a few deviations:
+
+- **TypeScript 6.0 instead of 7.** `typescript-eslint` 8.72 (latest) requires `typescript <6.1`: it builds on the JS compiler API, which TypeScript 7 (the native port) no longer ships (`typescript@7` only has `bin/tsc` and an unstable sync API). Linting `.ts` needs a TS-aware parser, so `tsc` went back to 6.0.3. Move to 7 once `typescript-eslint` supports it — `tsc` itself was fine with 7.
+- **All of `src/` (and `wxt.config.ts`) in one go, directly strict** — `tsconfig.json` extends `.wxt/tsconfig.json` unchanged (`strict`, `noUncheckedIndexedAccess`, `noImplicitOverride`, `verbatimModuleSyntax`) plus `erasableSyntaxOnly`. The step-by-step `allowJs` phase was not needed: the conversion was mechanical enough to finish at once.
+- **The tests stay JavaScript** (`test/*.mjs`), checked via `checkJs` in `test/tsconfig.json` (extends the root one, not strict, no `noImplicitOverride`). They import the `.ts` sources, which Node 24.4 runs without a flag or warning. The fakes return `any` (`@returns {any}`), so they do not have to mimic WXT's full Chrome-typed API.
+- How it was converted, in case more JS shows up: TypeScript's own code fixes, run through the language service — `annotateWithTypeFromJSDoc` (moves `@param`/`@returns`/`@type` into annotations), then `fixMissingMember` (declares the fields assigned in constructors) — followed by stripping the `{type}` parts out of the JSDoc. Both fixes needed hand work: optional `[param]`s without a default became required, fields declared by `/** @type */ this.x = …` were inferred wrongly (e.g. as methods) or as `any`, and JSDoc typedefs had to become `type`/`interface` declarations.
+- **New conventions** (in `CLAUDE.md`, section "TypeScript"): plain-data shapes are exported next to their class (`TabStateJSON`, `SettingsJSON`, `AuctionKeyJSON`, `ExchangeRatesJSON`, `SettingsEntryJSON`); controllers declare a local `Deps` type and type the browser APIs they get as `Pick<WxtBrowser, …>` (structural, so the fakes still fit); immutable value classes have `readonly` fields. `side-panel.ts` now casts to a small `FirefoxSidebar` type instead of `any`. `MessageBus` keeps `any` for message payloads — that is R6.
+- **WXT's path aliases (`@/`, `~/`, from `.wxt/tsconfig.json`) are not usable:** `node --test` does not know them, so imports stay relative, with the `.ts` extension (`allowImportingTsExtensions` comes from WXT's config).
+- Checked: manifests identical to R2, AMO linter clean, built content script re-checked in jsdom (as in R1). The bundles grew by ~400 bytes: field declarations without initializer are emitted as class fields (`useDefineForClassFields`, target ESNext) — harmless, since every constructor assigns them before `Object.freeze(this)`.
 
 ### R4 — `wxt/storage` in `SettingsStore` (decision, with a schema change)
 

@@ -1,8 +1,8 @@
-import { AuctionKey } from "../../src/core/settings/AuctionKey.js";
-import { SettingsBook } from "../../src/core/settings/SettingsBook.js";
+import { AuctionKey } from "../../src/core/settings/AuctionKey.ts";
+import { SettingsBook } from "../../src/core/settings/SettingsBook.ts";
 
-/** @typedef {import("../../src/core/rates/ExchangeRates.js").ExchangeRates} ExchangeRates */
-/** @typedef {import("../../src/core/settings/Settings.js").Settings} Settings */
+/** @typedef {import("../../src/core/rates/ExchangeRates.ts").ExchangeRates} ExchangeRates */
+/** @typedef {import("../../src/core/settings/Settings.ts").Settings} Settings */
 
 /**
  * Stand-ins for the src/browser classes the controllers depend on. They record

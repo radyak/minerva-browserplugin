@@ -1,0 +1,14 @@
+{
+  // The tests stay JavaScript (node:test loads them as they are), checked
+  // through their JSDoc comments, without strict mode.
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "maxNodeModuleJsDepth": 0,
+    "strict": false,
+    "noUncheckedIndexedAccess": false,
+    "noImplicitOverride": false
+  },
+  "include": ["../.wxt/wxt.d.ts", "**/*.mjs"]
+}

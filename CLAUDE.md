@@ -22,7 +22,7 @@ npm test                 # lint + typecheck + unit tests — run this after any 
 npm run test:unit        # node:test + jsdom, src/core only — fast
 npm run lint             # ESLint + Prettier check
 npm run format           # Prettier + ESLint --fix
-npm run typecheck        # tsc checkJs over the JSDoc types (non-strict, jsconfig.json)
+npm run typecheck        # tsc: src/ strict (tsconfig.json), tests via checkJs (test/tsconfig.json)
 npm run build            # wxt build -> dist/chrome and dist/firefox
 npm run build:chrome     # or :firefox
 npm run dev              # WXT dev mode, Chrome: dist/chrome-dev, auto-reload, throwaway profile
@@ -32,46 +32,63 @@ npm run lint:firefox     # AMO validator
 ```
 
 Formatting is Prettier (`.prettierrc.json`, width 100; Markdown is excluded and formatted by
-hand), linting is ESLint's recommended set (`eslint.config.js`). Types are the JSDoc comments,
-checked by `tsc` via `jsconfig.json`, which includes WXT's generated `.wxt/wxt.d.ts`
-(`import.meta.env`, CSS imports; `npm run typecheck` runs `wxt prepare` first). Keep JSDoc block comments on every exported function.
+hand), linting is ESLint's recommended set plus `typescript-eslint`'s for `.ts` (`eslint.config.js`).
+
+## TypeScript
+
+- **`src/` and `wxt.config.ts` are TypeScript, strict** (`tsconfig.json` extends WXT's generated
+  `.wxt/tsconfig.json`: `strict`, `noUncheckedIndexedAccess`, `noImplicitOverride`,
+  `verbatimModuleSyntax`; `npm run typecheck` runs `wxt prepare` first). **The tests stay
+  JavaScript** (`test/*.mjs`), checked through their JSDoc by `test/tsconfig.json` (`checkJs`,
+  not strict); fakes are typed `@returns {any}`.
+- **`node --test` runs the `.ts` sources directly** (Node 24 strips types), so only *erasable*
+  syntax is allowed (`erasableSyntaxOnly`): no `enum`, no `namespace`, no constructor parameter
+  properties — declare fields and assign them in the constructor. Type-only imports must be
+  `import type` / `{ type X }`; relative imports name the file with its `.ts` extension.
+- **TypeScript is 6.0, not 7,** because `typescript-eslint` (8.x) needs the JS compiler API that
+  TypeScript 7 no longer ships. Move to 7 once `typescript-eslint` supports it.
+- Types live in the code; JSDoc keeps the descriptions only (no `{type}` in `@param`/`@returns`).
+  Keep a JSDoc block comment on every exported function. Plain-data shapes that cross messages
+  or storage are exported next to their class (`TabStateJSON`, `SettingsJSON`, `AuctionKeyJSON`,
+  `ExchangeRatesJSON`, `SettingsEntryJSON`). Controllers declare their constructor dependencies as
+  a local `Deps` type and the browser APIs they use as `Pick<WxtBrowser, …>`.
 
 ## Architecture invariants
 
 - **`src/core/` never touches an extension API.** It works against a plain `Document` and plain
   strings, which is the only reason it can be unit tested with jsdom. Anything needing
-  `chrome.*`/`browser.*` goes through `src/browser/` (the `ext` alias in `ext.js`, messaging in
-  `MessageBus.js`) and is imported from `content/`, `background/` or `panel/`. Classes in
+  `chrome.*`/`browser.*` goes through `src/browser/` (the `ext` alias in `ext.ts`, messaging in
+  `MessageBus.ts`) and is imported from `content/`, `background/` or `panel/`. Classes in
   `src/browser/` take `ext` as a constructor argument, so they are testable with a fake one.
 - **Browser differences are confined to two places:** the `manifest` function in
-  `wxt.config.js` (only `browser_specific_settings` for Firefox; WXT itself emits `side_panel`
-  vs. `sidebar_action` and the background key per browser) and `src/browser/side-panel.js`
+  `wxt.config.ts` (only `browser_specific_settings` for Firefox; WXT itself emits `side_panel`
+  vs. `sidebar_action` and the background key per browser) and `src/browser/side-panel.ts`
   (Chrome `sidePanel` vs. Firefox `sidebarAction`). Do not add an
   `import.meta.env.BROWSER === "chrome"` branch anywhere else; extend `src/browser/` instead.
-- **`src/core/sites/sites.config.js` is the single source of truth for the targets.** `SITES` is
+- **`src/core/sites/sites.config.ts` is the single source of truth for the targets.** `SITES` is
   a `SiteRegistry` of `AuctionSite`s (`origin`, `paths`, `priceSelectors`, `ids` for the house
   and auction ID in the URL, read by `UrlParam`); plugin-wide constants
-  live in `src/core/config.js`. WXT takes the version from `package.json`; the content script's
-  `matches` (`src/entrypoints/content.js`) and the `host_permissions` (`wxt.config.js`) both
+  live in `src/core/config.ts`. WXT takes the version from `package.json`; the content script's
+  `matches` (`src/entrypoints/content.ts`) and the `host_permissions` (`wxt.config.ts`) both
   come from `SITES.matchPatterns()`, read at build time. Changing what the extension targets
-  should mean editing only `sites.config.js`.
+  should mean editing only `sites.config.ts`.
 - **Auction sites are always "sites"**, never "platforms"; the browsers are "browsers" (WXT's
   `-b chrome|firefox`).
 - **`import.meta.env.BROWSER` is replaced at build time,** not a runtime variable, and only
-  exists in code bundled by WXT. `src/browser/ext.js` re-exports `browser` from `wxt/browser`,
+  exists in code bundled by WXT. `src/browser/ext.ts` re-exports `browser` from `wxt/browser`,
   which tests cannot load — that is another reason core code stays free of `src/browser/`, and
   why tests inject a fake `ext` instead.
 - **Entry points only wire things up.** They live in `src/entrypoints/` (WXT's `srcDir` is
-  `src`): `content.js` (`defineContentScript`), `background.js` (`defineBackground`) and
-  `sidepanel/main.js` (+ `index.html`) create a `ContentController` / `BackgroundController` /
+  `src`): `content.ts` (`defineContentScript`), `background.ts` (`defineBackground`) and
+  `sidepanel/main.ts` (+ `index.html`) create a `ContentController` / `BackgroundController` /
   `PanelController`
   with the real `window`/`ext`/`document`, `MessageBus` and `SettingsStore`; all behaviour lives
   in the controllers, which get their dependencies through the constructor and are tested with
   jsdom and the fakes in `test/support/fakes.mjs`. Controllers never import
-  `src/browser/ext.js` (it imports `wxt/browser`). Nothing may run at an entry point's top
-  level besides imports: WXT imports `content.js` and `background.js` in Node at build time to
+  `src/browser/ext.ts` (it imports `wxt/browser`). Nothing may run at an entry point's top
+  level besides imports: WXT imports `content.ts` and `background.ts` in Node at build time to
   read their options, so all wiring sits inside `main()` / the `defineBackground` callback.
-  `content.js` wires `ctx.onInvalidated(() => controller.stop())` and passes `() => ctx.isValid`
+  `content.ts` wires `ctx.onInvalidated(() => controller.stop())` and passes `() => ctx.isValid`
   as the controller's `isValid`; the controller never gets `ctx`. Anything `ContentController#start()`
   registers (listeners, observer, bus handler, storage subscription) must be undone in `stop()`,
   which also removes the annotations — the old copy keeps running in open tabs after a reload.
@@ -79,7 +96,7 @@ checked by `tsc` via `jsconfig.json`, which includes WXT's generated `.wxt/wxt.d
   auction IDs and settings source on top, "no auction" notice, rates for the active tab's price
   currencies); the form and the IDs are only shown while `TabState#onAuction` (active with a
   house or auction ID). Its test runs against the real `src/entrypoints/sidepanel/index.html`.
-- **WXT config (`wxt.config.js`):** `imports: false` — no auto-imports, every module imports
+- **WXT config (`wxt.config.ts`):** `imports: false` — no auto-imports, every module imports
   `defineBackground` etc. explicitly (`wxt/utils/define-background`), so files stay loadable by
   `node --test`; `manifestVersion: 3` for both browsers (WXT defaults Firefox to MV2). A new entry
   point is a new file in `src/entrypoints/` following WXT's naming; files that go into the build
@@ -88,10 +105,10 @@ checked by `tsc` via `jsconfig.json`, which includes WXT's generated `.wxt/wxt.d
   builds); `action.default_icon`, the sidebar's `manifest.default_icon` meta tag and the panel's
   `<img>` point at those generated paths. Content script and background are bundled as IIFE
   (WXT's default — they cannot be ES modules), the side panel page as ES module. Bootstrap and
-  `panel.css` are imported from `sidepanel/main.js`; the Firefox sidebar's title and icon come
+  `panel.css` are imported from `sidepanel/main.ts`; the Firefox sidebar's title and icon come
   from `<meta name="manifest.…">` tags in `index.html`.
 - **`content.css` inlines its PNGs:** the content entry point imports it, WXT lists it under
-  `content_scripts[].css`, and `assetsInlineLimit` in `wxt.config.js` forces the PNGs it
+  `content_scripts[].css`, and `assetsInlineLimit` in `wxt.config.ts` forces the PNGs it
   references inline as `data:` URLs — content-script CSS cannot use relative URLs into the
   extension, and this avoids `web_accessible_resources` and a per-browser
   `chrome-extension://`/`moz-extension://` URL. It references a committed source file
@@ -122,7 +139,7 @@ checked by `tsc` via `jsconfig.json`, which includes WXT's generated `.wxt/wxt.d
 - **`origin` is protocol + host only, `paths` are path globs only.** A URL is on a site
   (`AuctionSite.matches()`) when its origin equals the site's `origin` and its *pathname*
   (query/hash ignored) matches one of the paths via our tiny glob matcher
-  (`src/core/sites/url-matcher.js`, `*` only, exact otherwise). `matchPatternFor()` derives the
+  (`src/core/sites/url-matcher.ts`, `*` only, exact otherwise). `matchPatternFor()` derives the
   manifest match pattern `<protocol>//<host>/*` and drops any port, since match patterns cannot
   carry one; the origin check still enforces it.
 - **The tests run against their own `SiteRegistry`s** (`ContentController` takes an optional
@@ -133,9 +150,9 @@ checked by `tsc` via `jsconfig.json`, which includes WXT's generated `.wxt/wxt.d
   surrounding text). The one ambiguous rule: a single separator followed by exactly three digits
   is read as *grouping* (`1.359` = 1359), anything else as a decimal separator (`1.35` = 1.35).
   The currency token closest to the number (`CurrencyDetector`) is the input currency and is
-  the only part swapped on output. Change `src/core/price.js` or `src/core/currency/` only with a
+  the only part swapped on output. Change `src/core/price.ts` or `src/core/currency/` only with a
   matching case added to `test/price.test.mjs` or `test/currency.test.mjs`.
-- **`Currency.ALL` (`src/core/currency/Currency.js`) is the one list of supported currencies:**
+- **`Currency.ALL` (`src/core/currency/Currency.ts`) is the one list of supported currencies:**
   code, output symbol and the tokens recognised in page text. Detection, the panel's currency
   options and the exchange rates request are all derived from it.
 - `dist/`, `.wxt/`, `.output/` and `.poc/` are gitignored. `.wxt/` is generated by `wxt prepare`
@@ -144,7 +161,7 @@ checked by `tsc` via `jsconfig.json`, which includes WXT's generated `.wxt/wxt.d
 
 ## Settings and the effective price
 
-- **All storage goes through `SettingsStore` (`src/browser/SettingsStore.js`).** The layout is
+- **All storage goes through `SettingsStore` (`src/browser/SettingsStore.ts`).** The layout is
   `{ auctionSettings: SettingsBook#toJSON(), exchangeRates: { [base]: ExchangeRates#toJSON() } }`;
   `load()` returns the `SettingsBook` and the rates per currency. `save(key, settings, rates)`
   writes both in **one** `storage.local.set`, so listeners get one change event and never see new
@@ -153,7 +170,7 @@ checked by `tsc` via `jsconfig.json`, which includes WXT's generated `.wxt/wxt.d
   background on `runtime.onInstalled`: global settings become site-wide entries of every site.
 - **Settings are saved per auction.** `SettingsBook` (`src/core/settings/`) holds one entry per
   `AuctionKey` (site origin + house + auction ID, as `TabState` carries them; `null` = unknown),
-  newest last. `resolve(key)` walks `SETTINGS_SCOPES` (`SettingsScope.js`: auction > house > site,
+  newest last. `resolve(key)` walks `SETTINGS_SCOPES` (`SettingsScope.ts`: auction > house > site,
   each a list of key fields that must be equal) and returns the newest entry of the first scope
   with one, or `null` - then `Settings.DEFAULT` applies. A scope is skipped when one of its fields
   is unknown on the page, so unknown IDs never match each other. The lookup order lives only in
@@ -172,11 +189,11 @@ checked by `tsc` via `jsconfig.json`, which includes WXT's generated `.wxt/wxt.d
   `settings.currency`. The shipment is entered in the auction's currency (the price's, not
   `settings.currency`), so it is converted together with the price; the panel shows the
   `TabState#currencies` next to it. A site with different fees gets a subclass, passed as `calculator` in
-  `sites.config.js`. `currency` is the input currency read from the price text,
+  `sites.config.ts`. `currency` is the input currency read from the price text,
   `rates` an `ExchangeRates` with `settings.currency` as base. A missing currency or rate returns
   `undefined`, which `convertPrice()` turns into `null` and the annotator into `n/a` — no
   guessing, no fallback rate.
-- **`ExchangeRates` (`src/core/rates/ExchangeRates.js`) is the only place that knows the rate
+- **`ExchangeRates` (`src/core/rates/ExchangeRates.ts`) is the only place that knows the rate
   direction:** `rates[code]` is "1 base = x code", `factorFrom(code)`/`convert()` go the other way
   (code → base). It drops invalid entries on construction and is immutable.
 - **The background owns the exchange rates** (`RatesService` in `src/background/`, the only user
@@ -190,13 +207,13 @@ checked by `tsc` via `jsconfig.json`, which includes WXT's generated `.wxt/wxt.d
   request count, so fast currency switches cannot show or store stale rates. Rates are stored
   per base currency; without stored rates for a currency only the output currency itself (1:1)
   is known.
-- Rates come from Frankfurter (`EXCHANGE_RATES_URL` in `config.js`, plain `fetch` with an
+- Rates come from Frankfurter (`EXCHANGE_RATES_URL` in `config.ts`, plain `fetch` with an
   injectable fetch function for tests). It sends `Access-Control-Allow-Origin: *`, so no
   `host_permissions` are needed.
 
 ## Message flow
 
-Four types only, in `src/core/messages.js`:
+Four types only, in `src/core/messages.ts`:
 
 - background → content: `SYNC_REQUEST` on `tabs.onUpdated` (fires for SPA `pushState` too, which
   is how in-page navigation is caught); content also self-syncs on load, `popstate`, `hashchange`
@@ -212,7 +229,7 @@ returns its answer (or a promise of it, `undefined` for none) and the bus return
 the channel open when needed — required for async answers and easy to drop by hand. Send with
 `bus.send()` / `bus.sendToTab()`, which ignore a missing receiver.
 
-The state of a tab is a `TabState` (`src/core/state/TabState.js`: `active`, `annotated`,
+The state of a tab is a `TabState` (`src/core/state/TabState.ts`: `active`, `annotated`,
 `unparsable`, `currencies` of the prices found, `site` origin, `house`/`auction` IDs). Messages are
 structured-cloned, so class instances do not survive them: send `{ ...state.toJSON(), url }`, and
 turn what arrives back into one with `TabState.from()`.

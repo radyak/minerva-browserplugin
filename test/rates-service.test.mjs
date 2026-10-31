@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { RatesService } from "../src/background/RatesService.js";
-import { ExchangeRates } from "../src/core/rates/ExchangeRates.js";
-import { Settings } from "../src/core/settings/Settings.js";
+import { RatesService } from "../src/background/RatesService.ts";
+import { ExchangeRates } from "../src/core/rates/ExchangeRates.ts";
+import { Settings } from "../src/core/settings/Settings.ts";
 import { bookOf, fakeStore } from "./support/fakes.mjs";
 
 const HOUR = 60 * 60 * 1000;
