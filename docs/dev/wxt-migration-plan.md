@@ -34,7 +34,7 @@ src/entrypoints/background.js         defineBackground(() => …BackgroundContro
 src/entrypoints/content.js            defineContentScript({ matches: SITES.matchPatterns(), runAt, main() })
 src/entrypoints/sidepanel/index.html  the panel markup (+ <meta name="manifest.…"> for the Firefox sidebar)
 src/entrypoints/sidepanel/main.js     imports Bootstrap + panel.css, wires the PanelController
-public/icons/icon-*.png               copied as is; icons/base.png is their source (npm run icons, sharp)
+src/assets/icon.png                   source of the generated icons/<size>.png (R2: @wxt-dev/auto-icons; was public/icons/ + npm run icons)
 ```
 
 `src/browser/ext.js` re-exports `browser` from `wxt/browser`; `src/browser/side-panel.js` branches on `import.meta.env.BROWSER`. `src/core/`, the controllers, views, `MessageBus`, `SettingsStore` and the tests are unchanged apart from paths.
@@ -70,7 +70,7 @@ Recommended order. R0 is required before merging phase 1; R1 is a cheap clean-up
 | --- | --- | --- | --- | --- | --- |
 | R0 | Browser verification of phase 1 | required | before merging `feature/WXT-migration` | 1–2 h | **done** 2026-10-31 (basic manual test by the maintainer) |
 | R1 | Content script teardown via WXT's `ctx` | clean-up | next, dev quality | 1–2 h | **done** 2026-10-31 |
-| R2 | `@wxt-dev/auto-icons` instead of `make-icons.mjs` | clean-up, low value | only if the committed PNGs get in the way | 0.5 h | optional |
+| R2 | `@wxt-dev/auto-icons` instead of `make-icons.mjs` | clean-up, low value | only if the committed PNGs get in the way | 0.5 h | **done** 2026-10-31 |
 | R3 | TypeScript, file by file | decision | when types start to pay (more casts, new storage schema) | 0.5–1 day | open |
 | R4 | `wxt/storage` in `SettingsStore` | decision | together with the next storage schema change (buyer settings, see README "Further factors") | 0.5 day | open |
 | R5 | Release automation (`wxt submit`, CI on tag), final Gecko ID | decision | before the first store listing | 0.5 day | open |
@@ -126,6 +126,16 @@ So it would not remove `sharp`, and it renames the files (`icons/16.png` instead
 - `content.css` (inlined) and the panel's `<img>` need a concrete PNG that exists at build time: keep one committed copy (e.g. `src/assets/minerva-64.png`, `minerva-128.png`); `base.png` (400 KB) is too big to inline.
 - Remove `scripts/make-icons.mjs`, the `icons` script and `public/icons/`; keep `sharp` (auto-icons needs it). Update `CLAUDE.md` and `docs/architecture.md`.
 - Check: manifest diff (icon paths only), avatar on the page and image in the panel still shown, AMO linter clean.
+
+**Done (2026-10-31)**, slightly differently from the list above:
+
+- The source moved to **`src/assets/icon.png`**, auto-icons' default `baseIconPath`, so the root `icons/` folder is gone; `autoIcons` only sets the sizes. `public/` is empty now (`publicDir` stays configured for future files).
+- Only **one** PNG stays committed, `src/assets/minerva-64.png` for `content.css`. The panel's `<img>` points at the generated `/icons/128.png`: it is an extension page, so the path resolves at runtime; Vite leaves it alone without a warning.
+- **`sharp` is no longer a direct dev dependency** — it is a regular dependency of `@wxt-dev/auto-icons` (1.1.2: `sharp ^0.35.3`), and nothing of ours uses it any more. `scripts/` is gone with `make-icons.mjs`.
+- **The AMO sources zip now has to contain the base icon** (the build generates the icons from it): `excludeSources: ["icons/base.png"]` was removed. The zip grew to ~570 KB.
+- Checked: manifest diff against R1 is the icon paths only (both browsers), `content.css` still gets the avatar as a `data:` URL, AMO linter clean, `npm run package` produces three zips. A `--mode development` build has greyscale icons (auto-icons' default `developmentIndicator`; `"overlay"` would stamp "DEV", unreadable at 16 px). Panel image and avatar not yet looked at in a real browser.
+
+Findings about the module (1.1.2), relevant if it misbehaves: it resizes with `sharp(...).resize(size)` and default PNG compression — no `fit: contain`, so the base icon must stay square (it is 1074×1074), and the files are ~5 % larger than `make-icons.mjs` produced; it warns and overwrites when `manifest.icons` is set by hand; its `mkdir` of `icons/` is not awaited (harmless in practice). It only runs on `build:done`, so no bundled asset can reference the generated files — hence the committed 64 px copy.
 
 ### R3 — TypeScript, file by file (decision)
 

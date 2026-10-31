@@ -130,10 +130,9 @@ src/
   background/  background script / service worker (BackgroundController, RatesService)
   content/     content script (ContentController) + the annotation stylesheet
   panel/       side panel UI (Bootstrap): PanelController, views/, SelectedRates
+  assets/      icon.png (source of the generated icons/<size>.png), minerva-64.png
+               (inlined into content.css)
 wxt.config.js  build and manifest for both browsers (WXT)
-public/icons/  the PNGs generated from icons/base.png (npm run icons), copied as is
-icons/         base.png, the source of the icons
-scripts/       icon generation
 test/          node:test + jsdom: core units, browser layer and controllers (fakes in test/support/)
 ```
 
@@ -358,7 +357,7 @@ sequenceDiagram
 
 ## Build time
 
-WXT generates the manifest of each browser from `wxt.config.js` and the entry points: the version comes from `package.json`, the content script's `matches` and the `host_permissions` from `SITES.matchPatterns()` (read at build time), so the configured sites decide where the content script is injected. Background, content script and side panel keys follow from the files in `src/entrypoints/` - Chrome gets `side_panel` + the `sidePanel` permission and a service worker, Firefox `sidebar_action` and an event page (`background.scripts`). `import.meta.env.BROWSER` is replaced per build, so `side-panel.js` keeps only its own branch.
+WXT generates the manifest of each browser from `wxt.config.js` and the entry points: the version comes from `package.json`, the content script's `matches` and the `host_permissions` from `SITES.matchPatterns()` (read at build time), so the configured sites decide where the content script is injected. Background, content script and side panel keys follow from the files in `src/entrypoints/` - Chrome gets `side_panel` + the `sidePanel` permission and a service worker, Firefox `sidebar_action` and an event page (`background.scripts`). `import.meta.env.BROWSER` is replaced per build, so `side-panel.js` keeps only its own branch. `manifest.icons` and the `icons/<size>.png` files come from `@wxt-dev/auto-icons`, which scales `src/assets/icon.png` after bundling.
 
 ```mermaid
 flowchart LR
@@ -366,7 +365,7 @@ flowchart LR
   pkg["package.json<br/>version"] --> build
   cfg["wxt.config.js<br/>manifest"] --> build
   entry["src/entrypoints/**"] --> build
-  pub["public/icons"] --> build
+  icon["src/assets/icon.png"] -->|"@wxt-dev/auto-icons"| build
   build --> dist["dist/chrome<br/>dist/firefox"]
   dist -->|npm run package| zip["dist/minerva-#lt;version#gt;-#lt;browser#gt;.zip<br/>+ sources zip"]
 ```

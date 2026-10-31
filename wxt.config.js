@@ -14,7 +14,8 @@ const TITLE = "Minerva - Online Auction Assistant";
  */
 export default defineConfig({
   srcDir: "src",
-  // public/ next to src/, not inside it: icons are copied into the build as is.
+  // public/ next to src/, not inside it: files there are copied into the build
+  // as is (none at the moment - the icons are generated, see autoIcons).
   publicDir: "public",
   outDir: "dist",
   // dist/chrome, dist/firefox; the dev server writes dist/<browser>-dev.
@@ -23,21 +24,18 @@ export default defineConfig({
   manifestVersion: 3,
   // Explicit imports only, so every module stays loadable by `node --test`.
   imports: false,
+  // Scales src/assets/icon.png into icons/<size>.png at build time and sets
+  // manifest.icons; the dev build gets greyscale icons.
+  modules: ["@wxt-dev/auto-icons"],
+  autoIcons: { sizes: [128, 64, 48, 32, 16] },
   manifest: ({ browser }) => ({
     name: TITLE,
     description: "Assists with online auctions by making effective prices transparent",
-    icons: {
-      16: "icons/icon-16.png",
-      32: "icons/icon-32.png",
-      48: "icons/icon-48.png",
-      64: "icons/icon-64.png",
-      128: "icons/icon-128.png",
-    },
     permissions: ["tabs", "storage", "alarms"],
     host_permissions: SITES.matchPatterns(),
     action: {
       default_title: TITLE,
-      default_icon: { 16: "icons/icon-16.png", 32: "icons/icon-32.png" },
+      default_icon: { 16: "icons/16.png", 32: "icons/32.png" },
     },
     ...(browser === "firefox" && {
       browser_specific_settings: {
@@ -60,7 +58,7 @@ export default defineConfig({
   zip: {
     artifactTemplate: "{{name}}-{{packageVersion}}-{{browser}}.zip",
     sourcesTemplate: "{{name}}-{{packageVersion}}-sources.zip",
-    // Dotfiles (.poc/, .private, .wxt/) are left out of the AMO sources zip anyway.
-    excludeSources: ["icons/base.png"],
+    // Dotfiles (.poc/, .private, .wxt/) are left out of the AMO sources zip by
+    // default; src/assets/icon.png must stay in, the build generates the icons from it.
   },
 });

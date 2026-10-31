@@ -28,7 +28,6 @@ npm run build:chrome     # or :firefox
 npm run dev              # WXT dev mode, Chrome: dist/chrome-dev, auto-reload, throwaway profile
 npm run dev:firefox      # the same for Firefox (dist/firefox-dev)
 npm run package          # wxt zip -> dist/<name>-<version>-<browser>.zip (+ AMO sources zip)
-npm run icons            # scale icons/base.png to public/icons/icon-{16,32,48,64,128}.png (sharp)
 npm run lint:firefox     # AMO validator
 ```
 
@@ -84,7 +83,10 @@ checked by `tsc` via `jsconfig.json`, which includes WXT's generated `.wxt/wxt.d
   `defineBackground` etc. explicitly (`wxt/utils/define-background`), so files stay loadable by
   `node --test`; `manifestVersion: 3` for both browsers (WXT defaults Firefox to MV2). A new entry
   point is a new file in `src/entrypoints/` following WXT's naming; files that go into the build
-  as they are belong in `public/` (the icons). Content script and background are bundled as IIFE
+  as they are belong in `public/` (empty at the moment). The icons are generated at build time
+  by `@wxt-dev/auto-icons` from `src/assets/icon.png` into `icons/<size>.png` (greyscale in dev
+  builds); `action.default_icon`, the sidebar's `manifest.default_icon` meta tag and the panel's
+  `<img>` point at those generated paths. Content script and background are bundled as IIFE
   (WXT's default — they cannot be ES modules), the side panel page as ES module. Bootstrap and
   `panel.css` are imported from `sidepanel/main.js`; the Firefox sidebar's title and icon come
   from `<meta name="manifest.…">` tags in `index.html`.
@@ -92,8 +94,9 @@ checked by `tsc` via `jsconfig.json`, which includes WXT's generated `.wxt/wxt.d
   `content_scripts[].css`, and `assetsInlineLimit` in `wxt.config.js` forces the PNGs it
   references inline as `data:` URLs — content-script CSS cannot use relative URLs into the
   extension, and this avoids `web_accessible_resources` and a per-browser
-  `chrome-extension://`/`moz-extension://` URL. It references the source file
-  (`../../public/icons/icon-64.png`), not `/icons/…`, which Vite would leave as a page URL.
+  `chrome-extension://`/`moz-extension://` URL. It references a committed source file
+  (`../assets/minerva-64.png`, a 64 px copy of the icon), not `/icons/…`: Vite would leave that
+  as a page URL, and the generated icons only exist after bundling.
 
 ## Things that bite
 

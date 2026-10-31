@@ -38,7 +38,7 @@
   width: var(--minerva-avatar);
   height: var(--minerva-avatar);
   transform: translateY(-50%);
-  background: url("../../public/icons/icon-64.png") center / contain no-repeat;
+  background: url("../assets/minerva-64.png") center / contain no-repeat;
 }
 
 /* The tail pointing at her: a rotated square showing only two of its borders. */

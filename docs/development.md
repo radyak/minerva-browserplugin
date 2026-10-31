@@ -11,7 +11,6 @@ npm run dev:firefox      # the same for Firefox
 npm test                 # lint + typecheck + unit and controller tests
 npm run format           # apply Prettier and ESLint fixes
 npm run package          # dist/<name>-<version>-<browser>.zip, plus the sources zip for AMO
-npm run icons            # scale icons/base.png to public/icons/ (sharp)
 ```
 
 The build is [WXT](https://wxt.dev) (Vite underneath), configured in `wxt.config.js`.
@@ -19,8 +18,9 @@ It finds the entry points in `src/entrypoints/` (`background.js`, `content.js`,
 `sidepanel/`), generates the manifest for each browser - version from `package.json`,
 content script `matches` and `host_permissions` from `SITES.matchPatterns()`, `side_panel`
 for Chrome and `sidebar_action` for Firefox - bundles content script and background as
-IIFE, copies `public/` (the icons) as is and inlines the icon referenced by
-`content.css` as a `data:` URL. Bootstrap's CSS is imported by the side panel and
+IIFE, scales `src/assets/icon.png` into `icons/<size>.png` (`@wxt-dev/auto-icons`, sharp;
+greyscale in dev mode, so the dev build is easy to tell apart) and inlines the icon
+referenced by `content.css` (`src/assets/minerva-64.png`) as a `data:` URL. Bootstrap's CSS is imported by the side panel and
 bundled with `panel.css`. Dev mode writes to `dist/<browser>-dev` and starts a
 throwaway browser profile with the extension loaded (via `web-ext`).
 
