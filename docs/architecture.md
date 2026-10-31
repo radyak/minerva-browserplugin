@@ -48,7 +48,7 @@ flowchart TB
 | Layer | Rule |
 | --- | --- |
 | `src/core/` | Never touches an extension API; works on plain strings and a plain `Document`. Unit tested with jsdom. |
-| `src/browser/` | The only code using `chrome.*` / `browser.*`. Classes take `ext` as constructor argument, so they are testable with a fake. `ext.ts` re-exports `wxt/browser` and is therefore only imported by entry points. |
+| `src/browser/` | The only code using `chrome.*` / `browser.*`. Classes take `ext` as constructor argument, so they are testable with a fake - except `SettingsStore`, which uses WXT's storage (`wxt/utils/storage`, bound to the global extension API) and is tested with WXT's `fakeBrowser`. `ext.ts` re-exports `wxt/browser` and is therefore only imported by entry points. |
 | Controllers | Behaviour of one context; everything injected. |
 | Entry points | Create the controller with the real objects. |
 | `wxt.config.ts` (`manifest`) | The only other place where Chrome and Firefox differ. |
@@ -150,7 +150,7 @@ test/          node:test + jsdom: core units, browser layer and controllers (fak
 | `SelectedRates` | Panel | Rates of the currency picked in the panel; a newer request supersedes older ones |
 | `PriceAnnotator` / `AnnotationView` | Content | *What* to show (wrapper rule, pricing) / the only class writing to the page, only on change |
 | `MessageBus` | all | `on(type, handler)` dispatch; returns `true` for async answers so the channel stays open |
-| `SettingsStore` | all | `load()` → `{ book, rates }`, `save(key, settings, rates)` in one write, `saveRates()`, `onChange()`, `migrate(sites)` |
+| `SettingsStore` | all | `load()` → `{ book, rates }` in one read, `save(key, settings, rates)` in one write, `saveRates()`, `onChange()` (once per changed key) → unsubscribe, `migrate(sites)`; two WXT storage items (`local:auctionSettings`, `local:exchangeRates`) |
 
 ## HTML components
 
@@ -215,7 +215,7 @@ Class instances do not survive messaging (structured clone): senders use `toJSON
 
 ## Storage
 
-Everything is stored in `storage.local` through `SettingsStore`; there is no message for settings, storage is the channel.
+Everything is stored in `storage.local` through `SettingsStore`, which defines one WXT storage item per key (`storage.defineItem("local:…", { fallback })`); there is no message for settings, storage is the channel. Reads of both keys are one `storage.local.get` (`storage.getItems`), a save with rates is one `storage.local.set` (`storage.setItems`). The items carry no version yet; WXT treats data without version metadata as version 1, so the next change of a value's shape can add `version: 2` and a migration.
 
 | Key | Value | Written by | Read by |
 | --- | --- | --- | --- |
@@ -233,7 +233,7 @@ The settings of a page are found by `SettingsBook#resolve()`, which tries `SETTI
 | Content | script injected (`document_idle`) | `start()`: load settings/rates, register listeners, `sync("load")`, observe the DOM |
 | Content | `MutationObserver` (`childList`, `characterData`, whole document) | one `sync("mutation")` per animation frame |
 | Content | `popstate`, `hashchange` | `sync("popstate")` / `sync("hashchange")` |
-| Content | `storage.onChanged` (`auctionSettings`, `exchangeRates`) | reload settings/rates, `sync("settings")` |
+| Content | `storage.local.onChanged` of `auctionSettings` or `exchangeRates` (WXT `item.watch()`, once per changed key) | reload settings/rates, `sync("settings")` |
 | Content | `SYNC_REQUEST` | reload settings/rates, `sync("request")`, answer the state |
 | Content | WXT `ctx.onInvalidated` (extension reloaded/updated/removed, or a newer copy of the script started in the tab) | `stop()`: disconnect the observer, cancel the pending frame, remove the listeners, `bus.off()`, unsubscribe from storage, remove all annotations |
 | Background | `runtime.onInstalled` | migrate old settings, schedule the daily alarm, refresh the saved rates |
@@ -315,8 +315,8 @@ sequenceDiagram
   BC-->>PC: { rates } → RatesView (only the latest request is shown)
   User->>PC: Save
   PC->>Store: save(key, settings, rates) — one write
-  Store-)Other: storage.onChanged → reload + sync("settings")
-  Store-)Tab: storage.onChanged → reload + sync("settings")
+  Store-)Other: storage.local.onChanged → reload + sync("settings")
+  Store-)Tab: storage.local.onChanged → reload + sync("settings")
   PC->>BC: GET_ACTIVE_STATE
   BC->>Tab: SYNC_REQUEST (re-reads settings first)
   Tab-->>BC: state
@@ -352,7 +352,7 @@ sequenceDiagram
     API-->>RS: rates (ECB reference)
     RS->>Store: saveRates() — that currency only, a failure keeps the old ones
   end
-  Store-)Tabs: storage.onChanged → reload + sync("settings")
+  Store-)Tabs: storage.local.onChanged → reload + sync("settings")
 ```
 
 ## Build time

@@ -14,7 +14,7 @@ import { registerPanelOpener } from "../browser/side-panel.ts";
 export default defineBackground(() => {
   registerPanelOpener();
 
-  const store = new SettingsStore(ext);
+  const store = new SettingsStore();
 
   new BackgroundController({
     ext,

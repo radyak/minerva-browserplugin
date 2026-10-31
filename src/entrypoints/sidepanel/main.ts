@@ -12,5 +12,5 @@ new PanelController({
   document,
   tabs: ext.tabs,
   bus: new MessageBus(ext),
-  store: new SettingsStore(ext),
+  store: new SettingsStore(),
 }).start();

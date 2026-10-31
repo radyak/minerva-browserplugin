@@ -22,7 +22,7 @@ export default defineContentScript({
     const controller = new ContentController({
       window,
       bus: new MessageBus(ext),
-      store: new SettingsStore(ext),
+      store: new SettingsStore(),
       isValid: () => ctx.isValid,
     });
     ctx.onInvalidated(() => controller.stop());

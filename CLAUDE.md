@@ -59,7 +59,10 @@ hand), linting is ESLint's recommended set plus `typescript-eslint`'s for `.ts` 
   strings, which is the only reason it can be unit tested with jsdom. Anything needing
   `chrome.*`/`browser.*` goes through `src/browser/` (the `ext` alias in `ext.ts`, messaging in
   `MessageBus.ts`) and is imported from `content/`, `background/` or `panel/`. Classes in
-  `src/browser/` take `ext` as a constructor argument, so they are testable with a fake one.
+  `src/browser/` take `ext` as a constructor argument, so they are testable with a fake one —
+  except `SettingsStore`, which is built on WXT's `wxt/utils/storage` and so uses the global
+  extension API; its test puts WXT's `fakeBrowser` (`wxt/testing/fake-browser`) on `globalThis`
+  before importing it. Controllers still get the store injected and use `fakeStore()`.
 - **Browser differences are confined to two places:** the `manifest` function in
   `wxt.config.ts` (only `browser_specific_settings` for Firefox; WXT itself emits `side_panel`
   vs. `sidebar_action` and the background key per browser) and `src/browser/side-panel.ts`
@@ -163,11 +166,20 @@ hand), linting is ESLint's recommended set plus `typescript-eslint`'s for `.ts` 
 
 - **All storage goes through `SettingsStore` (`src/browser/SettingsStore.ts`).** The layout is
   `{ auctionSettings: SettingsBook#toJSON(), exchangeRates: { [base]: ExchangeRates#toJSON() } }`;
-  `load()` returns the `SettingsBook` and the rates per currency. `save(key, settings, rates)`
-  writes both in **one** `storage.local.set`, so listeners get one change event and never see new
-  settings without their rates. Older layouts (the global `settings` key of 0.1.0, the
+  `load()` reads both in one `storage.local.get` (`storage.getItems`) and returns the
+  `SettingsBook` and the rates per currency. `save(key, settings, rates)` writes both in **one**
+  `storage.local.set` (`storage.setItems`), so there is one change event and nobody sees new
+  settings without their rates. `onChange()` watches the two items (`item.watch()`) and is
+  therefore called once per changed key — twice after a save with rates, each time seeing both;
+  the content script's re-sync is idempotent, so that is harmless. The items are defined in the
+  constructor, never at module level: `defineItem()` reads storage right away, and entry points are
+  imported in Node at build time. Older layouts (the global `settings` key of 0.1.0, the
   one-key-per-setting keys before it) are converted once by `migrate(sites)`, called from the
   background on `runtime.onInstalled`: global settings become site-wide entries of every site.
+  Future changes of the current keys' values should use WXT's item versioning (`version` +
+  `migrations` on `defineItem`; data without version metadata counts as version 1), but define
+  the migrating item in the background only — `defineItem()` runs its migrations in every context
+  that defines the item, i.e. in every open tab.
 - **Settings are saved per auction.** `SettingsBook` (`src/core/settings/`) holds one entry per
   `AuctionKey` (site origin + house + auction ID, as `TabState` carries them; `null` = unknown),
   newest last. `resolve(key)` walks `SETTINGS_SCOPES` (`SettingsScope.ts`: auction > house > site,
