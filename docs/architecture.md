@@ -202,7 +202,7 @@ stateDiagram-v2
 
 ## Messages
 
-Four message types, defined in `src/core/messages.ts` and sent through `MessageBus`:
+Four message types, defined in `src/core/messages.ts` and sent through `MessageBus`. `Protocol` in the same file types each one's payload and answer; `MessageBus.on/send/sendToTab` are generic over it, so senders and handlers cannot drift apart:
 
 | Type | From → to | Payload | Answer | Sent when |
 | --- | --- | --- | --- | --- |

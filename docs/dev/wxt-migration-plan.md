@@ -5,7 +5,7 @@
 | Phase | Content | State |
 | --- | --- | --- |
 | **1 — Build swap** | WXT replaces esbuild, the hand-written manifests, `__TARGET__` and the zip script; behaviour unchanged | **done** on branch `feature/WXT-migration`; browser check (R0) done 2026-10-31 |
-| **2 — Follow-ups** | Steps R0–R7 below, each optional except R0, each its own commit | in progress (see the table in section 2) |
+| **2 — Follow-ups** | Steps R0–R7 below, each optional except R0, each its own commit | R0–R4 and R6 **done** 2026-10-31; R5 open, R7 not needed (see section 5) |
 
 ---
 
@@ -74,8 +74,8 @@ Recommended order. R0 is required before merging phase 1; R1 is a cheap clean-up
 | R3 | TypeScript, file by file | decision | when types start to pay (more casts, new storage schema) | 0.5–1 day | **done** 2026-10-31 (all of `src/` at once, strict) |
 | R4 | `wxt/storage` in `SettingsStore` | decision | together with the next storage schema change (buyer settings, see README "Further factors") | 0.5 day | **done** 2026-10-31 (without the schema change) |
 | R5 | Release automation (`wxt submit`, CI on tag), final Gecko ID | decision | before the first store listing | 0.5 day | open |
-| R6 | Typed messaging (`@webext-core/messaging`) | conditional | only with clearly more than the current 4 message types | 0.5 day | open |
-| R7 | Vitest + WXT `fakeBrowser` | conditional | only if `test/support/fakes.mjs` becomes a burden | 1 day | not recommended now |
+| R6 | Typed messaging (`@webext-core/messaging`) | conditional | only with clearly more than the current 4 message types | 0.5 day | **done** 2026-10-31 (typed protocol on `MessageBus`; the library was evaluated and rejected) |
+| R7 | Vitest + WXT `fakeBrowser` | conditional | only if `test/support/fakes.mjs` becomes a burden | 1 day | not recommended now; R4 showed `fakeBrowser` works under `node:test` |
 
 ### R0 — Browser verification of phase 1 (required)
 
@@ -193,6 +193,16 @@ Do this only together with the next storage change — the buyer-level settings 
 
 Only once there are clearly more message types than the current four (`SYNC_REQUEST`, `STATE_CHANGED`, `GET_ACTIVE_STATE`, `GET_RATES`). `@webext-core/messaging` (4.x) gives typed `sendMessage`/`onMessage` from one protocol map. `MessageBus` already encodes the `return true` rule and ignores missing receivers — any replacement must keep both, keep `TabState.from()` at the receiving end (structured clone) and stay injectable (`ext`) for the controller tests. Most of the type benefit is also reachable with R3 alone (a typed `MSG` map in `messages.js`).
 
+**Done (2026-10-31), without the library.** Done although the trigger (clearly more than four message types) has not been reached, at the maintainer's request. `@webext-core/messaging` 4.0.1 was installed and read, and fails the constraints above:
+
+- **Not injectable:** `defineExtensionMessaging()` calls the global `chrome.runtime.sendMessage` / `chrome.tabs.sendMessage` / `chrome.runtime.onMessage` directly (callback style). The generic factory that takes `sendMessage`/`addRootListener` (`defineGenericMessanging`) sits in an internal chunk and is not exported.
+- **A missing receiver rejects** ("Could not establish connection…", or "No response") — every send would need our try/catch again.
+- **Different wire format and semantics:** messages become `{ id, type, data, timestamp }`, answers `{ res }` / `{ err }` (errors serialized across contexts, which is nice), every handled message is answered asynchronously, and messages without `timestamp` are ignored — old and new copies of the extension (during an update, see R1) would not understand each other.
+
+So the type benefit was taken the way this section already suggested: **`Protocol` in `src/core/messages.ts`** maps each `MSG` type to its payload and answer (`MSG` is now `as const`), and `MessageBus.on/send/sendToTab` are generic over it (`Handler<T>`, `Message<T>`, `Answer<T>`). Behaviour, wire format, the `return true` rule, the swallowed missing receiver, `ext` injection and `fakeBus()` are unchanged; the `any` in `MessageBus` is gone. A probe file with five mistakes (missing and mistyped payload, wrong and missing answer, unknown type) produced five compile errors. `PanelController#requestRates` now narrows the `{ rates } | { error }` answer instead of reading both fields. `message-bus.test.mjs` uses its own message types and so gets an untyped bus (`busOn()`).
+
+If messaging ever needs more (streams, many more types, page↔content messaging), wrap a library *inside* `MessageBus` like R4 wrapped WXT's storage: the controllers and `fakeBus()` stay as they are, only the bus's own test would need a global fake.
+
 ### R7 — Vitest + WXT `fakeBrowser` (conditional, not recommended now)
 
 `wxt/testing` offers `WxtVitest()` (Vite plugin) and `fakeBrowser` (in-memory `browser`). Not needed while controllers get `ext` injected and `test/support/fakes.mjs` stays small; switching means moving 149 tests from `node:test` to Vitest. Reconsider only if R4 requires `fakeBrowser`, or the fakes start re-implementing browser behaviour.
@@ -211,3 +221,30 @@ Only once there are clearly more message types than the current four (`SYNC_REQU
 - Content script without shadow root or WXT UI helpers; `AnnotationView` remains the only writer to the page.
 - Browser differences only in the `manifest` function of `wxt.config.js` and in `src/browser/side-panel.js`.
 - No UI framework for the panel.
+- No messaging library: the typed `Protocol` on our own `MessageBus` (R6).
+
+## 5. Findings after phase 2 and further improvements
+
+**What WXT means for the architecture** (as of WXT 0.21.4, `@wxt-dev/storage` 1.3.0, auto-icons 1.1.2):
+
+- **Two kinds of classes in `src/browser/` now.** `MessageBus` takes `ext` (injectable, tested with a fake object); `SettingsStore` uses WXT's storage, which binds to the global `browser` at import time (tested by putting `fakeBrowser` on `globalThis` before a dynamic import). Both stay behind the same small interfaces the controllers get injected, so the controllers and their fakes did not change. Keep it that way: WXT helpers that bind globally belong in `src/browser/`, wrapped, never in controllers or `src/core/`.
+- **Module-level side effects are a build-time hazard.** WXT imports `content.ts` and `background.ts` in Node to read their options. Beyond "no wiring at top level", this also rules out WXT calls that touch the API when called, such as `storage.defineItem()` (it reads right away) — anything like that goes into constructors or `main()`.
+- **`ctx` is only half automatic.** It notices a newer copy of the script by itself, a dead runtime only when `ctx.isValid` is read. Code that does not use `ctx.setTimeout`/`ctx.requestAnimationFrame`/`ctx.addEventListener` must poll it — here, the controller's injected `isValid()`.
+- **WXT's generated config is a good strict baseline** (`.wxt/tsconfig.json`), but its path aliases cannot be used as long as `node --test` runs the sources directly.
+- **Tooling is ahead of the ecosystem:** TypeScript 7 works for `tsc` and WXT, but not for `typescript-eslint` — hence TypeScript 6.0 for now.
+- **Cost of WXT modules:** `@wxt-dev/storage` adds ~11 KB per bundle; auto-icons adds nothing at runtime but needs the base icon in the AMO sources zip.
+
+**Still open from this phase — browser checks** (everything above was verified with tests, builds, the AMO linter and the built content script in jsdom, not in a browser):
+
+1. R1: in `npm run dev:firefox` and `npm run dev`, change a controller and let the extension reload — one set of annotations, no "Extension context invalidated" errors; in Chrome also reload the extension from `chrome://extensions` and scroll/interact on the open auction page: the old annotations disappear with the first DOM change.
+2. R2: toolbar icon, Firefox sidebar icon, the Minerva image in the panel and the avatar in the annotations; greyscale icons in dev mode.
+3. R4: Save in the panel updates the active and other open tabs; R0 point 5 again (update over a 0.1.0 install keeps the settings) — `migrate()` now uses WXT's storage calls.
+
+**Further improvements, by value:**
+
+1. **R5 before any store listing** — above all the final Gecko ID.
+2. **Automate R0** with Playwright: Chromium can load `dist/chrome` as an unpacked extension (`launchPersistentContext` with `--load-extension`); a fixture page served on a configured origin (route interception) would cover R0 points 2–4 and the R1 check in CI. Firefox stays manual — Playwright cannot load extensions into Firefox.
+3. **TypeScript 7** once `typescript-eslint` supports it (only `package.json`; `tsc` is ready).
+4. **Tests in TypeScript** (`test/*.test.ts`, glob `test/*.test.{mjs,ts}`), if the JSDoc in the tests starts to hurt; Node runs them the same way. Not needed now — the fakes are deliberately `any`.
+5. **First versioned storage change** (e.g. the buyer settings): `version: 2` + `migrations` on the item, migrated from the background only (`runtime.onInstalled` / `item.migrate()`), see R4.
+6. Revisit `npm audit` (`node-forge` via `web-ext`) when `web-ext` updates.

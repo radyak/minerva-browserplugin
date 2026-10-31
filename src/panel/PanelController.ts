@@ -171,7 +171,8 @@ export class PanelController {
    */
   async #requestRates(code: string): Promise<ExchangeRates> {
     const answer = await this.bus.send({ type: MSG.GET_RATES, base: code });
-    if (!answer?.rates) throw new Error(answer?.error ?? "Exchange rates unavailable");
+    if (!answer) throw new Error("Exchange rates unavailable");
+    if ("error" in answer) throw new Error(answer.error);
     return ExchangeRates.fromJSON(answer.rates, code, Currency.CODES);
   }
 }

@@ -239,7 +239,14 @@ Four types only, in `src/core/messages.ts`:
 Listen with `MessageBus.on(type, handler)`, never `runtime.onMessage` directly: the handler
 returns its answer (or a promise of it, `undefined` for none) and the bus returns `true` to keep
 the channel open when needed — required for async answers and easy to drop by hand. Send with
-`bus.send()` / `bus.sendToTab()`, which ignore a missing receiver.
+`bus.send()` / `bus.sendToTab()`, which ignore a missing receiver (and then resolve `undefined`).
+
+**The protocol is typed** (`Protocol` in `messages.ts`): per type the payload besides `type` and
+the answer (`void` for none). `on()`, `send()` and `sendToTab()` are generic over it, so a wrong
+payload, a wrong answer or an unknown type does not compile. A new message type means a `MSG`
+entry plus a `Protocol` entry. The types are a promise between our own contexts, not validation:
+receivers still check what arrives (`TabState.from()`, `Currency.of()`). The wire format is the
+message itself, `{ type, ...payload }`.
 
 The state of a tab is a `TabState` (`src/core/state/TabState.ts`: `active`, `annotated`,
 `unparsable`, `currencies` of the prices found, `site` origin, `house`/`auction` IDs). Messages are

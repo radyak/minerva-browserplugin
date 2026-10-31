@@ -1,18 +1,21 @@
 import type { Browser, WxtBrowser } from "wxt/browser";
 
+import type { Answer, Message, MessageType } from "../core/messages.ts";
+
 /** The parts of the extension API messaging needs. */
 export type MessagingApi = {
   runtime: Pick<WxtBrowser["runtime"], "onMessage" | "sendMessage">;
   tabs: Pick<WxtBrowser["tabs"], "sendMessage">;
 };
 
-/* eslint-disable @typescript-eslint/no-explicit-any -- messages are untyped until they get a protocol map */
-/** A message as it arrives; `type` picks the handler. */
-type Message = any;
-/* eslint-enable @typescript-eslint/no-explicit-any */
-
-/** Handles one message type: returns the answer, a promise of it, or `undefined` for none. */
-type Handler = (message: Message, sender: Browser.runtime.MessageSender) => unknown;
+/**
+ * Handles the messages of type `T`: returns the answer, a promise of it, or
+ * `undefined` for none (the only choice for a message without an answer).
+ */
+export type Handler<T extends MessageType> = (
+  message: Message<T>,
+  sender: Browser.runtime.MessageSender,
+) => Answer<T> | Promise<Answer<T>>;
 
 /**
  * Runtime messaging between background, content script and panel.
@@ -21,9 +24,12 @@ type Handler = (message: Message, sender: Browser.runtime.MessageSender) => unkn
  * an asynchronous answer needs the listener to return `true`, otherwise the
  * channel closes before `sendResponse` is called. Handlers here simply return
  * their answer (or a promise of it); returning `undefined` means "no answer".
+ *
+ * Message types, payloads and answers are typed by the protocol in
+ * src/core/messages.ts; the wire format is the message itself (`{ type, ...payload }`).
  */
 export class MessageBus {
-  #handlers = new Map<string, Handler>();
+  #handlers = new Map<string, Handler<MessageType>>();
   readonly ext: MessagingApi;
 
   /** @param ext the extension API (`browser` / `chrome`), injectable for tests */
@@ -37,15 +43,15 @@ export class MessageBus {
    * @param handler returns the answer, a
    *   promise of it, or `undefined` for none
    */
-  on(type: string, handler: Handler): this {
-    this.#handlers.set(type, handler);
+  on<T extends MessageType>(type: T, handler: Handler<T>): this {
+    this.#handlers.set(type, handler as unknown as Handler<MessageType>);
     return this;
   }
 
   /**
    * Stop handling messages of `type`; they are ignored from now on.
    */
-  off(type: string): this {
+  off(type: MessageType): this {
     this.#handlers.delete(type);
     return this;
   }
@@ -55,7 +61,7 @@ export class MessageBus {
    * missing receiver - panel closed, background not listening yet.
    * @returns the answer, undefined when there is none
    */
-  async send(message: object): Promise<Message> {
+  async send<T extends MessageType>(message: Message<T>): Promise<Answer<T> | undefined> {
     try {
       return await this.ext.runtime.sendMessage(message);
     } catch {
@@ -67,7 +73,10 @@ export class MessageBus {
    * Send a message to the content script of one tab, ignoring tabs without one.
    * @returns the answer, undefined when there is none
    */
-  async sendToTab(tabId: number, message: object): Promise<Message> {
+  async sendToTab<T extends MessageType>(
+    tabId: number,
+    message: Message<T>,
+  ): Promise<Answer<T> | undefined> {
     try {
       return await this.ext.tabs.sendMessage(tabId, message);
     } catch {
@@ -76,19 +85,20 @@ export class MessageBus {
   }
 
   #dispatch = (
-    message: Message,
+    message: unknown,
     sender: Browser.runtime.MessageSender,
     sendResponse: (answer: unknown) => void,
   ): boolean => {
-    const handler = this.#handlers.get(message?.type);
+    const type = (message as { type?: unknown } | null | undefined)?.type;
+    const handler = typeof type === "string" ? this.#handlers.get(type) : undefined;
     if (!handler) return false;
-    const answer = handler(message, sender);
+    const answer = handler(message as Message, sender);
     if (!isThenable(answer)) {
       if (answer !== undefined) sendResponse(answer);
       return false;
     }
     answer.then(sendResponse, (error: unknown) => {
-      console.warn(`[minerva] handling "${message.type}" failed:`, error);
+      console.warn(`[minerva] handling "${String(type)}" failed:`, error);
       sendResponse(undefined);
     });
     return true; // keep the message channel open for the async response
