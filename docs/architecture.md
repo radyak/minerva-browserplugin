@@ -6,9 +6,9 @@ Minerva is a Manifest V3 WebExtension for Chrome and Firefox. It runs in three s
 | --- | --- | --- | --- |
 | **Content script** | `src/entrypoints/content.ts` | `ContentController` | in every tab on a configured auction site (injected by the manifest) |
 | **Background** | `src/entrypoints/background.ts` | `BackgroundController` | once per browser: Chrome service worker, Firefox event page |
-| **Panel** | `src/entrypoints/sidepanel/main.ts` (+ `index.html`) | `PanelController` | while the side panel (Chrome) / sidebar (Firefox) is open |
+| **Panel** | `src/entrypoints/sidepanel/main.tsx` (+ `index.html`) | `Panel` (React component) | while the side panel (Chrome) / sidebar (Firefox) is open |
 
-Each entry point only *wires things up*: it creates its controller with the real browser objects (`window`/`document`, `ext`, `MessageBus`, `SettingsStore`) and calls `start()`. All behaviour lives in the controllers, which get every dependency through their constructor and are therefore tested with jsdom and fakes (`test/*-controller.test.ts`).
+Each entry point only *wires things up*: it creates its controller with the real browser objects (`window`, `ext`, `MessageBus`, `SettingsStore`) and calls `start()` - or, for the panel, renders the `Panel` component with them as props. All behaviour lives in the controllers and components, which get every dependency passed in and are therefore tested with jsdom and fakes (`test/*-controller.test.ts`, `test/panel.test.tsx`).
 
 ## Layers
 
@@ -19,10 +19,10 @@ flowchart TB
     background_js["entrypoints/background.ts"]
     panel_js["entrypoints/sidepanel/"]
   end
-  subgraph controllers["Controllers"]
+  subgraph controllers["Controllers / panel components"]
     CC["ContentController"]
     BC["BackgroundController<br/>+ RatesService"]
-    PC["PanelController<br/>+ views + SelectedRates"]
+    PC["Panel (React)<br/>+ SettingsForm · AuctionHeader · StatusCard · useRates"]
   end
   subgraph browser["src/browser/ (extension API)"]
     ext["ext.ts<br/>wxt/browser"]
@@ -49,8 +49,8 @@ flowchart TB
 | --- | --- |
 | `src/core/` | Never touches an extension API; works on plain strings and a plain `Document`. Unit tested with jsdom. |
 | `src/browser/` | The only code using `chrome.*` / `browser.*`. Classes take `ext` as constructor argument, so they are testable with a fake - except `SettingsStore`, which uses WXT's storage (`wxt/utils/storage`, bound to the global extension API) and is tested with WXT's `fakeBrowser` (which `WxtVitest()` puts in place of the extension API in every test). `ext.ts` re-exports `wxt/browser` and is therefore only imported by entry points. |
-| Controllers | Behaviour of one context; everything injected. |
-| Entry points | Create the controller with the real objects. |
+| Controllers / `src/panel/` | Behaviour of one context; everything injected (the panel's through props). |
+| Entry points | Create the controller (render the panel) with the real objects. |
 | `wxt.config.ts` (`manifest`) | The only other place where Chrome and Firefox differ. |
 
 ## Components and dependencies
@@ -74,15 +74,13 @@ flowchart LR
     BC --> RS --> RC
   end
 
-  subgraph panel["Side panel"]
-    PC["PanelController"]
-    SFV["SettingsFormView"]
-    SV["StatusView"]
-    AV["AuctionView"]
-    IV["InactiveView"]
-    RV["RatesView"]
-    SR["SelectedRates"]
-    PC --> SFV & SV & AV & IV & RV & SR
+  subgraph panel["Side panel (React)"]
+    PC["Panel"]
+    SF["SettingsForm"]
+    AH["AuctionHeader"]
+    SC["StatusCard"]
+    UR["useRates"]
+    PC --> SF & AH & SC & UR
   end
 
   STORE[("storage.local<br/>auctionSettings · exchangeRates")]
@@ -127,10 +125,11 @@ src/
   browser/     the thin browser abstraction (API alias, messaging, settings storage,
                side panel vs. sidebar)
   entrypoints/ the WXT entry points, wiring only: background.ts, content.ts,
-               sidepanel/ (index.html + main.ts)
+               sidepanel/ (index.html + main.tsx)
   background/  background script / service worker (BackgroundController, RatesService)
   content/     content script (ContentController) + the annotation stylesheet
-  panel/       side panel UI (Bootstrap): PanelController, views/, SelectedRates
+  panel/       side panel UI (React + Bootstrap CSS): Panel, SettingsForm, AuctionHeader,
+               StatusCard, useRates, panel.css
   assets/      icon.png (source of the generated icons/<size>.png), minerva-64.png
                (inlined into content.css)
 wxt.config.ts  build and manifest for both browsers (WXT)
@@ -144,35 +143,29 @@ test/          Vitest (+ WxtVitest, jsdom): core units, browser layer and contro
 | --- | --- | --- |
 | `ContentController` | `window`, `bus`, `store`, `sites` (default `SITES`), `annotator` (default `PriceAnnotator`), `isValid` | Load settings and rates, annotate the page with the settings resolved for its `AuctionKey` (on every sync), re-sync on navigation/DOM/settings changes, answer `SYNC_REQUEST`, report `STATE_CHANGED` |
 | `BackgroundController` | `ext`, `bus`, `store`, `rates` (`RatesService`), `sites` | Toolbar badge, `SYNC_REQUEST` to a tab on navigation, answer `GET_RATES`, storage migration, rates refresh schedule |
-| `PanelController` | `document`, `tabs`, `bus`, `store`, `sites` | Ask the active tab for its state (`SYNC_REQUEST`, by URL without a content script), show the settings resolved for its auction (reloaded when its `AuctionKey` changes) and save them under that key, show rates of the selected currency, show the active tab's status |
+| `Panel` (props) | `tabs`, `bus`, `store`, `sites` | Ask the active tab for its state (`SYNC_REQUEST`, by URL without a content script), show the settings resolved for its auction (reloaded when its `AuctionKey` changes) and save them under that key, show rates of the selected currency, show the active tab's status |
 
 | Helper | Owned by | Purpose |
 | --- | --- | --- |
 | `RatesService` | Background | The only user of `RatesClient`; one-hour cache for the panel's requests, refreshes the saved rates of every currency in use |
-| `SelectedRates` | Panel | Rates of the currency picked in the panel; a newer request supersedes older ones |
+| `useRates` | Panel | Rates of the currency picked in the panel (React hook); a newer request supersedes older ones, Save waits for the latest |
 | `PriceAnnotator` / `AnnotationView` | Content | *What* to show (wrapper rule, pricing) / the only class writing to the page, only on change |
 | `MessageBus` | all | `on(type, handler)` dispatch; returns `true` for async answers so the channel stays open |
 | `SettingsStore` | all | `load()` → `{ book, rates }` in one read, `save(key, settings, rates)` in one write, `saveRates()`, `onChange()` (once per changed key) → unsubscribe, `migrate()`; WXT storage items `local:auctionSettings`, `local:exchangeRates`, `local:storageVersion` |
 
 ## HTML components
 
-### Side panel (`src/entrypoints/sidepanel/index.html`)
+### Side panel (`src/panel/`, React)
 
-The panel is a single Bootstrap page shared by both browsers. Its DOM is only touched through its view classes:
+`index.html` only holds `<div id="root">` and the Firefox sidebar's `manifest.*` meta tags; `main.tsx` renders `<Panel>` into it with the real `tabs`, `MessageBus` and `SettingsStore`. The markup lives in the components, styled with Bootstrap classes (its CSS is imported by `main.tsx`, `panel.css` adds the help toggle and Minerva's idle bubble):
 
-| Element (`id`) | Content | View | User events → controller |
-| --- | --- | --- | --- |
-| `#settings` (form) | the settings form, *Save* button | `SettingsFormView` | `submit` → `PanelController.save()` |
-| `#currency` (select) | options built from `Currency.CODES` | `SettingsFormView` | `change` → `PanelController.selectCurrency()` |
-| `#auction-premium` (input) | premium in %, `min`/`max` from `Settings.RANGES` | `SettingsFormView` | `input` → clears the invalid marker |
-| `#shipment` (input) | shipping cost, `min` from `Settings.RANGES` | `SettingsFormView` | `input` → clears the invalid marker |
-| `#shipment-currency` | the currencies of the active tab's prices (`TabState#currencies`, "–" for none), which the shipment is entered in | `SettingsFormView` | – |
-| `#saved` | "Saved." note, hidden after 2 s | `SettingsFormView` | – |
-| `#auction-ids` (`#auction-house`, `#auction-id`), top of the panel | house and auction ID from the URL, "unknown" when not found; shown together with `#settings` | `AuctionView` | – |
-| `#settings-source`, below the IDs | "Values from" pills, one per `SETTINGS_SCOPES` entry plus *Defaults*; the one the form's values come from is highlighted (`aria-current`, tooltip "Saved for this auction house.") | `AuctionView` | – |
-| `#inactive` (`#inactive-text`) | Minerva saying "?", "No auction or platform active" (inactive) / "No auction detected on this page" (on a site, but no house or auction ID in the URL); shown instead of `#settings` unless the active tab is on an auction (`TabState#onAuction`: active with a house or auction ID; the form stays hidden until the state is known) | `InactiveView` | – |
-| `#status` (badge) | "3 prices annotated, 1 n/a" / "inactive" | `StatusView` | – |
-| `#rates` (table body), `#rates-info` | "1 GBP = 1.16 EUR" rows, source date / "Loading…" / error | `RatesView` | – |
+| Component | Shows | State and events |
+| --- | --- | --- |
+| `Panel` | everything below; the form and the header only while the active tab is on an auction (`TabState.onAuction()`: active with a house or auction ID), otherwise Minerva saying "?" with "No auction or platform active" (inactive) / "No auction detected on this page" - neither until the tab's state is known | the active tab's `TabState`, the shown settings and their scope, the picked currency; asks the tab on open, on `STATE_CHANGED`, `tabs.onActivated`, `tabs.onUpdated`; `save()` |
+| `AuctionHeader` | house and auction ID from the URL ("unknown" when not found); "Values from" pills, one per `SETTINGS_SCOPES` entry plus *Defaults*, the one the form's values come from highlighted (`aria-current`, tooltip "Saved for this auction house.") | – |
+| `SettingsForm` | currency (options from `Currency.CODES`), auction premium (%), shipment with the currencies of the page's prices next to it ("–" for none); `min`/`max` from `Settings.RANGES`; a "?" toggle per input for its hint; *Save*, filled while the form differs from the shown settings; "Saved." for 2 s | the inputs' text (an emptied input keeps the shown value), reset when settings are shown anew; currency `change` → `onCurrencyChange`, `submit` → validate → `onSave` |
+| `StatusCard` | status badge ("3 prices annotated, 1 n/a" / "inactive" / "checking…"), the rates the page needs ("1 GBP = 1.16 EUR"), their date / "Loading…" / "Exchange rates unavailable.", the disclaimer | – |
+| `useRates` (hook) | – | loads the picked currency's rates (`GET_RATES`); a superseded request is dropped, `ratesFor()` waits for the latest for Save |
 
 ### Injected annotation (content script)
 
@@ -248,8 +241,9 @@ A layout change raises `SettingsStore.VERSION` and adds a function to `SettingsS
 | Background | `GET_RATES` | answer (see [Messages](#messages)) |
 | Background | toolbar button | Chrome: opens the side panel natively; Firefox: `action.onClicked` toggles the sidebar |
 | Panel | panel opens | ask the active tab for its state (`SYNC_REQUEST`), show the settings resolved for its auction, load their rates |
-| Panel | `#currency` `change` | load the rates of the picked currency |
-| Panel | `#settings` `submit` | validate, save settings + rates under the active tab's `AuctionKey`, ask the tab again (it recalculates) |
+| Panel | currency picked | load the rates of the picked currency |
+| Panel | form submitted (*Save*) | validate, save settings + rates under the active tab's `AuctionKey`, ask the tab again (it recalculates) |
+| Panel | panel closes (unmount) | remove the `STATE_CHANGED` handler and the `tabs` listeners |
 | Panel | `STATE_CHANGED`, `tabs.onActivated`, `tabs.onUpdated` | ask the active tab again: status and the shipment's currency; on another `AuctionKey`, show the settings resolved for it |
 
 ### Content script lifecycle
@@ -275,7 +269,7 @@ sequenceDiagram
   participant CC as ContentController
   participant Store as storage.local
   participant BC as BackgroundController
-  participant PC as PanelController
+  participant PC as Panel
 
   Page->>CC: content script injected
   CC->>Store: load() auctionSettings + exchangeRates
@@ -303,7 +297,7 @@ sequenceDiagram
 sequenceDiagram
   autonumber
   actor User
-  participant PC as PanelController
+  participant PC as Panel
   participant BC as BackgroundController
   participant RS as RatesService
   participant Store as storage.local
@@ -314,7 +308,7 @@ sequenceDiagram
   PC->>BC: GET_RATES { base: "USD" }
   BC->>RS: get("USD") (cached for 1 h)
   RS-->>BC: ExchangeRates
-  BC-->>PC: { rates } → RatesView (only the latest request is shown)
+  BC-->>PC: { rates } → StatusCard (only the latest request is shown)
   User->>PC: Save
   PC->>Store: save(key, settings, rates) — one write
   Store-)Other: storage.local.onChanged → reload + sync("settings")

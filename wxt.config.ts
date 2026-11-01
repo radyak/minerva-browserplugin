@@ -25,9 +25,10 @@ export default defineConfig({
   manifestVersion: 3,
   // Explicit imports only: every module says where its names come from.
   imports: false,
-  // Scales src/assets/icon.png into icons/<size>.png at build time and sets
-  // manifest.icons; the dev build gets greyscale icons.
-  modules: ["@wxt-dev/auto-icons"],
+  // auto-icons scales src/assets/icon.png into icons/<size>.png at build time and
+  // sets manifest.icons (greyscale in the dev build); module-react adds Vite's
+  // React plugin for the side panel (src/panel/*.tsx).
+  modules: ["@wxt-dev/auto-icons", "@wxt-dev/module-react"],
   autoIcons: { sizes: [128, 64, 48, 32, 16] },
   manifest: ({ browser }) => ({
     name: TITLE,

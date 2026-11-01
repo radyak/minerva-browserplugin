@@ -89,23 +89,28 @@ hand), linting is ESLint's recommended set plus `typescript-eslint`'s for `.ts` 
   which tests cannot load — that is another reason core code stays free of `src/browser/`, and
   why tests inject a fake `ext` instead.
 - **Entry points only wire things up.** They live in `src/entrypoints/` (WXT's `srcDir` is
-  `src`): `content.ts` (`defineContentScript`), `background.ts` (`defineBackground`) and
-  `sidepanel/main.ts` (+ `index.html`) create a `ContentController` / `BackgroundController` /
-  `PanelController`
-  with the real `window`/`ext`/`document`, `MessageBus` and `SettingsStore`; all behaviour lives
-  in the controllers, which get their dependencies through the constructor and are tested with
-  jsdom and the fakes in `test/support/fakes.ts`. Controllers never import
-  `src/browser/ext.ts` (it imports `wxt/browser`). Nothing may run at an entry point's top
+  `src`): `content.ts` (`defineContentScript`) and `background.ts` (`defineBackground`) create a
+  `ContentController` / `BackgroundController`, `sidepanel/main.tsx` (+ `index.html`) renders the
+  React `Panel`, all with the real `window`/`ext`, `MessageBus` and `SettingsStore`; all
+  behaviour lives in the controllers and the panel components, which get their dependencies
+  through the constructor / props and are tested with jsdom and the fakes in
+  `test/support/fakes.ts`. Controllers and components never import `src/browser/ext.ts` (it
+  imports `wxt/browser`). Nothing may run at an entry point's top
   level besides imports: WXT imports `content.ts` and `background.ts` in Node at build time to
   read their options, so all wiring sits inside `main()` / the `defineBackground` callback.
   `content.ts` wires `ctx.onInvalidated(() => controller.stop())` and passes `() => ctx.isValid`
   as the controller's `isValid`; the controller never gets `ctx`. Anything `ContentController#start()`
   registers (listeners, observer, bus handler, storage subscription) must be undone in `stop()`,
   which also removes the annotations — the old copy keeps running in open tabs after a reload.
-  The panel's DOM work is split into views (`src/panel/views/`: settings form, status badge,
-  auction IDs and settings source on top, "no auction" notice, rates for the active tab's price
-  currencies); the form and the IDs are only shown while `TabState.onAuction()` (active with a
-  house or auction ID). Its test runs against the real `src/entrypoints/sidepanel/index.html`.
+- **The side panel is React** (`@wxt-dev/module-react`, `src/panel/*.tsx`): `Panel` holds the
+  state (active tab, shown settings, picked currency) and the listeners - registered in an
+  effect and removed in its clean-up, which `StrictMode` exercises in dev builds -
+  `SettingsForm`, `AuctionHeader` and `StatusCard` render, `useRates` loads the rates. The form
+  and the IDs are only shown while `TabState.onAuction()` (active with a house or auction ID).
+  The markup lives in the components (Bootstrap classes; `index.html` is just the root); keep
+  labels and roles meaningful, the test (`test/panel.test.tsx`, Testing Library in a jsdom
+  environment) finds elements by them. React stays out of the content script: the page is
+  written to only by `AnnotationView`. ESLint runs `eslint-plugin-react-hooks` on `src/panel/`.
 - **WXT config (`wxt.config.ts`):** `imports: false` — no auto-imports, every module imports
   `defineBackground` etc. explicitly (`wxt/utils/define-background`), so every module says where
   its names come from; `manifestVersion: 3` for both browsers (WXT defaults Firefox to MV2). A new entry
@@ -114,8 +119,8 @@ hand), linting is ESLint's recommended set plus `typescript-eslint`'s for `.ts` 
   by `@wxt-dev/auto-icons` from `src/assets/icon.png` into `icons/<size>.png` (greyscale in dev
   builds); `action.default_icon`, the sidebar's `manifest.default_icon` meta tag and the panel's
   `<img>` point at those generated paths. Content script and background are bundled as IIFE
-  (WXT's default — they cannot be ES modules), the side panel page as ES module. Bootstrap and
-  `panel.css` are imported from `sidepanel/main.ts`; the Firefox sidebar's title and icon come
+  (WXT's default — they cannot be ES modules), the side panel page as ES module. Bootstrap's CSS
+  and `panel.css` are imported from `sidepanel/main.tsx`; the Firefox sidebar's title and icon come
   from `<meta name="manifest.…">` tags in `index.html`.
 - **`content.css` inlines its PNGs:** the content entry point imports it, WXT lists it under
   `content_scripts[].css`, and `assetsInlineLimit` in `wxt.config.ts` forces the PNGs it
@@ -224,8 +229,9 @@ hand), linting is ESLint's recommended set plus `typescript-eslint`'s for `.ts` 
   A refresh covers every currency of the saved settings plus `Settings.DEFAULT.currency` (used
   where nothing saved applies), each saved on its own.
 - The panel displays the rates it gets from the background and saves them together with the
-  settings on Save (one write, see above). `SelectedRates` (`src/panel/`) lets only the latest
-  request count, so fast currency switches cannot show or store stale rates. Rates are stored
+  settings on Save (one write, see above). `useRates` (`src/panel/`) lets only the latest
+  request count, so fast currency switches cannot show or store stale rates; Save waits for the
+  latest request (`ratesFor()`). Rates are stored
   per base currency; without stored rates for a currency only the output currency itself (1:1)
   is known.
 - Rates come from Frankfurter (`EXCHANGE_RATES_URL` in `config.ts`, plain `fetch` with an

@@ -3,7 +3,8 @@
   // looser config (test/tsconfig.json). WXT's generated base config is strict.
   "extends": "./.wxt/tsconfig.json",
   "compilerOptions": {
+    "jsx": "react-jsx",
     "types": ["node"]
   },
-  "include": [".wxt/wxt.d.ts", "src/**/*.ts", "wxt.config.ts", "vitest.config.ts"]
+  "include": [".wxt/wxt.d.ts", "src/**/*.ts", "src/**/*.tsx", "wxt.config.ts", "vitest.config.ts"]
 }

@@ -2,6 +2,8 @@
 
 *Date: 2026-11-01 · Scope: `src/`, `test/` at commit `2e40cbb` (branch `feature/WXT-migration`) · Question: would React (or a similar framework), supported by WXT, make the code base simpler, and what else can be simplified without risking functionality?*
 
+*Status: carried out the same day in three commits, with React instead of the recommended Preact - see [section 6](#6-outcome). Sections 1-5 are the review as written before.*
+
 ---
 
 ## 1. Summary
@@ -104,3 +106,44 @@ Ordered by value/risk. Each keeps behaviour and is covered by existing tests unl
 |    6 | Item 4.7, update `CLAUDE.md` and `docs/architecture.md`                       | none                                 | —                                                         |
 
 Steps 1–3 already make the code base noticeably smaller without any new runtime dependency; step 4 is then a contained change to one directory.
+
+---
+
+## 6. Outcome
+
+Carried out on 2026-11-01 in the three phases of section 1, one commit each. Decisions taken on the way: **React** for the panel (instead of Preact); the old storage migration **deleted**, with a small hook kept for future layout changes; the tests converted to **TypeScript**; the finished dev docs **archived**.
+
+| Phase | Commit | What changed |
+| --- | --- | --- |
+| 1. Clean-ups (section 4) | `59b2514` | All of section 4, see below |
+| 2. Vitest | `c302766` | Vitest 5 + `WxtVitest()`, `test/*.mjs` → `test/*.test.ts`, `vi.spyOn` for the `node:test` mocks, `erasableSyntaxOnly` dropped; same 156 cases before and after |
+| 3. React panel | this commit | `@wxt-dev/module-react`; `PanelController`, five view classes and `SelectedRates` → `Panel`, `SettingsForm`, `AuctionHeader`, `StatusCard`, `useRates`; `index.html` reduced to the root element; panel test rewritten with Testing Library, every case carried over |
+
+**Phase 1 in detail:**
+
+- **4.1 Migration:** the conversion of the 0.1.0 and older layouts is gone. In its place `SettingsStore` has `VERSION` and `MIGRATIONS` and a `storageVersion` key: `load()` converts older data in memory, `save()` writes the current version, `migrate()` (background, on install/update) rewrites the data once. This is our own runner over both keys rather than WXT's per-item `version`/`migrations` (section 4.1 suggested WXT's): WXT's `storage.setItems()`, which the one-write save relies on, stores no version metadata, so data saved that way would later be taken for version 1 and migrated again.
+- **4.2** `PriceCalculator` is a function type, `effectivePrice` the default.
+- **4.3** `TabState`, `AuctionKey`, `SettingsScope` and `AuctionSite` are plain data with their helpers in a same-named `const` (`TabState.of/from/equals/onAuction/forUrl`, `AuctionKey.from/equals`) or as functions. A `TabState` *is* an `AuctionKey` (intersection type), which removed the duplicated ID parsing. `SettingsBook.with()` stores only the key fields, so passing a whole `TabState` as key is safe.
+- **4.4** Controllers and `RatesService` keep their dependencies in one `#deps` field.
+- **4.5** The panel asks the active tab itself (`tabs.query` + `SYNC_REQUEST`), with `TabState.forUrl()` as the fallback; `GET_ACTIVE_STATE` and its background handler are gone (three message types now).
+- **4.6** `src/core/sites/sites.ts` (`defineSite`, `findSite`, `identify`, `matchPatterns`) replaces `AuctionSite`, `SiteRegistry`, `UrlParam` and `url-matcher`; IDs are configured as data (`{ query: "a" }`, `{ path: "/:id/auction" }`); RegExp escaping is shared with `CurrencyDetector` (`src/core/regexp.ts`).
+- **4.7** Dev docs archived under `docs/dev/archive/`; the rewritten files have shorter JSDoc. The untouched files keep theirs.
+
+**Numbers** (lines, at `2e40cbb` → now):
+
+| | Before | After |
+| --- | ---: | ---: |
+| `src/` TypeScript (`.ts`/`.tsx`) | 2,838 in 38 files | 2,533 in 33 files |
+| Panel: TS + `index.html` + entry point | 583 + 180 + 16 | 584 (`.tsx`/`.ts`) + 16 + 18 |
+| Tests | 2,450 (`.mjs`), 159 cases | 2,427 (`.ts`/`.tsx`), 159 cases |
+| Side panel JS bundle (Chrome build) | 27 kB | 248 kB (78 kB gzipped) |
+
+The panel shrank by about 20 %, not the 40-50 % estimated in section 3.1: the 180 lines of HTML moved into the components as JSX. What it gained is structural. Each piece of markup sits in the component that changes it, no element is looked up by ID, the race guard is an effect clean-up, and the "changed" state of Save is derived instead of tracked. The test count stayed at 159. Some cases are gone with the code they covered (old migration, `PriceCalculator` base class, immutability of sites, the background's active-tab handler). New cases cover the layout version runner, the URL fallback, the key normalisation in `SettingsBook`, Save waiting for loading rates, listener clean-up when the panel closes, and the "Saved." timeout.
+
+**Costs and caveats:**
+
+- React makes the panel bundle ~9× larger. That does not matter for load time (a local file), but it is more code for the AMO source review. The AMO linter reports two warnings (`innerHTML` assignments inside react-dom) and no errors.
+- One `react-hooks/set-state-in-effect` lint finding is suppressed in `Panel.tsx`. It is a false positive: the initial `refresh()` sets state only after awaiting the tab's answer.
+- The panel tests use `fireEvent` and `act()` rather than `@testing-library/user-event`. That is enough for these forms and adds no dependency.
+- **Not verified in a browser** (only tests, builds, the AMO linter and an unchanged manifest after phase 1): the panel's `tabs.query({ active: true, currentWindow: true })` in Chrome's side panel and Firefox's sidebar (item 4.5), the React panel itself in both browsers, and a save with the new `storageVersion` key. Do these checks before merging: `npm run dev:firefox` and `npm run dev`, open the panel on a biddr/numisbids page, switch tabs, save, reload the extension.
+

@@ -8,5 +8,5 @@
     "noImplicitOverride": false,
     "types": ["node"]
   },
-  "include": ["../.wxt/wxt.d.ts", "**/*.ts"]
+  "include": ["../.wxt/wxt.d.ts", "**/*.ts", "**/*.tsx"]
 }

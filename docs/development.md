@@ -20,7 +20,7 @@ content script `matches` and `host_permissions` from `matchPatterns(SITES)`, `si
 for Chrome and `sidebar_action` for Firefox - bundles content script and background as
 IIFE, scales `src/assets/icon.png` into `icons/<size>.png` (`@wxt-dev/auto-icons`, sharp;
 greyscale in dev mode, so the dev build is easy to tell apart) and inlines the icon
-referenced by `content.css` (`src/assets/minerva-64.png`) as a `data:` URL. Bootstrap's CSS is imported by the side panel and
+referenced by `content.css` (`src/assets/minerva-64.png`) as a `data:` URL. The side panel is React (`@wxt-dev/module-react` adds Vite's React plugin); Bootstrap's CSS is imported by it and
 bundled with `panel.css`. Dev mode writes to `dist/<browser>-dev` and starts a
 throwaway browser profile with the extension loaded (via `web-ext`).
 
