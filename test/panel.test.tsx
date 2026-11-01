@@ -88,6 +88,7 @@ async function openPanel({
   state = ON_USD_PAGE as object | null,
   tab = { id: 1, url: `${SHOP}/lot/1` } as object | null,
   settled = true,
+  version = undefined as string | undefined,
 } = {}) {
   let current = state;
   const tabs = fakeTabs(tab);
@@ -106,7 +107,9 @@ async function openPanel({
     },
   });
   const store = fakeStore({ book });
-  const view = render(<Panel tabs={tabs as any} bus={bus} store={store} sites={SITES} />);
+  const view = render(
+    <Panel tabs={tabs as any} bus={bus} store={store} sites={SITES} version={version} />,
+  );
   if (settled) await flush();
   /** The tab now reports `changes` on top of ON_USD_PAGE and tells the panel so. */
   const navigate = async (changes: object) => {
@@ -458,4 +461,14 @@ test("the Saved. note disappears after two seconds", async () => {
   assert.equal(savedNote().hidden, false);
   await act(() => new Promise((resolve) => setTimeout(resolve, 2050)));
   assert.equal(within(form()!).getByText("Saved.").hidden, true);
+});
+
+test("shows the build version at the bottom of the panel", async () => {
+  await openPanel({ version: "1.2.3+abc1234" });
+  screen.getByText("v1.2.3+abc1234");
+});
+
+test("shows the development version when none is passed", async () => {
+  await openPanel();
+  screen.getByText("v0.0.0-dev");
 });

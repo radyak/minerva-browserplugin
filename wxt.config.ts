@@ -12,6 +12,11 @@ const TITLE = "Minerva - Online Auction Assistant";
  * script and side panel keys from src/entrypoints/, the rest from here. The
  * only per-browser part is `browser_specific_settings` below; at runtime the
  * difference is confined to src/browser/side-panel.ts.
+ *
+ * The environment variable `VERSION` (e.g. `VERSION=1.2.3 npm run build`; CI
+ * sets it) is the build version shown in the panel (`__VERSION__`, default
+ * "0.0.0-dev"). The manifest keeps package.json's version: browsers only accept
+ * dot-separated numbers there.
  */
 export default defineConfig({
   srcDir: "src",
@@ -51,6 +56,7 @@ export default defineConfig({
     }),
   }),
   vite: () => ({
+    define: { __VERSION__: JSON.stringify(process.env.VERSION || "0.0.0-dev") },
     build: {
       // Content-script CSS cannot use relative URLs into the extension: inline
       // the PNGs it references (content.css) as data: URLs, whatever their size.

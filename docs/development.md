@@ -29,7 +29,11 @@ strictly (`test/tsconfig.json`); `npm run typecheck` runs both.
 
 Tests run on [Vitest](https://vitest.dev) (`vitest.config.ts`, `npm run test:unit`, `npm run test:watch`) with WXT's `WxtVitest()` plugin, which applies `wxt.config.ts` and replaces the extension API with WXT's in-memory `fakeBrowser`. Core modules are tested directly against jsdom documents, the browser layer and the three controllers with fakes (`test/support/fakes.ts`). `CLAUDE.md` lists the conventions and invariants to keep when changing the code.
 
-GitHub Actions (`.github/workflows/ci.yml`) runs on every push to `main` and every pull request: lint, typecheck, unit tests, the build of both targets, the AMO linter on the Firefox build and `npm run package`. The zips are attached to the run as the `minerva-extensions` artifact.
+The environment variable `VERSION` (e.g. `VERSION=1.2.3 npm run build`) sets the build version shown at the bottom of the panel, `0.0.0-dev` by default. The manifest keeps the `package.json` version, since browsers only accept dot-separated numbers there.
+
+GitHub Actions (`.github/workflows/ci.yml`) runs on every push to `main`, every pull request and every pushed release tag (`v1.2.3`, also with a suffix such as `v1.2.3-rc.1`): lint, typecheck, unit tests, the build of both targets, the AMO linter on the Firefox build and `npm run package`. The zips are attached to the run as the `minerva-extensions` artifact.
+
+Every run sets `VERSION` for its later steps: on a tag build the tag without its `v` (`1.2.3`), otherwise the latest release tag reachable from the commit plus the short commit hash (`1.2.3+abc1234`). As long as no release tag exists, the version from `package.json` stands in for the tag. The build picks it up from the environment, so the panel shows it.
 
 ## Install the development build
 

@@ -164,7 +164,7 @@ test/          Vitest (+ WxtVitest, jsdom): core units, browser layer and contro
 | `Panel` | everything below; the form and the header only while the active tab is on an auction (`TabState.onAuction()`: active with a house or auction ID), otherwise Minerva saying "?" with "No auction or platform active" (inactive) / "No auction detected on this page" - neither until the tab's state is known | the active tab's `TabState`, the shown settings and their scope, the picked currency; asks the tab on open, on `STATE_CHANGED`, `tabs.onActivated`, `tabs.onUpdated`; `save()` |
 | `AuctionHeader` | house and auction ID from the URL ("unknown" when not found); "Values from" pills, one per `SETTINGS_SCOPES` entry plus *Defaults*, the one the form's values come from highlighted (`aria-current`, tooltip "Saved for this auction house.") | – |
 | `SettingsForm` | currency (options from `Currency.CODES`), auction premium (%), shipment with the currencies of the page's prices next to it ("–" for none); `min`/`max` from `Settings.RANGES`; a "?" toggle per input for its hint; *Save*, filled while the form differs from the shown settings; "Saved." for 2 s | the inputs' text (an emptied input keeps the shown value), reset when settings are shown anew; currency `change` → `onCurrencyChange`, `submit` → validate → `onSave` |
-| `StatusCard` | status badge ("3 prices annotated, 1 n/a" / "inactive" / "checking…"), the rates the page needs ("1 GBP = 1.16 EUR"), their date / "Loading…" / "Exchange rates unavailable.", the disclaimer | – |
+| `StatusCard` | status badge ("3 prices annotated, 1 n/a" / "inactive" / "checking…"), the rates the page needs ("1 GBP = 1.16 EUR"), their date / "Loading…" / "Exchange rates unavailable.", the disclaimer, the build version at the very bottom ("v1.2.3+abc1234", `__VERSION__` from the environment variable `VERSION` at build time, "v0.0.0-dev" without) | – |
 | `useRates` (hook) | – | loads the picked currency's rates (`GET_RATES`); a superseded request is dropped, `ratesFor()` waits for the latest for Save |
 
 ### Injected annotation (content script)
@@ -357,6 +357,7 @@ WXT generates the manifest of each browser from `wxt.config.ts` and the entry po
 flowchart LR
   sites["src/core/sites/sites.config.ts"] -->|matchPatterns| build["WXT / Vite<br/>(wxt build -b #lt;browser#gt;)"]
   pkg["package.json<br/>version"] --> build
+  env["env VERSION<br/>(panel's __VERSION__)"] --> build
   cfg["wxt.config.ts<br/>manifest"] --> build
   entry["src/entrypoints/**"] --> build
   icon["src/assets/icon.png"] -->|"@wxt-dev/auto-icons"| build

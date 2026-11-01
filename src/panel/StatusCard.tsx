@@ -7,13 +7,16 @@ import type { TabState } from "../core/state/TabState.ts";
  * into the selected one.
  * @param props.tab null while the active tab's state is not known yet
  * @param props.rates of the selected currency; undefined while loading, null when unavailable
+ * @param props.version the build version, shown at the very bottom
  */
 export function StatusCard({
   tab,
   rates,
+  version,
 }: {
   tab: TabState | null;
   rates: ExchangeRates | null | undefined;
+  version: string;
 }) {
   return (
     <footer className="mt-auto">
@@ -45,6 +48,8 @@ export function StatusCard({
           .
         </p>
       </div>
+
+      <p className="form-text small text-center mt-2 mb-0">v{version}</p>
     </footer>
   );
 }

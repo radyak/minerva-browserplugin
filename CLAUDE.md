@@ -22,7 +22,8 @@ npm run test:unit        # Vitest: all tests, ~1 s (npm run test:watch to keep i
 npm run lint             # ESLint + Prettier check
 npm run format           # Prettier + ESLint --fix
 npm run typecheck        # tsc: src/ strict (tsconfig.json), tests non-strict (test/tsconfig.json)
-npm run build            # wxt build -> dist/chrome and dist/firefox
+npm run build            # wxt build -> dist/chrome and dist/firefox (VERSION=1.2.3 sets the
+                         # version shown in the panel, default 0.0.0-dev; CI sets it)
 npm run build:chrome     # or :firefox
 npm run dev              # WXT dev mode, Chrome: dist/chrome-dev, auto-reload, throwaway profile
 npm run dev:firefox      # the same for Firefox (dist/firefox-dev)

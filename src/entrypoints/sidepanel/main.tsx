@@ -13,6 +13,11 @@ import "../../panel/panel.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <Panel tabs={ext.tabs} bus={new MessageBus(ext)} store={new SettingsStore()} />
+    <Panel
+      tabs={ext.tabs}
+      bus={new MessageBus(ext)}
+      store={new SettingsStore()}
+      version={__VERSION__}
+    />
   </StrictMode>,
 );

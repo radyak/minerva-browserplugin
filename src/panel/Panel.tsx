@@ -22,6 +22,8 @@ export type PanelProps = {
   store: Pick<SettingsStore, "load" | "save">;
   /** to judge a tab without a content script by its URL */
   sites?: readonly AuctionSite[];
+  /** the build version, shown at the bottom of the panel */
+  version?: string;
 };
 
 /** The settings in the form and where they were found (null: the defaults). */
@@ -33,7 +35,7 @@ type Shown = { settings: Settings; scope: SettingsScope | null };
  * rates from that tab's price currencies into the selected currency (loaded by
  * the background). Identical on both browsers; everything it touches is passed in.
  */
-export function Panel({ tabs, bus, store, sites = SITES }: PanelProps) {
+export function Panel({ tabs, bus, store, sites = SITES, version = "0.0.0-dev" }: PanelProps) {
   /** the active tab; null until known */
   const [tab, setTab] = useState<TabState | null>(null);
   const [shown, setShown] = useState<Shown | null>(null);
@@ -110,7 +112,7 @@ export function Panel({ tabs, bus, store, sites = SITES }: PanelProps) {
         </>
       )}
       {tab && !onAuction && <NoAuction active={tab.active} />}
-      <StatusCard tab={tab} rates={rates} />
+      <StatusCard tab={tab} rates={rates} version={version} />
     </div>
   );
 }
