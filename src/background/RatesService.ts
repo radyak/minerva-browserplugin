@@ -49,7 +49,7 @@ export class RatesService {
   async refreshSaved(): Promise<string[]> {
     const { store } = this.#deps;
     const { book } = await store.load();
-    const refreshed = [];
+    const refreshed: string[] = [];
     for (const base of new Set([Settings.DEFAULT.currency, ...book.currencies()])) {
       try {
         await store.saveRates(await this.get(base, { fresh: true }));

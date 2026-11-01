@@ -1,33 +1,27 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test, vi } from "vitest";
 import { fakeBrowser } from "wxt/testing/fake-browser";
 
+import { SettingsStore, type Migration } from "../src/browser/SettingsStore.ts";
 import { ExchangeRates } from "../src/core/rates/ExchangeRates.ts";
 import { AuctionKey } from "../src/core/settings/AuctionKey.ts";
 import { Settings } from "../src/core/settings/Settings.ts";
 
-// SettingsStore uses wxt/utils/storage, which binds to the global extension API
-// when it is first imported: put WXT's in-memory fake there before.
-Object.assign(globalThis, { browser: fakeBrowser });
-const { SettingsStore } = await import("../src/browser/SettingsStore.ts");
-
+// WxtVitest() (vitest.config.ts) puts WXT's in-memory fakeBrowser in place of
+// the extension API, which SettingsStore's wxt/utils/storage binds to.
 const local = fakeBrowser.storage.local;
 
-/**
- * Start `t` with exactly `initial` in storage.local; records every write from then on.
- * @param {import("node:test").TestContext} t
- * @param {Record<string, unknown>} [initial]
- */
-async function storageWith(t, initial = {}) {
+/** Start with exactly `initial` in storage.local; records every write from then on. */
+async function storageWith(initial = {}) {
   fakeBrowser.reset();
   await local.set(initial);
-  const writes = [];
+  const writes: unknown[] = [];
   const set = local.set.bind(local);
-  t.mock.method(local, "set", (items) => {
+  vi.spyOn(local, "set").mockImplementation((items) => {
     writes.push(structuredClone(items));
     return set(items);
   });
-  return { writes, data: async () => /** @type {Record<string, any>} */ (await local.get()) };
+  return { writes, data: async () => (await local.get()) as Record<string, any> };
 }
 
 const GBP = new Settings({ auctionPremium: 20, shipment: 15, currency: "GBP" });
@@ -38,15 +32,15 @@ const BIDDR = "https://www.biddr.com";
 const AUCTION = AuctionKey.from({ site: BIDDR, house: "leu", auction: "7" });
 const SITE = AuctionKey.from({ site: BIDDR });
 
-test("loads an empty book and no rates when nothing is saved", async (t) => {
-  await storageWith(t);
+test("loads an empty book and no rates when nothing is saved", async () => {
+  await storageWith();
   const { book, rates } = await new SettingsStore().load();
   assert.deepEqual(book.entries, []);
   assert.deepEqual(rates, {});
 });
 
-test("saves settings and their rates in one write and loads them back", async (t) => {
-  const { writes, data } = await storageWith(t);
+test("saves settings and their rates in one write and loads them back", async () => {
+  const { writes, data } = await storageWith();
   const store = new SettingsStore();
   await store.save(AUCTION, GBP, GBP_RATES);
   assert.equal(writes.length, 1);
@@ -60,8 +54,8 @@ test("saves settings and their rates in one write and loads them back", async (t
   assert.deepEqual(rates, { GBP: GBP_RATES });
 });
 
-test("keeps the settings of other auctions and the rates of other currencies", async (t) => {
-  const { data } = await storageWith(t);
+test("keeps the settings of other auctions and the rates of other currencies", async () => {
+  const { data } = await storageWith();
   const store = new SettingsStore();
   await store.save(SITE, CHF, CHF_RATES);
   await store.save(AUCTION, GBP, GBP_RATES);
@@ -82,21 +76,21 @@ test("keeps the settings of other auctions and the rates of other currencies", a
   assert.equal(saved.auctionSettings.length, 2);
 });
 
-test("ignores rates saved under another currency than their base", async (t) => {
-  await storageWith(t, { exchangeRates: { EUR: GBP_RATES.toJSON(), GBP: GBP_RATES.toJSON() } });
+test("ignores rates saved under another currency than their base", async () => {
+  await storageWith({ exchangeRates: { EUR: GBP_RATES.toJSON(), GBP: GBP_RATES.toJSON() } });
   const { rates } = await new SettingsStore().load();
   assert.deepEqual(rates, { GBP: GBP_RATES });
 });
 
-test("reads malformed stored data as nothing saved", async (t) => {
-  await storageWith(t, { auctionSettings: "broken", exchangeRates: 42 });
+test("reads malformed stored data as nothing saved", async () => {
+  await storageWith({ auctionSettings: "broken", exchangeRates: 42 });
   const { book, rates } = await new SettingsStore().load();
   assert.deepEqual(book.entries, []);
   assert.deepEqual(rates, {});
 });
 
-test("reports changes of its own keys in local storage only", async (t) => {
-  await storageWith(t);
+test("reports changes of its own keys in local storage only", async () => {
+  await storageWith();
   let calls = 0;
   new SettingsStore().onChange(() => (calls += 1));
   await local.set({ auctionSettings: [] });
@@ -106,12 +100,12 @@ test("reports changes of its own keys in local storage only", async (t) => {
   assert.equal(calls, 2);
 });
 
-test("a save is one change event; every notification sees settings and rates together", async (t) => {
-  await storageWith(t);
+test("a save is one change event; every notification sees settings and rates together", async () => {
+  await storageWith();
   const store = new SettingsStore();
   let events = 0;
   local.onChanged.addListener(() => (events += 1));
-  const seen = [];
+  const seen: Array<ReturnType<SettingsStore["load"]>> = [];
   store.onChange(() => seen.push(store.load()));
   await store.save(AUCTION, GBP, GBP_RATES);
   assert.equal(events, 1);
@@ -123,8 +117,8 @@ test("a save is one change event; every notification sees settings and rates tog
   }
 });
 
-test("stops reporting changes once unsubscribed", async (t) => {
-  await storageWith(t);
+test("stops reporting changes once unsubscribed", async () => {
+  await storageWith();
   let calls = 0;
   const unsubscribe = new SettingsStore().onChange(() => (calls += 1));
   unsubscribe();
@@ -132,8 +126,8 @@ test("stops reporting changes once unsubscribed", async (t) => {
   assert.equal(calls, 0);
 });
 
-test("records the layout version on install, once", async (t) => {
-  const { writes, data } = await storageWith(t);
+test("records the layout version on install, once", async () => {
+  const { writes, data } = await storageWith();
   const store = new SettingsStore();
   assert.equal(await store.migrate(), false);
   assert.deepEqual(await data(), { storageVersion: 1 });
@@ -145,13 +139,15 @@ test("records the layout version on install, once", async (t) => {
 const RENAMED = {
   version: 2,
   migrations: {
-    2: ({ auctionSettings, exchangeRates }) => ({
-      auctionSettings: auctionSettings.map(({ settings: { shipping, ...settings }, ...key }) => ({
-        ...key,
-        settings: { ...settings, shipment: shipping },
-      })),
+    2: (({ auctionSettings, exchangeRates }) => ({
+      auctionSettings: (auctionSettings as any[]).map(
+        ({ settings: { shipping, ...settings }, ...key }) => ({
+          ...key,
+          settings: { ...settings, shipment: shipping },
+        }),
+      ),
       exchangeRates,
-    }),
+    })) satisfies Migration,
   },
 };
 const V1_ENTRY = {
@@ -159,14 +155,14 @@ const V1_ENTRY = {
   settings: { auctionPremium: 20, shipping: 15, currency: "GBP" },
 };
 
-test("converts data of an older layout on reading, before it is migrated", async (t) => {
-  await storageWith(t, { auctionSettings: [V1_ENTRY] });
+test("converts data of an older layout on reading, before it is migrated", async () => {
+  await storageWith({ auctionSettings: [V1_ENTRY] });
   const { book } = await new SettingsStore(RENAMED).load();
   assert.deepEqual(book.resolve(AUCTION)?.settings, GBP);
 });
 
-test("migrates data of an older layout in one write and records the new version", async (t) => {
-  const { writes, data } = await storageWith(t, {
+test("migrates data of an older layout in one write and records the new version", async () => {
+  const { writes, data } = await storageWith({
     auctionSettings: [V1_ENTRY],
     exchangeRates: { GBP: GBP_RATES.toJSON() },
     storageVersion: 1,
@@ -182,8 +178,8 @@ test("migrates data of an older layout in one write and records the new version"
   assert.equal(await store.migrate(), false);
 });
 
-test("a save writes the current layout version", async (t) => {
-  const { data } = await storageWith(t, { auctionSettings: [V1_ENTRY] });
+test("a save writes the current layout version", async () => {
+  const { data } = await storageWith({ auctionSettings: [V1_ENTRY] });
   await new SettingsStore(RENAMED).save(SITE, CHF);
   const saved = await data();
   assert.equal(saved.storageVersion, 2);

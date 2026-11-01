@@ -1,10 +1,9 @@
 {
-  // Strict TypeScript for the extension; the tests have their own, looser
-  // config (test/tsconfig.json). WXT's generated base config is strict.
+  // Strict TypeScript for the extension; the tests have their own, slightly
+  // looser config (test/tsconfig.json). WXT's generated base config is strict.
   "extends": "./.wxt/tsconfig.json",
   "compilerOptions": {
-    "erasableSyntaxOnly": true,
     "types": ["node"]
   },
-  "include": [".wxt/wxt.d.ts", "src/**/*.ts", "wxt.config.ts"]
+  "include": [".wxt/wxt.d.ts", "src/**/*.ts", "wxt.config.ts", "vitest.config.ts"]
 }

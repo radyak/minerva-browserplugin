@@ -24,12 +24,10 @@ referenced by `content.css` (`src/assets/minerva-64.png`) as a `data:` URL. Boot
 bundled with `panel.css`. Dev mode writes to `dist/<browser>-dev` and starts a
 throwaway browser profile with the extension loaded (via `web-ext`).
 
-The source is TypeScript (strict, `tsconfig.json`), the tests are JavaScript checked
-through their JSDoc (`test/tsconfig.json`); `npm run typecheck` runs both. `node --test`
-loads the `.ts` sources directly - Node 24 strips the types - so the code sticks to
-erasable TypeScript syntax (no `enum`, `namespace` or parameter properties).
+The source is TypeScript (strict, `tsconfig.json`), the tests are TypeScript too, checked less
+strictly (`test/tsconfig.json`); `npm run typecheck` runs both.
 
-Tests use `node:test` and jsdom. Core modules are tested directly, the browser layer and the three controllers with fakes (`test/support/fakes.mjs`); the panel test runs against the real `src/entrypoints/sidepanel/index.html`. `CLAUDE.md` lists the conventions and invariants to keep when changing the code.
+Tests run on [Vitest](https://vitest.dev) (`vitest.config.ts`, `npm run test:unit`, `npm run test:watch`) with WXT's `WxtVitest()` plugin, which applies `wxt.config.ts` and replaces the extension API with WXT's in-memory `fakeBrowser`. Core modules are tested directly against jsdom documents, the browser layer and the three controllers with fakes (`test/support/fakes.ts`). `CLAUDE.md` lists the conventions and invariants to keep when changing the code.
 
 GitHub Actions (`.github/workflows/ci.yml`) runs on every push to `main` and every pull request: lint, typecheck, unit tests, the build of both targets, the AMO linter on the Firefox build and `npm run package`. The zips are attached to the run as the `minerva-extensions` artifact.
 

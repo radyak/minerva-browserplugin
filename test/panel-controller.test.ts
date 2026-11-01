@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import test from "node:test";
+import { test } from "vitest";
 import { JSDOM } from "jsdom";
 
 import { MSG } from "../src/core/messages.ts";
@@ -9,7 +9,7 @@ import { AuctionKey } from "../src/core/settings/AuctionKey.ts";
 import { Settings } from "../src/core/settings/Settings.ts";
 import { defineSite } from "../src/core/sites/sites.ts";
 import { PanelController } from "../src/panel/PanelController.ts";
-import { bookOf, fakeBus, fakeStore, settle } from "./support/fakes.mjs";
+import { bookOf, fakeBus, fakeStore, settle } from "./support/fakes.ts";
 
 /** The real panel markup, without its script. */
 const PANEL_HTML = readFileSync(
@@ -37,7 +37,6 @@ function manualClient() {
 
 /**
  * A fake `tabs` API recording its listeners.
- * @returns {any}
  */
 function fakeTabs(activeTab) {
   const activated = [];
@@ -65,15 +64,15 @@ const ON_USD_PAGE = {
 };
 
 /**
- * @param {{book?: any, client?: any, state?: object | null, tab?: any}} [options] `state`
- *   is what the content script of the active `tab` answers (null: there is none)
+ * @param options.state what the content script of the active `tab` answers
+ *   (null: there is none)
  */
 async function openPanel({
   book = bookOf([{ site: SHOP }, GBP]),
   client = undefined,
   state = ON_USD_PAGE,
   tab = { id: 1, url: `${SHOP}/lot/1` },
-} = {}) {
+}: { book?: any; client?: any; state?: object | null; tab?: any } = {}) {
   const { window } = new JSDOM(PANEL_HTML);
   const doc = window.document;
   const tabs = fakeTabs(tab);
@@ -100,9 +99,9 @@ async function openPanel({
       ids: { house: { query: "h" }, auction: { path: "/lot/:id" } },
     }),
   ];
-  const controller = new PanelController({ document: doc, tabs, bus, store, sites });
+  const controller = new PanelController({ document: doc, tabs: tabs as any, bus, store, sites });
   const started = controller.start();
-  const $ = (selector) => /** @type {any} */ (doc.querySelector(selector));
+  const $ = (selector) => doc.querySelector(selector) as any;
   return { window, doc, $, tabs, bus, store, controller, started };
 }
 
@@ -215,8 +214,7 @@ test("shows no rate when the page needs none", async () => {
 });
 
 test("follows the currencies of the active tab", async () => {
-  /** @type {any} */
-  let state = ON_USD_PAGE;
+  let state: any = ON_USD_PAGE;
   const { bus, $, started } = await openPanel();
   await started;
   bus.sendToTab = async () => state;
@@ -362,8 +360,7 @@ test("refreshes the status on state changes, tab switches and navigation", async
 });
 
 test("shows the currencies of the page's prices next to the shipment", async () => {
-  /** @type {any} */
-  let state = { ...ON_USD_PAGE, currencies: [] };
+  let state: any = { ...ON_USD_PAGE, currencies: [] };
   const { bus, $, started } = await openPanel({ state });
   bus.sendToTab = async () => state;
   await started;
@@ -376,8 +373,7 @@ test("shows the currencies of the page's prices next to the shipment", async () 
 });
 
 test("fills the form with the settings of the auction the active tab is on", async () => {
-  /** @type {any} */
-  let state = { ...ON_USD_PAGE, auction: "1" };
+  let state: any = { ...ON_USD_PAGE, auction: "1" };
   const CHF = new Settings({ auctionPremium: 10, shipment: 3, currency: "CHF" });
   const book = bookOf(
     [{ site: SHOP }, GBP],

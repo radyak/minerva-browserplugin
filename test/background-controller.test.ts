@@ -1,30 +1,29 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test } from "vitest";
 
 import { BackgroundController } from "../src/background/BackgroundController.ts";
 import { MSG } from "../src/core/messages.ts";
 import { ExchangeRates } from "../src/core/rates/ExchangeRates.ts";
 import { defineSite } from "../src/core/sites/sites.ts";
-import { fakeBus } from "./support/fakes.mjs";
+import { fakeBus } from "./support/fakes.ts";
 
 const SITES = [
   defineSite({ origin: "https://shop.test", paths: ["/lot/*"], priceSelectors: [".price"] }),
 ];
 
-/**
- * The parts of the extension API the controller uses, recording badges and listeners.
- * @returns {any}
- */
+type Listener = (...args: any[]) => any;
+
+/** The parts of the extension API the controller uses, recording badges and listeners. */
 function fakeExt() {
   const ext = {
-    badges: /** @type {any[]} */ ([]),
-    colors: /** @type {any[]} */ ([]),
-    onUpdated: /** @type {Function[]} */ ([]),
-    onInstalled: /** @type {Function[]} */ ([]),
-    onStartup: /** @type {Function[]} */ ([]),
-    onAlarm: /** @type {Function[]} */ ([]),
-    /** @type {Map<string, any>} scheduled alarms by name */
-    scheduled: new Map(),
+    badges: [] as any[],
+    colors: [] as any[],
+    onUpdated: [] as Listener[],
+    onInstalled: [] as Listener[],
+    onStartup: [] as Listener[],
+    onAlarm: [] as Listener[],
+    /** scheduled alarms by name */
+    scheduled: new Map<string, any>(),
     alarms: {
       get: async (name) => (ext.scheduled.has(name) ? { name } : undefined),
       create: async (name, info) => {
@@ -57,7 +56,7 @@ function fakeRates() {
     },
     async refreshSaved() {
       this.refreshes += 1;
-      return [];
+      return [] as string[];
     },
   };
 }
@@ -66,14 +65,14 @@ function start() {
   const ext = fakeExt();
   const bus = fakeBus();
   const rates = fakeRates();
-  const migrations = [];
+  const migrations: string[] = [];
   const store = {
     migrate: async () => {
       migrations.push("migrated");
       return true;
     },
   };
-  new BackgroundController({ ext, bus, store, rates, sites: SITES }).start();
+  new BackgroundController({ ext: ext as any, bus, store, rates, sites: SITES }).start();
   return { ext, bus, rates, migrations };
 }
 

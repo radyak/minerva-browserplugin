@@ -17,7 +17,12 @@ export default defineConfig([
     },
   },
   {
-    files: ["test/**/*.mjs", "*.config.{js,ts}"],
+    files: ["test/**/*.ts", "*.config.{js,ts}"],
     languageOptions: { globals: globals.node },
+  },
+  {
+    // Fakes and fixtures are deliberately loose.
+    files: ["test/**/*.ts"],
+    rules: { "@typescript-eslint/no-explicit-any": "off" },
   },
 ]);

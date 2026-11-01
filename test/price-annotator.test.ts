@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test } from "vitest";
 import { JSDOM } from "jsdom";
 
 import { ANNOTATION_CLASS, UNPARSABLE_TEXT } from "../src/core/config.ts";
 import { PriceAnnotator } from "../src/core/annotation/PriceAnnotator.ts";
 import { ExchangeRates } from "../src/core/rates/ExchangeRates.ts";
 import { Settings } from "../src/core/settings/Settings.ts";
+import type { PriceCalculator } from "../src/core/pricing/PriceCalculator.ts";
 import { defineSite } from "../src/core/sites/sites.ts";
 
 const SELECTOR = ".price";
@@ -24,9 +25,9 @@ function documentWithPrice(price = "500 EUR") {
 
 /**
  * Annotate `doc`'s prices as a site with these selectors (and calculator); the resulting counts.
- * @param {Document} doc
- * @param {string[]} [priceSelectors]
- * @param {import("../src/core/pricing/PriceCalculator.ts").PriceCalculator} [calculator]
+ * @param doc
+ * @param priceSelectors
+ * @param calculator
  */
 const annotate = (doc, priceSelectors = [SELECTOR], calculator = undefined) => {
   const site = defineSite({
@@ -128,8 +129,7 @@ for (const price of ["500 EUR", "sold out"]) {
 }
 
 test("the site's calculator works out the price", () => {
-  /** @type {import("../src/core/pricing/PriceCalculator.ts").PriceCalculator} */
-  const doubling = (amount, currency, settings, rates) =>
+  const doubling: PriceCalculator = (amount, currency, settings, rates) =>
     rates?.convert(amount * 2 + settings.shipment, currency);
   const doc = documentWithPrice();
   annotate(doc, [SELECTOR], doubling);

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test } from "vitest";
 
 import { convertPrice, parsePrice } from "../src/core/price.ts";
 

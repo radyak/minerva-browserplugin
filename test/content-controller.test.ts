@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test } from "vitest";
 import { JSDOM } from "jsdom";
 
 import { ContentController } from "../src/content/ContentController.ts";
@@ -8,7 +8,7 @@ import { MSG } from "../src/core/messages.ts";
 import { ExchangeRates } from "../src/core/rates/ExchangeRates.ts";
 import { Settings } from "../src/core/settings/Settings.ts";
 import { defineSite } from "../src/core/sites/sites.ts";
-import { bookOf, fakeBus, fakeStore, settle } from "./support/fakes.mjs";
+import { bookOf, fakeBus, fakeStore, settle } from "./support/fakes.ts";
 
 const SITES = [
   defineSite({
@@ -37,7 +37,7 @@ async function startOn(
   const bus = fakeBus();
   const store = fakeStore({ book, rates });
   const controller = new ContentController({
-    window: /** @type {any} */ (window),
+    window: window as any,
     bus,
     store,
     sites: SITES,
@@ -170,7 +170,7 @@ test("each site uses its own calculator", async () => {
   const annotationOn = async (url) => {
     const { window } = new JSDOM(`<span class="price">500 USD</span>`, { url });
     await new ContentController({
-      window: /** @type {any} */ (window),
+      window: window as any,
       bus: fakeBus(),
       store: fakeStore({ book: bookOf([{ site: "https://shop.test" }, EUR]), rates: [INTO_EUR] }),
       sites,
@@ -255,7 +255,7 @@ test("stops itself on a page event once the extension is gone", async () => {
   });
   const bus = fakeBus();
   const controller = new ContentController({
-    window: /** @type {any} */ (window),
+    window: window as any,
     bus,
     store: fakeStore({ book: everywhere(EUR), rates: [INTO_EUR] }),
     sites: SITES,
@@ -275,7 +275,7 @@ test("stop() before start() has finished keeps the page untouched", async () => 
   });
   const bus = fakeBus();
   const controller = new ContentController({
-    window: /** @type {any} */ (window),
+    window: window as any,
     bus,
     store: fakeStore({ book: everywhere(EUR), rates: [INTO_EUR] }),
     sites: SITES,

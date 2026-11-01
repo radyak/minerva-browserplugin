@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test } from "vitest";
 
 import { defineSite } from "../src/core/sites/sites.ts";
 import { TabState } from "../src/core/state/TabState.ts";

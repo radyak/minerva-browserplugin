@@ -1,16 +1,17 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test, vi } from "vitest";
 
 import { MessageBus } from "../src/browser/MessageBus.ts";
 
-/**
- * The parts of the extension API MessageBus uses, recording its listeners.
- * @param {{sendMessage?: Function, tabsSendMessage?: Function}} [overrides]
- * @returns {any}
- */
-function fakeExt({ sendMessage, tabsSendMessage } = {}) {
+type Send = (...args: any[]) => Promise<unknown>;
+
+/** The parts of the extension API MessageBus uses, recording its listeners. */
+function fakeExt({
+  sendMessage,
+  tabsSendMessage,
+}: { sendMessage?: Send; tabsSendMessage?: Send } = {}) {
   const ext = {
-    listeners: [],
+    listeners: [] as Array<(...args: any[]) => unknown>,
     runtime: {
       onMessage: { addListener: (listener) => ext.listeners.push(listener) },
       sendMessage: sendMessage ?? (async () => undefined),
@@ -22,9 +23,8 @@ function fakeExt({ sendMessage, tabsSendMessage } = {}) {
 
 /**
  * A MessageBus on `ext`, untyped: these tests use message types of their own.
- * @returns {any}
  */
-const busOn = (ext) => new MessageBus(ext);
+const busOn = (ext: ReturnType<typeof fakeExt>): any => new MessageBus(ext as any);
 
 /** Deliver `message` like the browser does; resolves with what the listener answered. */
 function deliver(ext, message, sender = {}) {
@@ -91,8 +91,8 @@ test("ignores a type again after off()", () => {
   assert.equal(answer, "x");
 });
 
-test("answers undefined when an async handler fails", async (t) => {
-  t.mock.method(console, "warn", () => {});
+test("answers undefined when an async handler fails", async () => {
+  vi.spyOn(console, "warn").mockImplementation(() => {});
   const ext = fakeExt();
   busOn(ext).on("ping", async () => {
     throw new Error("boom");

@@ -8,7 +8,7 @@ Minerva is a Manifest V3 WebExtension for Chrome and Firefox. It runs in three s
 | **Background** | `src/entrypoints/background.ts` | `BackgroundController` | once per browser: Chrome service worker, Firefox event page |
 | **Panel** | `src/entrypoints/sidepanel/main.ts` (+ `index.html`) | `PanelController` | while the side panel (Chrome) / sidebar (Firefox) is open |
 
-Each entry point only *wires things up*: it creates its controller with the real browser objects (`window`/`document`, `ext`, `MessageBus`, `SettingsStore`) and calls `start()`. All behaviour lives in the controllers, which get every dependency through their constructor and are therefore tested with jsdom and fakes (`test/*-controller.test.mjs`).
+Each entry point only *wires things up*: it creates its controller with the real browser objects (`window`/`document`, `ext`, `MessageBus`, `SettingsStore`) and calls `start()`. All behaviour lives in the controllers, which get every dependency through their constructor and are therefore tested with jsdom and fakes (`test/*-controller.test.ts`).
 
 ## Layers
 
@@ -48,7 +48,7 @@ flowchart TB
 | Layer | Rule |
 | --- | --- |
 | `src/core/` | Never touches an extension API; works on plain strings and a plain `Document`. Unit tested with jsdom. |
-| `src/browser/` | The only code using `chrome.*` / `browser.*`. Classes take `ext` as constructor argument, so they are testable with a fake - except `SettingsStore`, which uses WXT's storage (`wxt/utils/storage`, bound to the global extension API) and is tested with WXT's `fakeBrowser`. `ext.ts` re-exports `wxt/browser` and is therefore only imported by entry points. |
+| `src/browser/` | The only code using `chrome.*` / `browser.*`. Classes take `ext` as constructor argument, so they are testable with a fake - except `SettingsStore`, which uses WXT's storage (`wxt/utils/storage`, bound to the global extension API) and is tested with WXT's `fakeBrowser` (which `WxtVitest()` puts in place of the extension API in every test). `ext.ts` re-exports `wxt/browser` and is therefore only imported by entry points. |
 | Controllers | Behaviour of one context; everything injected. |
 | Entry points | Create the controller with the real objects. |
 | `wxt.config.ts` (`manifest`) | The only other place where Chrome and Firefox differ. |
@@ -134,7 +134,8 @@ src/
   assets/      icon.png (source of the generated icons/<size>.png), minerva-64.png
                (inlined into content.css)
 wxt.config.ts  build and manifest for both browsers (WXT)
-test/          node:test + jsdom: core units, browser layer and controllers (fakes in test/support/)
+test/          Vitest (+ WxtVitest, jsdom): core units, browser layer and controllers
+               (fakes in test/support/)
 ```
 
 ### Controllers and their dependencies

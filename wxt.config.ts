@@ -23,7 +23,7 @@ export default defineConfig({
   outDirTemplate: "{{browser}}{{modeSuffix}}",
   // WXT builds Firefox as MV2 by default.
   manifestVersion: 3,
-  // Explicit imports only, so every module stays loadable by `node --test`.
+  // Explicit imports only: every module says where its names come from.
   imports: false,
   // Scales src/assets/icon.png into icons/<size>.png at build time and sets
   // manifest.icons; the dev build gets greyscale icons.

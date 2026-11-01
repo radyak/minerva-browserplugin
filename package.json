@@ -13,7 +13,8 @@
     "dev:firefox": "wxt -b firefox",
     "package": "wxt zip -b chrome && wxt zip -b firefox",
     "test": "npm run lint && npm run typecheck && npm run test:unit",
-    "test:unit": "node --test \"test/*.test.mjs\"",
+    "test:unit": "vitest run",
+    "test:watch": "vitest",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write . && eslint --fix .",
     "typecheck": "wxt prepare && tsc -p tsconfig.json && tsc -p test/tsconfig.json",
@@ -32,6 +33,7 @@
     "prettier": "^3.9.9",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.72.1",
+    "vitest": "^5.0.5",
     "web-ext": "^10.6.0",
     "wxt": "^0.21.4"
   }

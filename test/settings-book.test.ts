@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test } from "vitest";
 
 import { AuctionKey } from "../src/core/settings/AuctionKey.ts";
 import { Settings } from "../src/core/settings/Settings.ts";
 import { SettingsBook } from "../src/core/settings/SettingsBook.ts";
 import { SETTINGS_SCOPES } from "../src/core/settings/SettingsScope.ts";
-import { bookOf } from "./support/fakes.mjs";
+import { bookOf } from "./support/fakes.ts";
 
 const A = "https://a.test";
 const B = "https://b.test";
@@ -69,7 +69,7 @@ test("replaces what was saved under the same key and keeps it the newest", () =>
 });
 
 test("follows the order and choice of its scopes", () => {
-  const siteOnly = [{ name: "site", fields: /** @type {const} */ (["site"]), label: "this site" }];
+  const siteOnly = [{ name: "site", fields: ["site"] as const, label: "this site" }];
   const entries = bookOf(
     [{ site: A, house: "leu", auction: "1" }, premium(10)],
     [{ site: A, house: "cng", auction: "2" }, premium(20)],

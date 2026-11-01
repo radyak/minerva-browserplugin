@@ -18,10 +18,10 @@ storage keys or listeners change. This file covers what is needed to change the 
 ```bash
 npm install
 npm test                 # lint + typecheck + unit tests — run this after any change
-npm run test:unit        # node:test + jsdom, src/core only — fast
+npm run test:unit        # Vitest: all tests, ~1 s (npm run test:watch to keep it running)
 npm run lint             # ESLint + Prettier check
 npm run format           # Prettier + ESLint --fix
-npm run typecheck        # tsc: src/ strict (tsconfig.json), tests via checkJs (test/tsconfig.json)
+npm run typecheck        # tsc: src/ strict (tsconfig.json), tests non-strict (test/tsconfig.json)
 npm run build            # wxt build -> dist/chrome and dist/firefox
 npm run build:chrome     # or :firefox
 npm run dev              # WXT dev mode, Chrome: dist/chrome-dev, auto-reload, throwaway profile
@@ -37,13 +37,14 @@ hand), linting is ESLint's recommended set plus `typescript-eslint`'s for `.ts` 
 
 - **`src/` and `wxt.config.ts` are TypeScript, strict** (`tsconfig.json` extends WXT's generated
   `.wxt/tsconfig.json`: `strict`, `noUncheckedIndexedAccess`, `noImplicitOverride`,
-  `verbatimModuleSyntax`; `npm run typecheck` runs `wxt prepare` first). **The tests stay
-  JavaScript** (`test/*.mjs`), checked through their JSDoc by `test/tsconfig.json` (`checkJs`,
-  not strict); fakes are typed `@returns {any}`.
-- **`node --test` runs the `.ts` sources directly** (Node 24 strips types), so only *erasable*
-  syntax is allowed (`erasableSyntaxOnly`): no `enum`, no `namespace`, no constructor parameter
-  properties — declare fields and assign them in the constructor. Type-only imports must be
-  `import type` / `{ type X }`; relative imports name the file with its `.ts` extension.
+  `verbatimModuleSyntax`; `npm run typecheck` runs `wxt prepare` first). **The tests are
+  TypeScript too** (`test/*.test.ts`), checked by `test/tsconfig.json` without `strict`; the
+  fakes in `test/support/fakes.ts` return `any` on purpose.
+- **Tests run on Vitest with `WxtVitest()`** (`vitest.config.ts`): it applies `wxt.config.ts`
+  and replaces the extension API (`wxt/browser`, the `browser`/`chrome` globals) with WXT's
+  in-memory `fakeBrowser`, reset per test where a test needs it (`fakeBrowser.reset()`). Tests run
+  in Node and build their own jsdom documents. Type-only imports must be `import type` /
+  `{ type X }`; relative imports name the file with its `.ts` extension (house style).
 - **TypeScript is 6.0, not 7,** because `typescript-eslint` (8.x) needs the JS compiler API that
   TypeScript 7 no longer ships. Move to 7 once `typescript-eslint` supports it.
 - Types live in the code; JSDoc keeps the descriptions only (no `{type}` in `@param`/`@returns`).
@@ -66,8 +67,8 @@ hand), linting is ESLint's recommended set plus `typescript-eslint`'s for `.ts` 
   `MessageBus.ts`) and is imported from `content/`, `background/` or `panel/`. Classes in
   `src/browser/` take `ext` as a constructor argument, so they are testable with a fake one —
   except `SettingsStore`, which is built on WXT's `wxt/utils/storage` and so uses the global
-  extension API; its test puts WXT's `fakeBrowser` (`wxt/testing/fake-browser`) on `globalThis`
-  before importing it. Controllers still get the store injected and use `fakeStore()`.
+  extension API; its test runs against the `fakeBrowser` that `WxtVitest()` installs. Controllers
+  still get the store injected and use `fakeStore()`.
 - **Browser differences are confined to two places:** the `manifest` function in
   `wxt.config.ts` (only `browser_specific_settings` for Firefox; WXT itself emits `side_panel`
   vs. `sidebar_action` and the background key per browser) and `src/browser/side-panel.ts`
@@ -93,7 +94,7 @@ hand), linting is ESLint's recommended set plus `typescript-eslint`'s for `.ts` 
   `PanelController`
   with the real `window`/`ext`/`document`, `MessageBus` and `SettingsStore`; all behaviour lives
   in the controllers, which get their dependencies through the constructor and are tested with
-  jsdom and the fakes in `test/support/fakes.mjs`. Controllers never import
+  jsdom and the fakes in `test/support/fakes.ts`. Controllers never import
   `src/browser/ext.ts` (it imports `wxt/browser`). Nothing may run at an entry point's top
   level besides imports: WXT imports `content.ts` and `background.ts` in Node at build time to
   read their options, so all wiring sits inside `main()` / the `defineBackground` callback.
@@ -106,8 +107,8 @@ hand), linting is ESLint's recommended set plus `typescript-eslint`'s for `.ts` 
   currencies); the form and the IDs are only shown while `TabState.onAuction()` (active with a
   house or auction ID). Its test runs against the real `src/entrypoints/sidepanel/index.html`.
 - **WXT config (`wxt.config.ts`):** `imports: false` — no auto-imports, every module imports
-  `defineBackground` etc. explicitly (`wxt/utils/define-background`), so files stay loadable by
-  `node --test`; `manifestVersion: 3` for both browsers (WXT defaults Firefox to MV2). A new entry
+  `defineBackground` etc. explicitly (`wxt/utils/define-background`), so every module says where
+  its names come from; `manifestVersion: 3` for both browsers (WXT defaults Firefox to MV2). A new entry
   point is a new file in `src/entrypoints/` following WXT's naming; files that go into the build
   as they are belong in `public/` (empty at the moment). The icons are generated at build time
   by `@wxt-dev/auto-icons` from `src/assets/icon.png` into `icons/<size>.png` (greyscale in dev
@@ -141,7 +142,7 @@ hand), linting is ESLint's recommended set plus `typescript-eslint`'s for `.ts` 
   "750 GBP1207.72 USD" and shows the price repeatedly.
 - **`priceSelectors` must not count from the end** (`:last-child`, `:last-of-type`,
   `:only-child`, `:nth-last-…`): the annotation is inserted right after the price element, so
-  such a selector stops matching it from the second run on (`test/sites.test.mjs` rejects them).
+  such a selector stops matching it from the second run on (`test/sites.test.ts` rejects them).
   Count from the start instead (`:nth-child(2)`). Annotations whose element is no longer
   annotated are removed on every run (`AnnotationView#removeAllBut()`), so a lost match shows
   as a missing annotation, never as a stale amount.
@@ -153,14 +154,14 @@ hand), linting is ESLint's recommended set plus `typescript-eslint`'s for `.ts` 
   carry one; the origin check still enforces it.
 - **The tests run against their own site lists** (the controllers take an optional
   `sites` argument defaulting to `SITES`), so the real config can change freely. The real `SITES`
-  only gets a shape check in `test/sites.test.mjs` (`origin` without path, paths start with `/`,
+  only gets a shape check in `test/sites.test.ts` (`origin` without path, paths start with `/`,
   selectors parse as CSS).
 - **Price formatting mirrors the input notation** (currency position, decimal/grouping separators,
   surrounding text). The one ambiguous rule: a single separator followed by exactly three digits
   is read as *grouping* (`1.359` = 1359), anything else as a decimal separator (`1.35` = 1.35).
   The currency token closest to the number (`CurrencyDetector`) is the input currency and is
   the only part swapped on output. Change `src/core/price.ts` or `src/core/currency/` only with a
-  matching case added to `test/price.test.mjs` or `test/currency.test.mjs`.
+  matching case added to `test/price.test.ts` or `test/currency.test.ts`.
 - **`Currency.ALL` (`src/core/currency/Currency.ts`) is the one list of supported currencies:**
   code, output symbol and the tokens recognised in page text. Detection, the panel's currency
   options and the exchange rates request are all derived from it.
