@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { MessageBus } from "../src/browser/MessageBus.js";
+import { MessageBus } from "../src/browser/MessageBus.ts";
 
 /**
  * The parts of the extension API MessageBus uses, recording its listeners.
  * @param {{sendMessage?: Function, tabsSendMessage?: Function}} [overrides]
+ * @returns {any}
  */
 function fakeExt({ sendMessage, tabsSendMessage } = {}) {
   const ext = {
@@ -19,6 +20,12 @@ function fakeExt({ sendMessage, tabsSendMessage } = {}) {
   return ext;
 }
 
+/**
+ * A MessageBus on `ext`, untyped: these tests use message types of their own.
+ * @returns {any}
+ */
+const busOn = (ext) => new MessageBus(ext);
+
 /** Deliver `message` like the browser does; resolves with what the listener answered. */
 function deliver(ext, message, sender = {}) {
   let answered;
@@ -29,7 +36,7 @@ function deliver(ext, message, sender = {}) {
 
 test("answers asynchronously and keeps the channel open for it", async () => {
   const ext = fakeExt();
-  new MessageBus(ext).on("ping", async (message) => `pong ${message.n}`);
+  busOn(ext).on("ping", async (message) => `pong ${message.n}`);
   const { keepOpen, response } = deliver(ext, { type: "ping", n: 1 });
   assert.equal(keepOpen, true);
   assert.equal(await response, "pong 1");
@@ -37,7 +44,7 @@ test("answers asynchronously and keeps the channel open for it", async () => {
 
 test("answers synchronously without keeping the channel open", async () => {
   const ext = fakeExt();
-  new MessageBus(ext).on("ping", () => "pong");
+  busOn(ext).on("ping", () => "pong");
   const { keepOpen, response } = deliver(ext, { type: "ping" });
   assert.equal(keepOpen, false);
   assert.equal(await response, "pong");
@@ -46,7 +53,7 @@ test("answers synchronously without keeping the channel open", async () => {
 test("does not answer when the handler returns nothing", () => {
   const ext = fakeExt();
   let seen;
-  new MessageBus(ext).on("note", (message, sender) => {
+  busOn(ext).on("note", (message, sender) => {
     seen = [message.type, sender.tab.id];
   });
   let answered = false;
@@ -58,7 +65,7 @@ test("does not answer when the handler returns nothing", () => {
 
 test("ignores messages without a handler", () => {
   const ext = fakeExt();
-  new MessageBus(ext).on("ping", () => "pong");
+  busOn(ext).on("ping", () => "pong");
   assert.equal(
     ext.listeners[0]({ type: "other" }, {}, () => {}),
     false,
@@ -69,10 +76,25 @@ test("ignores messages without a handler", () => {
   );
 });
 
+test("ignores a type again after off()", () => {
+  const ext = fakeExt();
+  const bus = busOn(ext)
+    .on("ping", () => "pong")
+    .on("other", () => "x");
+  assert.equal(bus.off("ping"), bus);
+  assert.equal(
+    ext.listeners[0]({ type: "ping" }, {}, () => {}),
+    false,
+  );
+  let answer;
+  ext.listeners[0]({ type: "other" }, {}, (value) => (answer = value));
+  assert.equal(answer, "x");
+});
+
 test("answers undefined when an async handler fails", async (t) => {
   t.mock.method(console, "warn", () => {});
   const ext = fakeExt();
-  new MessageBus(ext).on("ping", async () => {
+  busOn(ext).on("ping", async () => {
     throw new Error("boom");
   });
   const { keepOpen, response } = deliver(ext, { type: "ping" });
@@ -84,7 +106,7 @@ test("sending swallows a missing receiver", async () => {
   const missing = async () => {
     throw new Error("Could not establish connection. Receiving end does not exist.");
   };
-  const bus = new MessageBus(fakeExt({ sendMessage: missing, tabsSendMessage: missing }));
+  const bus = busOn(fakeExt({ sendMessage: missing, tabsSendMessage: missing }));
   assert.equal(await bus.send({ type: "x" }), undefined);
   assert.equal(await bus.sendToTab(1, { type: "x" }), undefined);
 });
@@ -94,7 +116,7 @@ test("sending returns the answer", async () => {
     sendMessage: async (message) => `runtime ${message.type}`,
     tabsSendMessage: async (tabId, message) => `tab ${tabId} ${message.type}`,
   });
-  const bus = new MessageBus(ext);
+  const bus = busOn(ext);
   assert.equal(await bus.send({ type: "a" }), "runtime a");
   assert.equal(await bus.sendToTab(7, { type: "b" }), "tab 7 b");
 });

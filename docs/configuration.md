@@ -1,7 +1,7 @@
 # Configuration
 
 The auction sites the extension acts on live in
-[`src/core/sites/sites.config.js`](../src/core/sites/sites.config.js): `SITES` holds one
+[`src/core/sites/sites.config.ts`](../src/core/sites/sites.config.ts): `SITES` holds one
 `AuctionSite` per site:
 
 | Field | Example (biddr.com) | Meaning |
@@ -12,7 +12,7 @@ The auction sites the extension acts on live in
 | `ids` | `{ house: UrlParam.path("/:id/auction"), auction: UrlParam.query("a") }` | where the page URL names the auction house *(optional)* and the auction; shown in the *Plugin status* card and part of the key the settings are saved under |
 | `calculator` | *(optional)* | a `PriceCalculator` for sites whose fees differ; `EffectivePriceCalculator` by default |
 
-An ID is read by a `UrlParam` (`src/core/sites/UrlParam.js`), either from a query
+An ID is read by a `UrlParam` (`src/core/sites/UrlParam.ts`), either from a query
 parameter - `UrlParam.query("a")` reads `7522` from `?a=7522` - or from one path
 segment - `UrlParam.path("/sale/:id*")` reads `7123` from `/sale/7123/lot/45`. In
 a path pattern `:id` marks the segment (exactly once), `*` matches any characters
@@ -22,7 +22,7 @@ not contain is shown as "unknown".
 On a given URL the first site on the same origin with a matching `paths` entry
 is used. biddr.com and numisbids.com are configured.
 
-General values shared by all sites, in [`src/core/config.js`](../src/core/config.js):
+General values shared by all sites, in [`src/core/config.ts`](../src/core/config.ts):
 
 | Constant | Current value | Meaning |
 | --- | --- | --- |
@@ -44,7 +44,7 @@ requires the exact port.
 The panel saves the settings under the page's `AuctionKey`: site (`origin`), auction
 house and auction ID, as far as the URL tells. Which saved settings a page uses is
 decided by `SETTINGS_SCOPES` in
-[`src/core/settings/SettingsScope.js`](../src/core/settings/SettingsScope.js), tried
+[`src/core/settings/SettingsScope.ts`](../src/core/settings/SettingsScope.ts), tried
 in order, the first one holding saved settings wins (and within it the most recently
 saved entry):
 

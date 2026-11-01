@@ -2,15 +2,15 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { JSDOM } from "jsdom";
 
-import { ContentController } from "../src/content/ContentController.js";
-import { ANNOTATION_CLASS } from "../src/core/config.js";
-import { MSG } from "../src/core/messages.js";
-import { ExchangeRates } from "../src/core/rates/ExchangeRates.js";
-import { PriceCalculator } from "../src/core/pricing/PriceCalculator.js";
-import { Settings } from "../src/core/settings/Settings.js";
-import { AuctionSite } from "../src/core/sites/AuctionSite.js";
-import { SiteRegistry } from "../src/core/sites/SiteRegistry.js";
-import { UrlParam } from "../src/core/sites/UrlParam.js";
+import { ContentController } from "../src/content/ContentController.ts";
+import { ANNOTATION_CLASS } from "../src/core/config.ts";
+import { MSG } from "../src/core/messages.ts";
+import { ExchangeRates } from "../src/core/rates/ExchangeRates.ts";
+import { PriceCalculator } from "../src/core/pricing/PriceCalculator.ts";
+import { Settings } from "../src/core/settings/Settings.ts";
+import { AuctionSite } from "../src/core/sites/AuctionSite.ts";
+import { SiteRegistry } from "../src/core/sites/SiteRegistry.ts";
+import { UrlParam } from "../src/core/sites/UrlParam.ts";
 import { bookOf, fakeBus, fakeStore, settle } from "./support/fakes.mjs";
 
 const SITES = new SiteRegistry([
@@ -217,4 +217,80 @@ test("calculates with the defaults when nothing saved applies", async () => {
   const { annotation } = await startOn("https://shop.test/lot/1", { book: bookOf() });
   // Settings.DEFAULT: EUR, no premium, no shipment.
   assert.equal(annotation(), "250 EUR");
+});
+
+test("stop() removes the annotations and ignores the page, messages and storage from then on", async () => {
+  const { window, bus, store, controller, annotation } = await startOn("https://shop.test/lot/1");
+  assert.equal(annotation(), "305 EUR");
+  controller.stop();
+  assert.equal(annotation(), undefined);
+  const sent = bus.sent.length;
+
+  window.document.querySelector(".price").textContent = "100 USD";
+  await nextFrame(window);
+  await nextFrame(window);
+  window.history.pushState({}, "", "/lot/2");
+  window.dispatchEvent(new window.PopStateEvent("popstate"));
+  window.dispatchEvent(new window.HashChangeEvent("hashchange"));
+  await store.change({
+    book: everywhere(new Settings({ auctionPremium: 0, shipment: 0, currency: "EUR" })),
+  });
+  assert.equal(bus.deliver({ type: MSG.SYNC_REQUEST }), undefined);
+
+  assert.equal(annotation(), undefined);
+  assert.equal(bus.sent.length, sent);
+  assert.equal(controller.sync("late").annotated, 1); // the last state, nothing written
+  assert.equal(annotation(), undefined);
+});
+
+test("stop() cancels a pending DOM sync and ends syncs in flight without writing", async () => {
+  const { window, bus, controller, annotation } = await startOn("https://shop.test/lot/1");
+  const request = bus.deliver({ type: MSG.SYNC_REQUEST }); // reloads the settings first
+  window.document.querySelector(".price").textContent = "100 USD";
+  await Promise.resolve(); // the observer has scheduled a frame, the request still loads
+  controller.stop();
+  await request;
+  await nextFrame(window);
+  assert.equal(annotation(), undefined);
+  assert.equal(bus.sent.length, 1);
+});
+
+test("stops itself on a page event once the extension is gone", async () => {
+  let valid = true;
+  const { window } = new JSDOM(`<span class="price">500 USD</span>`, {
+    url: "https://shop.test/lot/1",
+    pretendToBeVisual: true,
+  });
+  const bus = fakeBus();
+  const controller = new ContentController({
+    window: /** @type {any} */ (window),
+    bus,
+    store: fakeStore({ book: everywhere(EUR), rates: [INTO_EUR] }),
+    sites: SITES,
+    // Like WXT's ctx.isValid: noticing the dead runtime invalidates the context.
+    isValid: () => valid || (controller.stop(), false),
+  });
+  await controller.start();
+  valid = false;
+  window.dispatchEvent(new window.PopStateEvent("popstate"));
+  assert.equal(window.document.querySelector(`.${ANNOTATION_CLASS}`), null);
+  assert.equal(bus.sent.length, 1);
+});
+
+test("stop() before start() has finished keeps the page untouched", async () => {
+  const { window } = new JSDOM(`<span class="price">500 USD</span>`, {
+    url: "https://shop.test/lot/1",
+  });
+  const bus = fakeBus();
+  const controller = new ContentController({
+    window: /** @type {any} */ (window),
+    bus,
+    store: fakeStore({ book: everywhere(EUR), rates: [INTO_EUR] }),
+    sites: SITES,
+  });
+  const started = controller.start();
+  controller.stop();
+  await started;
+  assert.equal(window.document.querySelector(`.${ANNOTATION_CLASS}`), null);
+  assert.deepEqual(bus.sent, []);
 });

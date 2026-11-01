@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { convertPrice, parsePrice } from "../src/core/price.js";
+import { convertPrice, parsePrice } from "../src/core/price.ts";
 
 // The formatting cases are independent of the actual calculation.
 const plus20 = (text) => convertPrice(text, (amount) => amount * 1.2);

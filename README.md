@@ -31,7 +31,7 @@ Load `dist/chrome` via *Load unpacked* in `chrome://extensions`, or `dist/firefo
 | --- | --- |
 | [How it works](docs/how-it-works.md) | What happens on the page and in the panel, currency detection, price formats |
 | [Architecture](docs/architecture.md) | Contexts, layers, components, HTML components, messages, storage, event lifecycles |
-| [Configuration](docs/configuration.md) | Auction sites (`sites.config.js`) and plugin-wide constants |
+| [Configuration](docs/configuration.md) | Auction sites (`sites.config.ts`) and plugin-wide constants |
 | [Development](docs/development.md) | Build, test, packaging, installing the development build |
 | [Architecture review](docs/dev/architecture-review.md) | Review of 2026-09-27 and the refactoring plan it started |
 
@@ -40,7 +40,7 @@ Load `dist/chrome` via *Load unpacked* in `chrome://extensions`, or `dist/firefo
 * URL-based auction detection & persistence in auction scope
 * Backend: Auction database
 * Tweak "your bid" price, too
-* Migration to [WXT](https://wxt.dev) (build, type safety, messaging)
+* Migration to [WXT](https://wxt.dev): build done (see [plan](docs/dev/wxt-migration-plan.md)); next: type safety, messaging, storage
 
 ### Further factors of the effective price
 

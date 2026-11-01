@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { AuctionKey } from "../src/core/settings/AuctionKey.js";
-import { Settings } from "../src/core/settings/Settings.js";
-import { SettingsBook } from "../src/core/settings/SettingsBook.js";
-import { SETTINGS_SCOPES, SettingsScope } from "../src/core/settings/SettingsScope.js";
+import { AuctionKey } from "../src/core/settings/AuctionKey.ts";
+import { Settings } from "../src/core/settings/Settings.ts";
+import { SettingsBook } from "../src/core/settings/SettingsBook.ts";
+import { SETTINGS_SCOPES, SettingsScope } from "../src/core/settings/SettingsScope.ts";
 import { bookOf } from "./support/fakes.mjs";
 
 const A = "https://a.test";

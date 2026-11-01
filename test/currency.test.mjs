@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { Currency } from "../src/core/currency/Currency.js";
-import { CurrencyDetector } from "../src/core/currency/CurrencyDetector.js";
+import { Currency } from "../src/core/currency/Currency.ts";
+import { CurrencyDetector } from "../src/core/currency/CurrencyDetector.ts";
 
 test("tells an ISO code apart from a symbol", () => {
   assert.equal(Currency.isCode("EUR"), true);

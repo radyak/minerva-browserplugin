@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { TabState } from "../src/core/state/TabState.js";
+import { TabState } from "../src/core/state/TabState.ts";
 
 test("is inactive with nothing annotated by default", () => {
   assert.deepEqual(TabState.inactive().toJSON(), {

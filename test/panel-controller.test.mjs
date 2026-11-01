@@ -3,16 +3,16 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { JSDOM } from "jsdom";
 
-import { MSG } from "../src/core/messages.js";
-import { ExchangeRates } from "../src/core/rates/ExchangeRates.js";
-import { AuctionKey } from "../src/core/settings/AuctionKey.js";
-import { Settings } from "../src/core/settings/Settings.js";
-import { PanelController } from "../src/panel/PanelController.js";
+import { MSG } from "../src/core/messages.ts";
+import { ExchangeRates } from "../src/core/rates/ExchangeRates.ts";
+import { AuctionKey } from "../src/core/settings/AuctionKey.ts";
+import { Settings } from "../src/core/settings/Settings.ts";
+import { PanelController } from "../src/panel/PanelController.ts";
 import { bookOf, fakeBus, fakeStore, settle } from "./support/fakes.mjs";
 
 /** The real panel markup, without its script. */
 const PANEL_HTML = readFileSync(
-  new URL("../src/panel/panel.html", import.meta.url),
+  new URL("../src/entrypoints/sidepanel/index.html", import.meta.url),
   "utf8",
 ).replace(/<script[^>]*><\/script>/, "");
 
@@ -34,7 +34,10 @@ function manualClient() {
   };
 }
 
-/** A fake `tabs` API recording its listeners. */
+/**
+ * A fake `tabs` API recording its listeners.
+ * @returns {any}
+ */
 function fakeTabs() {
   const activated = [];
   const updated = [];

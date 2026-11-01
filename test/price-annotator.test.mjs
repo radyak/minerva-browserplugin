@@ -2,12 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { JSDOM } from "jsdom";
 
-import { ANNOTATION_CLASS, UNPARSABLE_TEXT } from "../src/core/config.js";
-import { PriceAnnotator } from "../src/core/annotation/PriceAnnotator.js";
-import { ExchangeRates } from "../src/core/rates/ExchangeRates.js";
-import { PriceCalculator } from "../src/core/pricing/PriceCalculator.js";
-import { Settings } from "../src/core/settings/Settings.js";
-import { AuctionSite } from "../src/core/sites/AuctionSite.js";
+import { ANNOTATION_CLASS, UNPARSABLE_TEXT } from "../src/core/config.ts";
+import { PriceAnnotator } from "../src/core/annotation/PriceAnnotator.ts";
+import { ExchangeRates } from "../src/core/rates/ExchangeRates.ts";
+import { PriceCalculator } from "../src/core/pricing/PriceCalculator.ts";
+import { Settings } from "../src/core/settings/Settings.ts";
+import { AuctionSite } from "../src/core/sites/AuctionSite.ts";
 
 const SELECTOR = ".price";
 const SETTINGS = new Settings({ auctionPremium: 0, shipment: 100, currency: "EUR" });
@@ -27,7 +27,7 @@ function documentWithPrice(price = "500 EUR") {
  * Annotate `doc`'s prices as a site with these selectors (and calculator); the resulting counts.
  * @param {Document} doc
  * @param {string[]} [priceSelectors]
- * @param {import("../src/core/pricing/PriceCalculator.js").PriceCalculator} [calculator]
+ * @param {import("../src/core/pricing/PriceCalculator.ts").PriceCalculator} [calculator]
  */
 const annotate = (doc, priceSelectors = [SELECTOR], calculator = undefined) => {
   const site = new AuctionSite({
@@ -168,6 +168,30 @@ test("a wrapper's annotation from an earlier run is removed", () => {
   assert.deepEqual(
     annotations(doc).map((annotation) => annotation.textContent),
     ["300 EUR"],
+  );
+});
+
+test("an element that is no longer matched loses its annotation", () => {
+  const doc = documentWithPrice("500 EUR");
+  annotate(doc);
+  doc.querySelector(SELECTOR).classList.remove("price");
+  assert.deepEqual(annotate(doc), { annotated: 0, unparsable: 0 });
+  assert.equal(annotations(doc).length, 0);
+});
+
+test("stays annotated with a selector the annotation could affect", () => {
+  // biddr's finished lots: the price is the second div of the row - and the
+  // annotation inserted after it must not change what matches.
+  const doc = new JSDOM(`
+    <div class="lot-price"><div>Price realized</div><div>340 EUR (<span>14</span>)</div></div>
+  `).window.document;
+  const selectors = [".lot-price > div:nth-child(2)"];
+  for (let run = 0; run < 3; run += 1) {
+    assert.deepEqual(annotate(doc, selectors), { annotated: 1, unparsable: 0 });
+  }
+  assert.deepEqual(
+    annotations(doc).map((annotation) => annotation.textContent),
+    ["440 EUR"],
   );
 });
 

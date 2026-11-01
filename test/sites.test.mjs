@@ -3,12 +3,12 @@ import test from "node:test";
 
 import { JSDOM } from "jsdom";
 
-import { EffectivePriceCalculator } from "../src/core/pricing/EffectivePriceCalculator.js";
-import { AuctionSite } from "../src/core/sites/AuctionSite.js";
-import { SiteRegistry } from "../src/core/sites/SiteRegistry.js";
-import { SITES } from "../src/core/sites/sites.config.js";
-import { UrlParam } from "../src/core/sites/UrlParam.js";
-import { matchPatternFor, urlMatches, urlOnOrigin } from "../src/core/sites/url-matcher.js";
+import { EffectivePriceCalculator } from "../src/core/pricing/EffectivePriceCalculator.ts";
+import { AuctionSite } from "../src/core/sites/AuctionSite.ts";
+import { SiteRegistry } from "../src/core/sites/SiteRegistry.ts";
+import { SITES } from "../src/core/sites/sites.config.ts";
+import { UrlParam } from "../src/core/sites/UrlParam.ts";
+import { matchPatternFor, urlMatches, urlOnOrigin } from "../src/core/sites/url-matcher.ts";
 
 test("matches a plain prefix glob", () => {
   assert.equal(
@@ -212,6 +212,15 @@ test("every configured site is well formed", () => {
     assert.ok(site.ids.auction, `${name}: ids.auction must be configured`);
     // Every selector must be valid CSS, otherwise querySelectorAll throws at runtime.
     const doc = new JSDOM("").window.document;
-    for (const selector of site.priceSelectors) doc.querySelectorAll(selector);
+    for (const selector of site.priceSelectors) {
+      doc.querySelectorAll(selector);
+      // The annotation is inserted right after the price element, so anything counting
+      // from the end stops matching it after the first run.
+      assert.doesNotMatch(
+        selector,
+        /:(last-child|last-of-type|only-child|only-of-type|nth-last-child|nth-last-of-type)\b/,
+        `${name}: "${selector}" depends on the elements after the price`,
+      );
+    }
   }
 });

@@ -4,9 +4,9 @@ Minerva is a Manifest V3 WebExtension for Chrome and Firefox. It runs in three s
 
 | Context | Entry point | Controller | Runs … |
 | --- | --- | --- | --- |
-| **Content script** | `src/content/content.js` | `ContentController` | in every tab on a configured auction site (injected by the manifest) |
-| **Background** | `src/background/background.js` | `BackgroundController` | once per browser: Chrome service worker, Firefox event page |
-| **Panel** | `src/panel/panel.js` (+ `panel.html`) | `PanelController` | while the side panel (Chrome) / sidebar (Firefox) is open |
+| **Content script** | `src/entrypoints/content.ts` | `ContentController` | in every tab on a configured auction site (injected by the manifest) |
+| **Background** | `src/entrypoints/background.ts` | `BackgroundController` | once per browser: Chrome service worker, Firefox event page |
+| **Panel** | `src/entrypoints/sidepanel/main.ts` (+ `index.html`) | `PanelController` | while the side panel (Chrome) / sidebar (Firefox) is open |
 
 Each entry point only *wires things up*: it creates its controller with the real browser objects (`window`/`document`, `ext`, `MessageBus`, `SettingsStore`) and calls `start()`. All behaviour lives in the controllers, which get every dependency through their constructor and are therefore tested with jsdom and fakes (`test/*-controller.test.mjs`).
 
@@ -15,9 +15,9 @@ Each entry point only *wires things up*: it creates its controller with the real
 ```mermaid
 flowchart TB
   subgraph entry["Entry points (wiring only)"]
-    content_js["content/content.js"]
-    background_js["background/background.js"]
-    panel_js["panel/panel.js"]
+    content_js["entrypoints/content.ts"]
+    background_js["entrypoints/background.ts"]
+    panel_js["entrypoints/sidepanel/"]
   end
   subgraph controllers["Controllers"]
     CC["ContentController"]
@@ -25,14 +25,14 @@ flowchart TB
     PC["PanelController<br/>+ views + SelectedRates"]
   end
   subgraph browser["src/browser/ (extension API)"]
-    ext["ext.js<br/>browser ?? chrome"]
+    ext["ext.ts<br/>wxt/browser"]
     bus["MessageBus"]
     store["SettingsStore"]
-    side["side-panel.js<br/>sidePanel vs sidebarAction"]
+    side["side-panel.ts<br/>sidePanel vs sidebarAction"]
   end
   subgraph core["src/core/ (no extension API, plain DOM)"]
     domain["Currency · ExchangeRates · Settings<br/>AuctionKey · SettingsScope · SettingsBook<br/>TabState · AuctionSite · SiteRegistry"]
-    logic["PriceAnnotator · AnnotationView<br/>price.js · PriceCalculator · RatesClient"]
+    logic["PriceAnnotator · AnnotationView<br/>price.ts · PriceCalculator · RatesClient"]
   end
 
   content_js --> CC
@@ -48,10 +48,10 @@ flowchart TB
 | Layer | Rule |
 | --- | --- |
 | `src/core/` | Never touches an extension API; works on plain strings and a plain `Document`. Unit tested with jsdom. |
-| `src/browser/` | The only code using `chrome.*` / `browser.*`. Classes take `ext` as constructor argument, so they are testable with a fake. `ext.js` reads the build constant `__TARGET__` and is therefore only imported by entry points. |
+| `src/browser/` | The only code using `chrome.*` / `browser.*`. Classes take `ext` as constructor argument, so they are testable with a fake - except `SettingsStore`, which uses WXT's storage (`wxt/utils/storage`, bound to the global extension API) and is tested with WXT's `fakeBrowser`. `ext.ts` re-exports `wxt/browser` and is therefore only imported by entry points. |
 | Controllers | Behaviour of one context; everything injected. |
 | Entry points | Create the controller with the real objects. |
-| `platforms/<target>/manifest.json` | The only other place where Chrome and Firefox differ. |
+| `wxt.config.ts` (`manifest`) | The only other place where Chrome and Firefox differ. |
 
 ## Components and dependencies
 
@@ -63,7 +63,7 @@ flowchart LR
     PA["PriceAnnotator"]
     AV["AnnotationView"]
     CC --> PA --> AV --> DOM
-    PA --> PRICE["price.js<br/>CurrencyDetector"]
+    PA --> PRICE["price.ts<br/>CurrencyDetector"]
     PA --> CALC["site.calculator<br/>EffectivePriceCalculator"]
   end
 
@@ -106,7 +106,7 @@ flowchart LR
 ```
 src/
   core/        browser-agnostic logic
-    config.js      plugin-wide constants
+    config.ts      plugin-wide constants
     settings/      Settings (ranges, validation of the panel settings), AuctionKey (site +
                    house + auction), SettingsBook (settings saved per key, lookup),
                    SettingsScope + SETTINGS_SCOPES (the lookup order)
@@ -114,26 +114,26 @@ src/
     rates/         ExchangeRates (rates for one base, conversion), RatesClient (Frankfurter / ECB)
     currency/      Currency (the supported currencies: code, symbol, tokens),
                    CurrencyDetector (finds the currency next to a price)
-    price.js       price parsing, conversion, re-formatting
+    price.ts       price parsing, conversion, re-formatting
     annotation/    PriceAnnotator (reads and prices the elements),
                    AnnotationView (inserts/updates the sibling, idempotent)
-    sites/         AuctionSite, SiteRegistry, sites.config.js (the targeted sites),
-                   url-matcher.js (glob matching for URLs),
+    sites/         AuctionSite, SiteRegistry, sites.config.ts (the targeted sites),
+                   url-matcher.ts (glob matching for URLs),
                    UrlParam (reads house / auction IDs out of a URL)
-    messages.js    message types
+    messages.ts    message types
     state/         TabState (what the extension does in a tab: active, counts, price
                    currencies, site, house and auction IDs)
   browser/     the thin browser abstraction (API alias, messaging, settings storage,
                side panel vs. sidebar)
-  background/  background script / service worker (BackgroundController, RatesService + wiring)
-  content/     content script (ContentController + wiring) + the annotation stylesheet
-  panel/       side panel UI (Bootstrap): PanelController, views/, SelectedRates + wiring
-platforms/
-  chrome/manifest.json     MV3 + `side_panel`, service worker background
-  firefox/manifest.json    MV3 + `sidebar_action`, event page background
-scripts/       build, packaging, icon generation
+  entrypoints/ the WXT entry points, wiring only: background.ts, content.ts,
+               sidepanel/ (index.html + main.ts)
+  background/  background script / service worker (BackgroundController, RatesService)
+  content/     content script (ContentController) + the annotation stylesheet
+  panel/       side panel UI (Bootstrap): PanelController, views/, SelectedRates
+  assets/      icon.png (source of the generated icons/<size>.png), minerva-64.png
+               (inlined into content.css)
+wxt.config.ts  build and manifest for both browsers (WXT)
 test/          node:test + jsdom: core units, browser layer and controllers (fakes in test/support/)
-icons/         base.png + the PNGs generated from it (npm run icons)
 ```
 
 ### Controllers and their dependencies
@@ -150,11 +150,11 @@ icons/         base.png + the PNGs generated from it (npm run icons)
 | `SelectedRates` | Panel | Rates of the currency picked in the panel; a newer request supersedes older ones |
 | `PriceAnnotator` / `AnnotationView` | Content | *What* to show (wrapper rule, pricing) / the only class writing to the page, only on change |
 | `MessageBus` | all | `on(type, handler)` dispatch; returns `true` for async answers so the channel stays open |
-| `SettingsStore` | all | `load()` → `{ book, rates }`, `save(key, settings, rates)` in one write, `saveRates()`, `onChange()`, `migrate(sites)` |
+| `SettingsStore` | all | `load()` → `{ book, rates }` in one read, `save(key, settings, rates)` in one write, `saveRates()`, `onChange()` (once per changed key) → unsubscribe, `migrate(sites)`; two WXT storage items (`local:auctionSettings`, `local:exchangeRates`) |
 
 ## HTML components
 
-### Side panel (`src/panel/panel.html`)
+### Side panel (`src/entrypoints/sidepanel/index.html`)
 
 The panel is a single Bootstrap page shared by both browsers. Its DOM is only touched through its view classes:
 
@@ -202,7 +202,7 @@ stateDiagram-v2
 
 ## Messages
 
-Four message types, defined in `src/core/messages.js` and sent through `MessageBus`:
+Four message types, defined in `src/core/messages.ts` and sent through `MessageBus`. `Protocol` in the same file types each one's payload and answer; `MessageBus.on/send/sendToTab` are generic over it, so senders and handlers cannot drift apart:
 
 | Type | From → to | Payload | Answer | Sent when |
 | --- | --- | --- | --- | --- |
@@ -215,7 +215,7 @@ Class instances do not survive messaging (structured clone): senders use `toJSON
 
 ## Storage
 
-Everything is stored in `storage.local` through `SettingsStore`; there is no message for settings, storage is the channel.
+Everything is stored in `storage.local` through `SettingsStore`, which defines one WXT storage item per key (`storage.defineItem("local:…", { fallback })`); there is no message for settings, storage is the channel. Reads of both keys are one `storage.local.get` (`storage.getItems`), a save with rates is one `storage.local.set` (`storage.setItems`). The items carry no version yet; WXT treats data without version metadata as version 1, so the next change of a value's shape can add `version: 2` and a migration.
 
 | Key | Value | Written by | Read by |
 | --- | --- | --- | --- |
@@ -233,8 +233,9 @@ The settings of a page are found by `SettingsBook#resolve()`, which tries `SETTI
 | Content | script injected (`document_idle`) | `start()`: load settings/rates, register listeners, `sync("load")`, observe the DOM |
 | Content | `MutationObserver` (`childList`, `characterData`, whole document) | one `sync("mutation")` per animation frame |
 | Content | `popstate`, `hashchange` | `sync("popstate")` / `sync("hashchange")` |
-| Content | `storage.onChanged` (`auctionSettings`, `exchangeRates`) | reload settings/rates, `sync("settings")` |
+| Content | `storage.local.onChanged` of `auctionSettings` or `exchangeRates` (WXT `item.watch()`, once per changed key) | reload settings/rates, `sync("settings")` |
 | Content | `SYNC_REQUEST` | reload settings/rates, `sync("request")`, answer the state |
+| Content | WXT `ctx.onInvalidated` (extension reloaded/updated/removed, or a newer copy of the script started in the tab) | `stop()`: disconnect the observer, cancel the pending frame, remove the listeners, `bus.off()`, unsubscribe from storage, remove all annotations |
 | Background | `runtime.onInstalled` | migrate old settings, schedule the daily alarm, refresh the saved rates |
 | Background | `runtime.onStartup` | schedule the alarm if missing (Firefox drops alarms on restart), refresh the saved rates |
 | Background | `alarms.onAlarm` (`refresh-exchange-rates`, daily) | refresh the saved rates |
@@ -246,6 +247,20 @@ The settings of a page are found by `SettingsBook#resolve()`, which tries `SETTI
 | Panel | `#currency` `change` | load the rates of the picked currency |
 | Panel | `#settings` `submit` | validate, save settings + rates under the active tab's `AuctionKey`, refresh the status |
 | Panel | `STATE_CHANGED`, `tabs.onActivated`, `tabs.onUpdated` | refresh the status and the shipment's currency; on another `AuctionKey`, show the settings resolved for it |
+
+### Content script lifecycle
+
+The content script outlives its extension: after a reload or update the old copy keeps running in open tabs with a dead runtime. WXT's `ContentScriptContext` (`ctx`, passed to `main()`) is invalidated when a newer copy starts in the same tab (it announces itself with a DOM event) or when `ctx.isValid` is read while `runtime.id` is gone; `content.ts` then calls `ContentController#stop()`. Nothing polls `ctx.isValid` by itself, so the controller asks it (its `isValid` dependency) before each sync caused by the page - the first DOM change, `popstate` or `hashchange` after the extension went away tears the old copy down. The controller never sees `ctx`, which keeps it testable without WXT.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Loading: main(ctx) → start()
+  Loading --> Running: settings loaded → listeners, sync("load"), observer
+  Loading --> Stopped: stop() before loading finished (no listener is registered)
+  Running --> Running: DOM change / popstate / hashchange (isValid) · SYNC_REQUEST · storage change
+  Running --> Stopped: ctx.onInvalidated → stop()
+  Stopped --> [*]: annotations removed; late syncs return the last state without writing
+```
 
 ### Page load and navigation
 
@@ -300,8 +315,8 @@ sequenceDiagram
   BC-->>PC: { rates } → RatesView (only the latest request is shown)
   User->>PC: Save
   PC->>Store: save(key, settings, rates) — one write
-  Store-)Other: storage.onChanged → reload + sync("settings")
-  Store-)Tab: storage.onChanged → reload + sync("settings")
+  Store-)Other: storage.local.onChanged → reload + sync("settings")
+  Store-)Tab: storage.local.onChanged → reload + sync("settings")
   PC->>BC: GET_ACTIVE_STATE
   BC->>Tab: SYNC_REQUEST (re-reads settings first)
   Tab-->>BC: state
@@ -337,19 +352,20 @@ sequenceDiagram
     API-->>RS: rates (ECB reference)
     RS->>Store: saveRates() — that currency only, a failure keeps the old ones
   end
-  Store-)Tabs: storage.onChanged → reload + sync("settings")
+  Store-)Tabs: storage.local.onChanged → reload + sync("settings")
 ```
 
 ## Build time
 
-The manifests are generated from `platforms/<target>/manifest.json`: `scripts/build.mjs` replaces `$VERSION` (from `package.json`) and `$CONTENT_MATCHES` (from `SITES.matchPatterns()`), so the configured sites decide where the content script is injected.
+WXT generates the manifest of each browser from `wxt.config.ts` and the entry points: the version comes from `package.json`, the content script's `matches` and the `host_permissions` from `SITES.matchPatterns()` (read at build time), so the configured sites decide where the content script is injected. Background, content script and side panel keys follow from the files in `src/entrypoints/` - Chrome gets `side_panel` + the `sidePanel` permission and a service worker, Firefox `sidebar_action` and an event page (`background.scripts`). `import.meta.env.BROWSER` is replaced per build, so `side-panel.ts` keeps only its own branch. `manifest.icons` and the `icons/<size>.png` files come from `@wxt-dev/auto-icons`, which scales `src/assets/icon.png` after bundling.
 
 ```mermaid
 flowchart LR
-  sites["src/core/sites/sites.config.js"] -->|matchPatterns| build["scripts/build.mjs<br/>(esbuild, IIFE, __TARGET__)"]
+  sites["src/core/sites/sites.config.ts"] -->|matchPatterns| build["WXT / Vite<br/>(wxt build -b #lt;browser#gt;)"]
   pkg["package.json<br/>version"] --> build
-  tpl["platforms/#lt;target#gt;/manifest.json"] --> build
-  src["src/**"] --> build
+  cfg["wxt.config.ts<br/>manifest"] --> build
+  entry["src/entrypoints/**"] --> build
+  icon["src/assets/icon.png"] -->|"@wxt-dev/auto-icons"| build
   build --> dist["dist/chrome<br/>dist/firefox"]
-  dist -->|npm run package| zip["build/minerva-#lt;version#gt;-#lt;target#gt;.zip"]
+  dist -->|npm run package| zip["dist/minerva-#lt;version#gt;-#lt;browser#gt;.zip<br/>+ sources zip"]
 ```

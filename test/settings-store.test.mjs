@@ -1,39 +1,33 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { fakeBrowser } from "wxt/testing/fake-browser";
 
-import { SettingsStore } from "../src/browser/SettingsStore.js";
-import { ExchangeRates } from "../src/core/rates/ExchangeRates.js";
-import { AuctionKey } from "../src/core/settings/AuctionKey.js";
-import { Settings } from "../src/core/settings/Settings.js";
+import { ExchangeRates } from "../src/core/rates/ExchangeRates.ts";
+import { AuctionKey } from "../src/core/settings/AuctionKey.ts";
+import { Settings } from "../src/core/settings/Settings.ts";
 
-/** An in-memory storage.local that records every write, plus its onChanged listeners. */
-function fakeExt(initial = {}) {
-  const data = structuredClone(initial);
-  const ext = {
-    data,
-    writes: [],
-    listeners: [],
-    storage: {
-      local: {
-        get: async (keys) =>
-          Object.fromEntries(
-            [keys]
-              .flat()
-              .filter((k) => k in data)
-              .map((k) => [k, data[k]]),
-          ),
-        set: async (items) => {
-          ext.writes.push(structuredClone(items));
-          Object.assign(data, structuredClone(items));
-        },
-        remove: async (keys) => {
-          for (const key of [keys].flat()) delete data[key];
-        },
-      },
-      onChanged: { addListener: (listener) => ext.listeners.push(listener) },
-    },
-  };
-  return ext;
+// SettingsStore uses wxt/utils/storage, which binds to the global extension API
+// when it is first imported: put WXT's in-memory fake there before.
+Object.assign(globalThis, { browser: fakeBrowser });
+const { SettingsStore } = await import("../src/browser/SettingsStore.ts");
+
+const local = fakeBrowser.storage.local;
+
+/**
+ * Start `t` with exactly `initial` in storage.local; records every write from then on.
+ * @param {import("node:test").TestContext} t
+ * @param {Record<string, unknown>} [initial]
+ */
+async function storageWith(t, initial = {}) {
+  fakeBrowser.reset();
+  await local.set(initial);
+  const writes = [];
+  const set = local.set.bind(local);
+  t.mock.method(local, "set", (items) => {
+    writes.push(structuredClone(items));
+    return set(items);
+  });
+  return { writes, data: async () => /** @type {Record<string, any>} */ (await local.get()) };
 }
 
 const GBP = new Settings({ auctionPremium: 20, shipment: 15, currency: "GBP" });
@@ -44,18 +38,19 @@ const BIDDR = "https://www.biddr.com";
 const AUCTION = new AuctionKey({ site: BIDDR, house: "leu", auction: "7" });
 const SITE = new AuctionKey({ site: BIDDR });
 
-test("loads an empty book and no rates when nothing is saved", async () => {
-  const { book, rates } = await new SettingsStore(fakeExt()).load();
+test("loads an empty book and no rates when nothing is saved", async (t) => {
+  await storageWith(t);
+  const { book, rates } = await new SettingsStore().load();
   assert.deepEqual(book.entries, []);
   assert.deepEqual(rates, {});
 });
 
-test("saves settings and their rates in one write and loads them back", async () => {
-  const ext = fakeExt();
-  const store = new SettingsStore(ext);
+test("saves settings and their rates in one write and loads them back", async (t) => {
+  const { writes, data } = await storageWith(t);
+  const store = new SettingsStore();
   await store.save(AUCTION, GBP, GBP_RATES);
-  assert.equal(ext.writes.length, 1);
-  assert.deepEqual(ext.data, {
+  assert.equal(writes.length, 1);
+  assert.deepEqual(await data(), {
     auctionSettings: [{ site: BIDDR, house: "leu", auction: "7", settings: GBP.toJSON() }],
     exchangeRates: { GBP: GBP_RATES.toJSON() },
   });
@@ -64,9 +59,9 @@ test("saves settings and their rates in one write and loads them back", async ()
   assert.deepEqual(rates, { GBP: GBP_RATES });
 });
 
-test("keeps the settings of other auctions and the rates of other currencies", async () => {
-  const ext = fakeExt();
-  const store = new SettingsStore(ext);
+test("keeps the settings of other auctions and the rates of other currencies", async (t) => {
+  const { data } = await storageWith(t);
+  const store = new SettingsStore();
   await store.save(SITE, CHF, CHF_RATES);
   await store.save(AUCTION, GBP, GBP_RATES);
   await store.save(AUCTION, Settings.from({ ...GBP.toJSON(), shipment: 9 }));
@@ -81,70 +76,111 @@ test("keeps the settings of other auctions and the rates of other currencies", a
   assert.deepEqual(rates, { CHF: CHF_RATES, GBP: GBP_RATES });
 
   await store.saveRates(ExchangeRates.empty("CHF"));
-  assert.deepEqual(ext.data.exchangeRates.GBP, GBP_RATES.toJSON());
-  assert.equal(ext.data.auctionSettings.length, 2);
+  const saved = await data();
+  assert.deepEqual(saved.exchangeRates.GBP, GBP_RATES.toJSON());
+  assert.equal(saved.auctionSettings.length, 2);
 });
 
-test("ignores rates saved under another currency than their base", async () => {
-  const ext = fakeExt({ exchangeRates: { EUR: GBP_RATES.toJSON(), GBP: GBP_RATES.toJSON() } });
-  const { rates } = await new SettingsStore(ext).load();
+test("ignores rates saved under another currency than their base", async (t) => {
+  await storageWith(t, { exchangeRates: { EUR: GBP_RATES.toJSON(), GBP: GBP_RATES.toJSON() } });
+  const { rates } = await new SettingsStore().load();
   assert.deepEqual(rates, { GBP: GBP_RATES });
 });
 
-test("reports changes of its own keys in local storage only", () => {
-  const ext = fakeExt();
+test("reads malformed stored data as nothing saved", async (t) => {
+  await storageWith(t, { auctionSettings: "broken", exchangeRates: 42 });
+  const { book, rates } = await new SettingsStore().load();
+  assert.deepEqual(book.entries, []);
+  assert.deepEqual(rates, {});
+});
+
+test("reports changes of its own keys in local storage only", async (t) => {
+  await storageWith(t);
   let calls = 0;
-  new SettingsStore(ext).onChange(() => (calls += 1));
-  const [listener] = ext.listeners;
-  listener({ auctionSettings: {} }, "local");
-  listener({ exchangeRates: {} }, "local");
-  listener({ unrelated: {} }, "local");
-  listener({ auctionSettings: {} }, "sync");
+  new SettingsStore().onChange(() => (calls += 1));
+  await local.set({ auctionSettings: [] });
+  await local.set({ exchangeRates: { GBP: GBP_RATES.toJSON() } });
+  await local.set({ unrelated: 1 });
+  await fakeBrowser.storage.sync.set({ auctionSettings: [{ site: BIDDR }] });
   assert.equal(calls, 2);
+});
+
+test("a save is one change event; every notification sees settings and rates together", async (t) => {
+  await storageWith(t);
+  const store = new SettingsStore();
+  let events = 0;
+  local.onChanged.addListener(() => (events += 1));
+  const seen = [];
+  store.onChange(() => seen.push(store.load()));
+  await store.save(AUCTION, GBP, GBP_RATES);
+  assert.equal(events, 1);
+  // Once per changed key (WXT watches keys one by one), always with both new values.
+  assert.equal(seen.length, 2);
+  for (const { book, rates } of await Promise.all(seen)) {
+    assert.deepEqual(book.resolve(AUCTION)?.settings, GBP);
+    assert.deepEqual(rates, { GBP: GBP_RATES });
+  }
+});
+
+test("stops reporting changes once unsubscribed", async (t) => {
+  await storageWith(t);
+  let calls = 0;
+  const unsubscribe = new SettingsStore().onChange(() => (calls += 1));
+  unsubscribe();
+  await local.set({ auctionSettings: [] });
+  assert.equal(calls, 0);
 });
 
 const SITES = [BIDDR, "https://www.numisbids.com"];
 const forEverySite = (settings) =>
   SITES.map((site) => ({ site, house: null, auction: null, settings: settings.toJSON() }));
 
-test("migrates the settings of 0.1.0 to settings of every site", async () => {
-  const ext = fakeExt({ settings: GBP.toJSON(), exchangeRates: GBP_RATES.toJSON(), unrelated: 1 });
-  assert.equal(await new SettingsStore(ext).migrate(SITES), true);
-  assert.deepEqual(ext.data, {
+test("migrates the settings of 0.1.0 to settings of every site", async (t) => {
+  const { data } = await storageWith(t, {
+    settings: GBP.toJSON(),
+    exchangeRates: GBP_RATES.toJSON(),
+    unrelated: 1,
+  });
+  assert.equal(await new SettingsStore().migrate(SITES), true);
+  assert.deepEqual(await data(), {
     auctionSettings: forEverySite(GBP),
     exchangeRates: { GBP: GBP_RATES.toJSON() },
     unrelated: 1,
   });
 });
 
-test("migrates settings saved with one key per setting", async () => {
-  const ext = fakeExt({
+test("migrates settings saved with one key per setting", async (t) => {
+  const { data } = await storageWith(t, {
     "settings.auctionPremium": 20,
     "settings.shipment": 15,
     "settings.currency": "GBP",
     "settings.exchangeRates": GBP_RATES.toJSON(),
     unrelated: 1,
   });
-  assert.equal(await new SettingsStore(ext).migrate(SITES), true);
-  assert.deepEqual(ext.data, {
+  assert.equal(await new SettingsStore().migrate(SITES), true);
+  assert.deepEqual(await data(), {
     auctionSettings: forEverySite(GBP),
     exchangeRates: { GBP: GBP_RATES.toJSON() },
     unrelated: 1,
   });
 });
 
-test("migration keeps settings already saved per auction", async () => {
+test("migration keeps settings already saved per auction", async (t) => {
   const saved = [{ ...AUCTION.toJSON(), settings: CHF.toJSON() }];
-  const ext = fakeExt({ auctionSettings: saved, settings: GBP.toJSON(), "settings.shipment": 99 });
-  assert.equal(await new SettingsStore(ext).migrate(SITES), true);
-  assert.deepEqual(ext.data, { auctionSettings: saved });
+  const { data } = await storageWith(t, {
+    auctionSettings: saved,
+    settings: GBP.toJSON(),
+    "settings.shipment": 99,
+  });
+  assert.equal(await new SettingsStore().migrate(SITES), true);
+  assert.deepEqual(await data(), { auctionSettings: saved });
 });
 
-test("migration does nothing in the current layout", async () => {
-  const ext = fakeExt({
+test("migration does nothing in the current layout", async (t) => {
+  const { writes } = await storageWith(t, {
     auctionSettings: [{ ...AUCTION.toJSON(), settings: GBP.toJSON() }],
     exchangeRates: { GBP: GBP_RATES.toJSON() },
   });
-  assert.equal(await new SettingsStore(ext).migrate(SITES), false);
-  assert.equal(ext.writes.length, 0);
+  assert.equal(await new SettingsStore().migrate(SITES), false);
+  assert.equal(writes.length, 0);
 });

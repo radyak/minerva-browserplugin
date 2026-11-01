@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { Settings } from "../src/core/settings/Settings.js";
+import { Settings } from "../src/core/settings/Settings.ts";
 
 test("falls back to the defaults without stored values", () => {
   assert.deepEqual(Settings.from(undefined), Settings.DEFAULT);

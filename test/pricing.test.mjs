@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { EffectivePriceCalculator } from "../src/core/pricing/EffectivePriceCalculator.js";
-import { PriceCalculator } from "../src/core/pricing/PriceCalculator.js";
-import { convertPrice } from "../src/core/price.js";
-import { ExchangeRates } from "../src/core/rates/ExchangeRates.js";
-import { Settings } from "../src/core/settings/Settings.js";
+import { EffectivePriceCalculator } from "../src/core/pricing/EffectivePriceCalculator.ts";
+import { PriceCalculator } from "../src/core/pricing/PriceCalculator.ts";
+import { convertPrice } from "../src/core/price.ts";
+import { ExchangeRates } from "../src/core/rates/ExchangeRates.ts";
+import { Settings } from "../src/core/settings/Settings.ts";
 
 const CALCULATOR = new EffectivePriceCalculator();
 const EUR_SETTINGS = new Settings({ auctionPremium: 0, shipment: 0, currency: "EUR" });
