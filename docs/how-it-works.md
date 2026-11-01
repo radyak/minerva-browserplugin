@@ -10,7 +10,7 @@ What the extension does on a page and in the panel, from the user's point of vie
 - For every match, the element's text is parsed by `src/core/price.ts`, the
   effective price is calculated by the site's calculator - by default
   `effectivePrice` in `src/core/pricing/` (see [The effective price](#the-effective-price)
-  below), and the result is inserted as a sibling right after the price element (same tag, class `minerva-effective-price`, `aria-live="polite"`). The
+  below), and the result is inserted as a sibling right after the price element (same tag - a `span` for buttons and links - class `minerva-effective-price`, `aria-live="polite"`; centred or right-aligned below a full-width price whose text is aligned that way). The
   price element itself is never modified. Re-running is idempotent: the
   annotation is only written when its text actually changes, so the extension's
   own DOM writes cannot drive the observer in circles.

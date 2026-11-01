@@ -145,6 +145,11 @@ hand), linting is ESLint's recommended set plus `typescript-eslint`'s for `.ts`/
   the whole document. An unconditional write turns into an infinite observer loop. Any new DOM
   write belongs into `AnnotationView`, with the same "only on change" guard. `PriceAnnotator`
   decides *what* to show (wrapper rule, pricing).
+- **The annotation's layout follows the price element without touching it:** controls are not
+  copied as the tag (a `span` instead), and `data-minerva-align` (`AnnotationView#alignment()`,
+  from the element's computed `text-align` and whether it fills its container) lets
+  `content.css` centre or right-align the bubble; `fit-content` keeps flex/grid containers from
+  stretching it. The alignment is read on every sync, so it is written only on change, too.
 - **Never annotate our own output** — `AnnotationView.query()` skips elements carrying
   `ANNOTATION_CLASS` (`minerva-effective-price`), which matters because `priceSelectors` are site
   selectors that may well match the sibling too.

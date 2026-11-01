@@ -211,10 +211,13 @@ For every price element on a configured site, `AnnotationView` inserts one sibli
 
 | Part | Meaning |
 | --- | --- |
-| same tag as the price element | flows like the price itself |
+| same tag as the price element | flows like the price itself; a `span` instead for controls (`button`, `a`, `input`, `label`, …), so it never becomes a focusable control or picks up the page's styles for them |
 | `class="minerva-effective-price"` | `ANNOTATION_CLASS`; styled by `content.css` as a speech bubble with Minerva (`::before`) and its tail (`::after`), so the DOM stays one element; never read back as a price |
 | `data-minerva-source` | the price text the result was computed from |
 | `data-minerva-unparsable` | present while the annotation shows `n/a` (greyed out) |
+| `data-minerva-align` | `center` / `right` when the price element takes the whole width of its container and aligns its text that way (a centred block, a full-width button): the bubble then sits on its own line below, aligned alike; absent otherwise. Re-checked on every sync (`AnnotationView#alignment()`) |
+
+The bubble is always as wide as its text (`width: fit-content`, no flex growth), also in containers that stretch their children.
 
 ```mermaid
 stateDiagram-v2

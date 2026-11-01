@@ -250,3 +250,58 @@ test("an element matched by several selectors is annotated once", () => {
     ["600 EUR", "1099 EUR"],
   );
 });
+
+/** A document holding `html`, whose `.price` is laid out `width` wide in a 300px container. */
+function laidOut(html: string, { width = 300 } = {}) {
+  const doc = new JSDOM(`<div id="box">${html}</div>`).window.document;
+  // jsdom does no layout: give the container and the price element their sizes.
+  Object.defineProperty(doc.getElementById("box"), "clientWidth", { value: 300 });
+  const price = doc.querySelector(SELECTOR)!;
+  price.getBoundingClientRect = () => ({ width }) as DOMRect;
+  return doc;
+}
+const align = (doc: Document) => (annotations(doc)[0] as HTMLElement).dataset.minervaAlign;
+
+test("a price on a control gets a plain span, not another control", () => {
+  const doc = laidOut(`<button class="price">500 EUR bieten</button>`);
+  annotate(doc);
+  assert.equal(annotations(doc)[0]!.tagName, "SPAN");
+  assert.equal(annotations(doc)[0]!.textContent, "600 EUR bieten");
+});
+
+test("below a full-width price, the annotation is aligned like the price's text", () => {
+  const centred = laidOut(`<div class="price" style="text-align: center">500 EUR</div>`);
+  annotate(centred);
+  assert.equal(align(centred), "center");
+  // A button centres its text by default.
+  const button = laidOut(`<button class="price" style="display: inline-block">500 EUR</button>`);
+  annotate(button);
+  assert.equal(align(button), "center");
+  const right = laidOut(`<div class="price" style="text-align: right">500 EUR</div>`);
+  annotate(right);
+  assert.equal(align(right), "right");
+  const left = laidOut(`<div class="price">500 EUR</div>`);
+  annotate(left);
+  assert.equal(align(left), undefined);
+});
+
+test("a narrower or inline price is simply followed by its annotation", () => {
+  const narrow = laidOut(
+    `<button class="price" style="display: inline-block; text-align: center">500 EUR</button>`,
+    { width: 120 },
+  );
+  annotate(narrow);
+  assert.equal(align(narrow), undefined);
+  const inline = laidOut(`<span class="price" style="text-align: center">500 EUR</span>`);
+  annotate(inline);
+  assert.equal(align(inline), undefined);
+});
+
+test("the alignment follows the price when its layout changes", () => {
+  const doc = laidOut(`<div class="price" style="text-align: center">500 EUR</div>`);
+  annotate(doc);
+  assert.equal(align(doc), "center");
+  (doc.querySelector(SELECTOR) as HTMLElement).style.textAlign = "left";
+  annotate(doc);
+  assert.equal(align(doc), undefined);
+});

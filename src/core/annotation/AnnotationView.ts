@@ -10,6 +10,28 @@ export interface Annotation {
 }
 
 /**
+ * How the annotation lines up with its price element: on a line of its own,
+ * centred or at the right, like the element's text (`data-minerva-align`,
+ * styled by content.css); null to simply follow it in the flow.
+ */
+export type Alignment = "center" | "right" | null;
+
+/**
+ * Tags not to copy for the annotation: it would become a focusable control
+ * that does nothing (and pick up the page's styles for its controls).
+ */
+const INTERACTIVE = new Set([
+  "A",
+  "BUTTON",
+  "INPUT",
+  "LABEL",
+  "OPTION",
+  "SELECT",
+  "SUMMARY",
+  "TEXTAREA",
+]);
+
+/**
  * The annotations in one document: the sibling elements carrying
  * ANNOTATION_CLASS that show the effective price next to a price element.
  * The only class that writes to the page.
@@ -59,6 +81,44 @@ export class AnnotationView {
     } else if (!unresolved && "minervaUnparsable" in sibling.dataset) {
       delete sibling.dataset.minervaUnparsable;
     }
+    const align = this.alignment(element);
+    if (align && sibling.dataset.minervaAlign !== align) {
+      sibling.dataset.minervaAlign = align;
+    } else if (!align && "minervaAlign" in sibling.dataset) {
+      delete sibling.dataset.minervaAlign;
+    }
+  }
+
+  /**
+   * How the annotation of `element` lines up with it. An element taking the
+   * whole width of its container (a block, a full-width button) gets its
+   * annotation on the line below, aligned like its own text - a centred price
+   * gets a centred bubble. Anything narrower is simply followed by it.
+   */
+  alignment(element: Element): Alignment {
+    const view = this.doc.defaultView;
+    const parent = element.parentElement;
+    if (!view || !parent) return null;
+    const style = view.getComputedStyle(element);
+    if (style.display === "inline" || style.display === "contents") return null;
+    const align = style.textAlign.replace(/^-webkit-/, "");
+    const rtl = style.direction === "rtl";
+    const side =
+      align === "center"
+        ? "center"
+        : align === "right" || (align === "end" && !rtl) || (align === "start" && rtl)
+          ? "right"
+          : null;
+    if (!side) return null;
+    // As wide as the container's content box, margins included (1px for rounding).
+    const box = view.getComputedStyle(parent);
+    const available =
+      parent.clientWidth - parseFloat(box.paddingLeft || "0") - parseFloat(box.paddingRight || "0");
+    const used =
+      element.getBoundingClientRect().width +
+      parseFloat(style.marginLeft || "0") +
+      parseFloat(style.marginRight || "0");
+    return used >= available - 1 ? side : null;
   }
 
   /**
@@ -91,8 +151,10 @@ export class AnnotationView {
   }
 
   #insert(element: Element): HTMLElement {
-    // Mirror the tag so the annotation flows the same way as the price itself.
-    const annotation = this.doc.createElement(element.tagName);
+    // Mirror the tag so the annotation flows the same way as the price itself -
+    // except for controls: a price on a button gets a plain span.
+    const tag = INTERACTIVE.has(element.tagName) ? "span" : element.tagName;
+    const annotation = this.doc.createElement(tag);
     annotation.className = ANNOTATION_CLASS;
     annotation.setAttribute("aria-live", "polite");
     element.insertAdjacentElement("afterend", annotation);
