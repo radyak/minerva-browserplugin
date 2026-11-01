@@ -56,8 +56,33 @@ test("an unusable value does not affect the valid ones", () => {
 
 test("turns settings back into plain data", () => {
   const settings = new Settings({ auctionPremium: 15.5, shipment: 7, currency: "CHF" });
-  assert.deepEqual(settings.toJSON(), { auctionPremium: 15.5, shipment: 7, currency: "CHF" });
+  assert.deepEqual(settings.toJSON(), {
+    auctionPremium: 15.5,
+    shipment: 7,
+    lotsWon: 1,
+    hammerVat: 0,
+    currency: "CHF",
+  });
   assert.deepEqual(Settings.from(structuredClone(settings.toJSON())), settings);
+});
+
+test("reads data saved before lots won and hammer VAT existed with their defaults", () => {
+  const settings = Settings.from({ auctionPremium: 20, shipment: 15, currency: "GBP" });
+  assert.equal(settings.lotsWon, 1);
+  assert.equal(settings.hammerVat, 0);
+});
+
+test("accepts whole numbers of lots from 1 and a hammer VAT up to 100 %", () => {
+  assert.equal(Settings.from({ lotsWon: 3 }).lotsWon, 3);
+  assert.equal(Settings.from({ lotsWon: "999" }).lotsWon, 999);
+  for (const lotsWon of [0, 1.5, -2, 1000, "two", true]) {
+    assert.equal(Settings.from({ lotsWon }).lotsWon, 1, `${lotsWon}`);
+  }
+  assert.equal(Settings.from({ hammerVat: 19 }).hammerVat, 19);
+  assert.equal(Settings.from({ hammerVat: 100 }).hammerVat, 100);
+  for (const hammerVat of [-1, 100.1, "", null]) {
+    assert.equal(Settings.from({ hammerVat }).hammerVat, 0, `${hammerVat}`);
+  }
 });
 
 test("is immutable", () => {

@@ -18,7 +18,7 @@ export const SITES: readonly AuctionSite[] = [
     priceSelectors: [
       ".current-bid",
       '.lot-price > div:nth-child(2) > span[class^="a-cb-"]',
-      ".lot-price > div:nth-child(2)",
+      ".lot-price > div:nth-child(2)"
     ],
     // https://www.biddr.com/agorawien/auction?a=7522&l=9222559
     ids: { house: { path: "/:id/auction" }, auction: { query: "a" } },

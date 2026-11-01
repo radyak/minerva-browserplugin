@@ -6,6 +6,7 @@ import { afterEach, test } from "vitest";
 import { MSG } from "../src/core/messages.ts";
 import { ExchangeRates } from "../src/core/rates/ExchangeRates.ts";
 import { AuctionKey } from "../src/core/settings/AuctionKey.ts";
+import { BuyerCosts } from "../src/core/settings/BuyerCosts.ts";
 import { Settings } from "../src/core/settings/Settings.ts";
 import { defineSite } from "../src/core/sites/sites.ts";
 import { Panel } from "../src/panel/Panel.tsx";
@@ -89,6 +90,7 @@ async function openPanel({
   tab = { id: 1, url: `${SHOP}/lot/1` } as object | null,
   settled = true,
   version = undefined as string | undefined,
+  buyer = BuyerCosts.DEFAULT,
 } = {}) {
   let current = state;
   const tabs = fakeTabs(tab);
@@ -106,7 +108,7 @@ async function openPanel({
       },
     },
   });
-  const store = fakeStore({ book });
+  const store = fakeStore({ book, buyer });
   const view = render(
     <Panel tabs={tabs as any} bus={bus} store={store} sites={SITES} version={version} />,
   );
@@ -206,7 +208,7 @@ test("shows the form and the auction only while the tab is on an auction", async
   assert.equal(status(), "checking…");
   await flush();
   assert.equal(form(), null);
-  screen.getByText("No auction or platform active");
+  screen.getByText("No auction or site active");
   assert.equal(status(), "inactive");
   assert.equal(screen.queryByText("Auction house"), null);
 });
@@ -471,4 +473,120 @@ test("shows the build version at the bottom of the panel", async () => {
 test("shows the development version when none is passed", async () => {
   await openPanel();
   screen.getByText("v0.0.0-dev");
+});
+
+const toggle = (label: string) => fireEvent.click(screen.getByRole("switch", { name: label }));
+const shown = (label: string) => screen.queryByLabelText(label) !== null;
+const invalidInput = (label: string) => input(label).classList.contains("is-invalid");
+/** The breakdown's rows as "label | amount", decimal commas read as points. */
+const breakdown = () =>
+  [...screen.getByRole("table", { name: "Price breakdown" }).querySelectorAll("tr")].map((row) =>
+    [...row.cells]
+      .map((cell) =>
+        cell.textContent.replace(/(\d)[.,](?=\d{3}\b)/g, "$1").replace(/(\d),(\d)/g, "$1.$2"),
+      )
+      .join(" | "),
+  );
+
+test("shows the hammer VAT only while its switch is on, and requires a rate then", async () => {
+  const { store } = await openPanel();
+  assert.equal(shown("Hammer price VAT"), false);
+  toggle("VAT on the hammer price");
+  assert.equal(input("Hammer price VAT").value, "");
+  await submit();
+  assert.deepEqual(store.saved, []);
+  assert.equal(invalidInput("Hammer price VAT"), true);
+
+  type("Hammer price VAT", "19");
+  await submit();
+  assert.equal(store.saved.at(-1).settings.hammerVat, 19);
+  assert.equal(input("Hammer price VAT").value, "19");
+
+  // Switched off, it is saved as none.
+  toggle("VAT on the hammer price");
+  assert.equal(shown("Hammer price VAT"), false);
+  await submit();
+  assert.equal(store.saved.at(-1).settings.hammerVat, 0);
+});
+
+test("only accepts whole numbers of lots won, from 1", async () => {
+  const { store } = await openPanel();
+  assert.equal(input("Lots won").value, "1");
+  for (const lots of ["0", "1.5"]) {
+    type("Lots won", lots);
+    await submit();
+    assert.equal(invalidInput("Lots won"), true, lots);
+  }
+  assert.deepEqual(store.saved, []);
+  type("Lots won", "3");
+  await submit();
+  assert.equal(store.saved[0].settings.lotsWon, 3);
+});
+
+test("saves the buyer costs for every auction, keeping them while switched off", async () => {
+  const { store } = await openPanel();
+  assert.equal(shown("Import VAT"), false);
+  toggle("Add import and payment costs");
+  type("Import VAT", "7");
+  type("Payment costs", "2.5");
+  type("Flat fees", "15");
+  // The flat fees are in the picked currency.
+  assert.equal(input("Flat fees").nextElementSibling!.textContent, "GBP");
+  type("Payment costs", "101");
+  await submit();
+  assert.equal(invalidInput("Payment costs"), true);
+  assert.deepEqual(store.saved, []);
+
+  type("Payment costs", "2.5");
+  await submit();
+  const costs = new BuyerCosts({ enabled: true, importVat: 7, paymentCosts: 2.5, flatFees: 15 });
+  assert.deepEqual(store.buyer, costs);
+
+  toggle("Add import and payment costs");
+  assert.equal(shown("Import VAT"), false);
+  await submit();
+  assert.deepEqual(store.buyer, BuyerCosts.from({ ...costs.toJSON(), enabled: false }));
+  toggle("Add import and payment costs");
+  assert.equal(input("Import VAT").value, "7");
+});
+
+test("shows the saved buyer costs on every auction", async () => {
+  const buyer = new BuyerCosts({ enabled: true, importVat: 7, paymentCosts: 0, flatFees: 0 });
+  const { navigate } = await openPanel({ buyer });
+  assert.equal(
+    screen.getByRole<HTMLInputElement>("switch", { name: /import and payment/ }).checked,
+    true,
+  );
+  assert.equal(input("Import VAT").value, "7");
+  await navigate({ site: "https://other.test", house: "x", auction: "1" });
+  assert.equal(input("Import VAT").value, "7");
+});
+
+test("breaks an example price of the page down with the entered values", async () => {
+  await openPanel();
+  // 1000 USD + 20 % premium + 7 USD shipment, at 1 GBP = 1.2 USD.
+  assert.deepEqual(breakdown(), [
+    "Hammer price | 1000.00 USD",
+    "+ Premium 20 % | 200.00 USD",
+    "+ Shipment 7 | 7.00 USD",
+    "= Invoice share | 1207.00 USD",
+    "= In GBP (1 USD = 0.8333 GBP) | 1005.83 GBP",
+    "= Effective price | 1005.83 GBP",
+  ]);
+
+  // Unsaved values count, parts that are 0 are left out.
+  type("Shipment", "0");
+  type("Lots won", "2");
+  toggle("Add import and payment costs");
+  type("Import VAT", "10");
+  type("Flat fees", "20");
+  assert.deepEqual(breakdown(), [
+    "Hammer price | 1000.00 USD",
+    "+ Premium 20 % | 200.00 USD",
+    "= Invoice share | 1200.00 USD",
+    "= In GBP (1 USD = 0.8333 GBP) | 1000.00 GBP",
+    "+ Import VAT 10 % | 100.00 GBP",
+    "+ Flat fees 20 ÷ 2 lots | 10.00 GBP",
+    "= Effective price | 1110.00 GBP",
+  ]);
 });

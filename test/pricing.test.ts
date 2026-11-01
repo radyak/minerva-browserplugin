@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import { effectivePrice } from "../src/core/pricing/PriceCalculator.ts";
+import { effectivePrice, priceBreakdown } from "../src/core/pricing/PriceCalculator.ts";
 import { convertPrice } from "../src/core/price.ts";
 import { ExchangeRates } from "../src/core/rates/ExchangeRates.ts";
+import { BuyerCosts } from "../src/core/settings/BuyerCosts.ts";
 import { Settings } from "../src/core/settings/Settings.ts";
 
 const EUR_SETTINGS = new Settings({ auctionPremium: 0, shipment: 0, currency: "EUR" });
@@ -55,4 +56,61 @@ test("is undefined for a rate that is not a finite number", () => {
     const rates = new ExchangeRates("EUR", "", { USD: rate });
     assert.equal(effectivePrice(500, "USD", EUR_SETTINGS, rates), undefined, `${rate}`);
   }
+});
+
+const BUYER = new BuyerCosts({ enabled: true, importVat: 7, paymentCosts: 3, flatFees: 20 });
+
+test("splits the shipment over the lots expected to win", () => {
+  assert.equal(calculate(500, "EUR", { shipment: 30, lotsWon: 3 }), 510);
+});
+
+test("adds the hammer VAT on the hammer price only, the premium carrying its own", () => {
+  // 1000 + 23.8 % effective premium + 19 % VAT on the hammer price.
+  assert.equal(calculate(1000, "EUR", { auctionPremium: 23.8, hammerVat: 19 }), 1428);
+});
+
+test("adds payment costs and import VAT on the converted lot, flat fees per lot", () => {
+  const price = (buyer, lotsWon = 1) =>
+    effectivePrice(
+      500,
+      "USD",
+      new Settings({ ...EUR_SETTINGS, shipment: 100, lotsWon }),
+      INTO_EUR,
+      buyer,
+    );
+  // 500 USD + 100 USD shipment = 600 USD = 300 EUR, + 3 % + 7 % = 330, + 20 fees = 350.
+  assert.equal(price(BUYER), 350);
+  // Two lots: (500 + 50) / 2 = 275 EUR, + 10 % = 302.50, + 10 fees.
+  assert.equal(price(BUYER, 2), 312.5);
+  assert.equal(price(BuyerCosts.from({ ...BUYER.toJSON(), enabled: false })), 300);
+  assert.equal(price(undefined), 300);
+});
+
+test("breaks the price down part by part", () => {
+  const settings = new Settings({
+    auctionPremium: 20,
+    shipment: 30,
+    lotsWon: 3,
+    hammerVat: 10,
+    currency: "EUR",
+  });
+  assert.deepEqual(priceBreakdown(1000, "USD", settings, INTO_EUR, BUYER), {
+    auction: {
+      currency: "USD",
+      hammer: 1000,
+      premium: 200,
+      hammerVat: 100,
+      shipment: 10,
+      lot: 1310,
+    },
+    buyer: {
+      currency: "EUR",
+      lot: 655,
+      payment: 19.65,
+      importVat: 45.85,
+      flatFees: 20 / 3,
+      total: 655 + 19.65 + 45.85 + 20 / 3,
+    },
+  });
+  assert.equal(priceBreakdown(1000, "GBP", settings, INTO_EUR, BUYER), undefined);
 });

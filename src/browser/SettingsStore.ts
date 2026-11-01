@@ -2,6 +2,7 @@ import { storage, type WxtStorageItem } from "wxt/utils/storage";
 
 import { ExchangeRates, type ExchangeRatesJSON } from "../core/rates/ExchangeRates.ts";
 import type { AuctionKey } from "../core/settings/AuctionKey.ts";
+import { BuyerCosts, type BuyerCostsJSON } from "../core/settings/BuyerCosts.ts";
 import type { Settings } from "../core/settings/Settings.ts";
 import { SettingsBook, type SettingsEntryJSON } from "../core/settings/SettingsBook.ts";
 
@@ -15,8 +16,9 @@ export type StoredLayout = { auctionSettings: unknown; exchangeRates: unknown };
 export type Migration = (stored: StoredLayout) => StoredLayout;
 
 /**
- * The settings saved per auction and the exchange rates to convert into their
- * currencies, in browser.storage.local. The panel writes, the content script
+ * The settings saved per auction, the buyer's own costs (saved once, for every
+ * auction) and the exchange rates to convert into the settings' currencies, in
+ * browser.storage.local. The panel writes, the content script
  * reads; storage is the channel between them (see CLAUDE.md, "Settings and the
  * effective price").
  *
@@ -24,13 +26,16 @@ export type Migration = (stored: StoredLayout) => StoredLayout;
  * extension API when it is imported - the tests put WXT's `fakeBrowser` there.
  *
  * Layout: `{ auctionSettings: SettingsBook#toJSON(), exchangeRates: { [base]:
- * ExchangeRates#toJSON() }, storageVersion }`.
+ * ExchangeRates#toJSON() }, buyerCosts: BuyerCosts#toJSON(), storageVersion }`.
+ * Settings and buyer costs read missing values as their defaults, so adding a
+ * value to either needs no new layout version.
  */
 export class SettingsStore {
   /** browser.storage.local keys. */
   static KEYS = Object.freeze({
     settings: "auctionSettings",
     exchangeRates: "exchangeRates",
+    buyerCosts: "buyerCosts",
     version: "storageVersion",
   });
 
@@ -48,6 +53,7 @@ export class SettingsStore {
   // Stored data may be malformed; `load()` validates whatever it reads.
   readonly #settings: WxtStorageItem<SettingsEntryJSON[], Record<string, never>>;
   readonly #rates: WxtStorageItem<Record<string, ExchangeRatesJSON>, Record<string, never>>;
+  readonly #buyer: WxtStorageItem<BuyerCostsJSON | null, Record<string, never>>;
   /** null when nothing recorded it yet: data stored without a version is of version 1. */
   readonly #version: WxtStorageItem<number | null, Record<string, never>>;
   readonly #layout: { version: number; migrations: Readonly<Record<number, Migration>> };
@@ -57,33 +63,41 @@ export class SettingsStore {
     const { KEYS } = SettingsStore;
     this.#settings = storage.defineItem(`local:${KEYS.settings}`, { fallback: [] });
     this.#rates = storage.defineItem(`local:${KEYS.exchangeRates}`, { fallback: {} });
+    this.#buyer = storage.defineItem<BuyerCostsJSON>(`local:${KEYS.buyerCosts}`);
     this.#version = storage.defineItem<number>(`local:${KEYS.version}`);
     this.#layout = { version, migrations };
   }
 
   /**
-   * The saved settings and the saved rates per base currency, read together
-   * (one storage.local.get, so never settings of one write with rates of
-   * another) and converted to the current layout first if they are older.
+   * The saved settings, the saved rates per base currency and the buyer costs,
+   * read together (one storage.local.get, so never settings of one write with
+   * rates of another) and converted to the current layout first if they are older.
    */
-  async load(): Promise<{ book: SettingsBook; rates: RatesByCurrency }> {
-    const { stored } = await this.#read();
+  async load(): Promise<{ book: SettingsBook; rates: RatesByCurrency; buyer: BuyerCosts }> {
+    const { stored, buyer } = await this.#read();
     return {
       book: SettingsBook.from(stored.auctionSettings),
       rates: ratesFrom(stored.exchangeRates),
+      buyer: BuyerCosts.from(buyer),
     };
   }
 
   /**
    * Save `settings` for the auction of `key`, and the rates of their currency
-   * when given, in one write - so listeners get one change event and never see
-   * new settings without their rates.
+   * and the buyer costs when given, in one write - so listeners get one change
+   * event and never see new settings without their rates.
    */
-  async save(key: AuctionKey, settings: Settings, rates?: ExchangeRates): Promise<void> {
+  async save(
+    key: AuctionKey,
+    settings: Settings,
+    rates?: ExchangeRates,
+    buyer?: BuyerCosts,
+  ): Promise<void> {
     const { book, rates: saved } = await this.load();
     await storage.setItems([
       { item: this.#settings, value: book.with(key, settings).toJSON() },
       { item: this.#rates, value: ratesToJSON(rates ? { ...saved, [rates.base]: rates } : saved) },
+      ...(buyer ? [{ item: this.#buyer, value: buyer.toJSON() }] : []),
       { item: this.#version, value: this.#layout.version },
     ]);
   }
@@ -98,13 +112,14 @@ export class SettingsStore {
   }
 
   /**
-   * Call `listener` whenever settings or rates change, from any extension page:
-   * once per changed key, so a `save()` calls it twice - each call sees both
-   * new values, as they were written together.
+   * Call `listener` whenever settings, buyer costs or rates change, from any
+   * extension page: once per changed key, so a `save()` calls it up to three
+   * times - each call sees all new values, as they were written together.
    * @returns stops calling `listener`
    */
   onChange(listener: () => void): () => void {
-    const unwatch = [this.#settings, this.#rates].map((item) => item.watch(() => listener()));
+    const items = [this.#settings, this.#rates, this.#buyer] as const;
+    const unwatch = items.map((item) => item.watch(() => listener()));
     return () => unwatch.forEach((stop) => stop());
   }
 
@@ -131,12 +146,21 @@ export class SettingsStore {
     return migrated;
   }
 
-  /** The stored values in the current layout, and the version they were stored in. */
-  async #read(): Promise<{ stored: StoredLayout; from: number; versioned: boolean }> {
-    const [settings, rates, version] = await storage.getItems([
+  /**
+   * The stored values in the current layout, and the version they were stored
+   * in; the buyer costs, which no migration has touched so far, as stored.
+   */
+  async #read(): Promise<{
+    stored: StoredLayout;
+    buyer: unknown;
+    from: number;
+    versioned: boolean;
+  }> {
+    const [settings, rates, version, buyer] = await storage.getItems([
       this.#settings,
       this.#rates,
       this.#version,
+      this.#buyer,
     ]);
     const versioned = typeof version?.value === "number";
     const from = versioned ? Number(version?.value) : 1;
@@ -144,7 +168,7 @@ export class SettingsStore {
     for (let next = from + 1; next <= this.#layout.version; next += 1) {
       stored = this.#layout.migrations[next]?.(stored) ?? stored;
     }
-    return { stored, from, versioned };
+    return { stored, buyer: buyer?.value, from, versioned };
   }
 }
 

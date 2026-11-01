@@ -74,3 +74,29 @@ body {
   border-bottom: inherit;
   background: inherit;
 }
+
+/* The heading of a form section ("This auction", "Your costs"). */
+.section-legend {
+  margin-bottom: 0;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid var(--bs-border-color);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+/* The collapsible example below the form. */
+.price-breakdown summary {
+  color: var(--bs-secondary-color);
+  cursor: pointer;
+}
+
+.price-breakdown summary:hover {
+  color: var(--bs-primary);
+}
+
+/* The inputs a switch reveals, set off below it so they read as its part. */
+.switched-part {
+  margin-left: 0.5rem;
+  padding-left: 0.75rem;
+  border-left: 2px solid var(--bs-primary-border-subtle);
+}

@@ -6,6 +6,7 @@ import { ContentController } from "../src/content/ContentController.ts";
 import { ANNOTATION_CLASS } from "../src/core/config.ts";
 import { MSG } from "../src/core/messages.ts";
 import { ExchangeRates } from "../src/core/rates/ExchangeRates.ts";
+import { BuyerCosts } from "../src/core/settings/BuyerCosts.ts";
 import { Settings } from "../src/core/settings/Settings.ts";
 import { defineSite } from "../src/core/sites/sites.ts";
 import { bookOf, fakeBus, fakeStore, settle } from "./support/fakes.ts";
@@ -105,6 +106,18 @@ test("recalculates when the settings change", async () => {
     book: everywhere(new Settings({ auctionPremium: 0, shipment: 5, currency: "EUR" })),
   });
   assert.equal(annotation(), "252.50 EUR"); // 505 USD
+});
+
+test("adds the buyer costs while they are switched on, and recalculates when they change", async () => {
+  const { store, annotation } = await startOn("https://shop.test/lot/1");
+  const ZERO = new Settings({ auctionPremium: 0, shipment: 0, currency: "EUR" });
+  await store.change({ book: everywhere(ZERO) });
+  assert.equal(annotation(), "250 EUR");
+  const buyer = new BuyerCosts({ enabled: true, importVat: 7, paymentCosts: 3, flatFees: 5 });
+  await store.change({ buyer });
+  assert.equal(annotation(), "280 EUR"); // 250 + 10 % + 5
+  await store.change({ buyer: BuyerCosts.from({ ...buyer.toJSON(), enabled: false }) });
+  assert.equal(annotation(), "250 EUR");
 });
 
 test("shows n/a when the new currency has no rates yet", async () => {

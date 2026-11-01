@@ -3,7 +3,8 @@
 Minerva — a cross-browser (Chrome + Firefox) MV3 WebExtension that reads the price out of a
 configured element on a configured auction site, calculates the effective price from the
 settings entered in the side panel and inserts the result as a sibling element next to it. The
-side panel shows status and exchange rates and holds the persisted auction premium, shipment
+side panel shows status and exchange rates and holds the persisted auction premium, shipment,
+lots won, hammer price VAT, the buyer's own costs (import VAT, payment costs, flat fees)
 (in the auction's currency) and currency inputs.
 
 `README.md` is the entry point; the chapters live in `docs/` (`how-it-works.md`: user-facing
@@ -56,9 +57,9 @@ hand), linting is ESLint's recommended set plus `typescript-eslint`'s for `.ts`/
   `AuctionSite` are `type`s; their helpers live in a same-named `const` (`TabState.of/from/equals/
   onAuction/forUrl`, `AuctionKey.from/equals`) or as functions (`findSite`, `identify`,
   `scopeMatches`), and the object itself is the message/storage format — no `toJSON()` round trip.
-  Classes are kept where they guard an invariant: `Settings` (ranges), `SettingsBook` (lookup),
+  Classes are kept where they guard an invariant: `Settings`, `BuyerCosts` (ranges), `SettingsBook` (lookup),
   `ExchangeRates` (rate direction), `Currency`. Their plain shapes are exported next to them
-  (`SettingsJSON`, `ExchangeRatesJSON`, `SettingsEntryJSON`). A `PriceCalculator` is a function.
+  (`SettingsJSON`, `BuyerCostsJSON`, `ExchangeRatesJSON`, `SettingsEntryJSON`). A `PriceCalculator` is a function.
 - Controllers declare their constructor dependencies as a local `Deps` type (the browser APIs as
   `Pick<WxtBrowser, …>`) and keep them in one `#deps` field, defaults filled in.
 
@@ -111,7 +112,7 @@ hand), linting is ESLint's recommended set plus `typescript-eslint`'s for `.ts`/
 - **The side panel is React** (`@wxt-dev/module-react`, `src/panel/*.tsx`): `Panel` holds the
   state (active tab, shown settings, picked currency) and the listeners - registered in an
   effect and removed in its clean-up, which `StrictMode` exercises in dev builds -
-  `SettingsForm`, `AuctionHeader` and `StatusCard` render, `useRates` loads the rates. The form
+  `SettingsForm` (with `PriceBreakdownView`), `AuctionHeader` and `StatusCard` render, `useRates` loads the rates. The form
   and the IDs are only shown while `TabState.onAuction()` (active with a house or auction ID).
   The markup lives in the components (Bootstrap classes; `index.html` is just the root); keep
   labels and roles meaningful, the test (`test/panel.test.tsx`, Testing Library in a jsdom
@@ -184,18 +185,20 @@ hand), linting is ESLint's recommended set plus `typescript-eslint`'s for `.ts`/
 
 - **All storage goes through `SettingsStore` (`src/browser/SettingsStore.ts`).** The layout is
   `{ auctionSettings: SettingsBook#toJSON(), exchangeRates: { [base]: ExchangeRates#toJSON() },
-  storageVersion }`; `load()` reads them in one `storage.local.get` (`storage.getItems`) and
-  returns the `SettingsBook` and the rates per currency. `save(key, settings, rates)` writes all
-  three in **one** `storage.local.set` (`storage.setItems`), so there is one change event and
-  nobody sees new settings without their rates. `saveRates()` (background) writes the rates only,
-  so a refresh never undoes a concurrent save. `onChange()` watches the two data items
-  (`item.watch()`) and is therefore called once per changed key — twice after a save, each time
-  seeing both; the content script's re-sync is idempotent, so that is harmless. The items are
+  buyerCosts: BuyerCosts#toJSON(), storageVersion }`; `load()` reads them in one
+  `storage.local.get` (`storage.getItems`) and returns the `SettingsBook`, the rates per currency
+  and the `BuyerCosts`. `save(key, settings, rates, buyer)` writes them all in **one**
+  `storage.local.set` (`storage.setItems`), so there is one change event and nobody sees new
+  settings without their rates. `saveRates()` (background) writes the rates only,
+  so a refresh never undoes a concurrent save. `onChange()` watches the three data items
+  (`item.watch()`) and is therefore called once per changed key — up to three times after a
+  save, each time seeing all; the content script's re-sync is idempotent, so that is harmless. The items are
   defined in the constructor, never at module level: `defineItem()` reads storage right away, and
   entry points are imported in Node at build time.
 - **Changing the stored layout** means raising `SettingsStore.VERSION` and adding the conversion
   from the previous version to `SettingsStore.MIGRATIONS` (none yet; data without
-  `storageVersion` is version 1). `load()` converts older data in memory in every context,
+  `storageVersion` is version 1). *Adding* a value to `Settings` or `BuyerCosts` needs none:
+  `from()` reads a missing value as its default. `load()` converts older data in memory in every context,
   `save()` writes the current version, and the background's `migrate()` (on `runtime.onInstalled`)
   rewrites the stored data once and records the version even on a fresh install. This is our own
   runner over both keys, not WXT's per-item `version`/`migrations`: WXT's `storage.setItems()`
@@ -209,16 +212,23 @@ hand), linting is ESLint's recommended set plus `typescript-eslint`'s for `.ts`/
   `SETTINGS_SCOPES`; saving always stores the full key. The content script resolves on every
   `sync()` (so URL changes switch settings), the panel when the active tab's `AuctionKey` changes.
 - The panel shows the resolved settings and saves the full `Settings` under the active tab's key
-  when Save is clicked; an emptied input keeps the value shown. The input ranges live in
-  `Settings.RANGES` only; the panel sets its inputs' `min`/`max` from them. There is no message
+  when Save is clicked; an emptied input keeps the value shown. **The buyer's own costs
+  (`BuyerCosts`: import VAT, payment costs, flat fees, an `enabled` switch) are not per
+  auction:** one value under `buyerCosts`, saved in the same write, switched off by default; its
+  values are kept while switched off (`applied` gives zeros then). The input ranges live in
+  `Settings.RANGES` / `BuyerCosts.RANGES` only (`integer` for lots won); the panel sets its
+  inputs' `min`/`max`/`step` from them and validates with the inputs' own `checkValidity()`. There is no message
   for settings — storage is the channel: after saving, the panel sends `SYNC_REQUEST` to the
   active tab, and the content script **re-reads the settings on every `SYNC_REQUEST`** before
   syncing. `SettingsStore.onChange()` additionally updates the other open tabs.
 - **The calculation is per site:** every `AuctionSite` has a `calculator`, a `PriceCalculator`
-  function `(amount, currency, settings, rates)` (`src/core/pricing/`) that `PriceAnnotator`
-  uses for that site's prices. The default is `effectivePrice`:
-  `rates.convert(amount * (1 + auctionPremium / 100) + shipment, currency)`, in
-  `settings.currency`. The shipment is entered in the auction's currency (the price's, not
+  function `(amount, currency, settings, rates, buyer)` (`src/core/pricing/`) that `PriceAnnotator`
+  uses for that site's prices. The default is `effectivePrice`, the total of `priceBreakdown()`:
+  `lot = amount × (1 + auctionPremium% + hammerVat%) + shipment / lotsWon`, converted, then
+  `× (1 + paymentCosts% + importVat%) + flatFees / lotsWon`, in `settings.currency`. The premium
+  is the *effective* one (its VAT and online surcharges added in by the user), so the hammer VAT
+  applies to the hammer price only. The panel's breakdown uses the same function - keep one
+  source for the formula. The shipment is entered in the auction's currency (the price's, not
   `settings.currency`), so it is converted together with the price; the panel shows the
   `TabState#currencies` next to it. A site with different fees gets a function of its own,
   passed as `calculator` in `sites.config.ts`. `currency` is the input currency read from the price text,

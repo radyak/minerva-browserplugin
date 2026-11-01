@@ -5,13 +5,14 @@ import type { MessageBus } from "../browser/MessageBus.ts";
 import type { SettingsStore } from "../browser/SettingsStore.ts";
 import { MSG } from "../core/messages.ts";
 import { AuctionKey } from "../core/settings/AuctionKey.ts";
+import type { BuyerCosts } from "../core/settings/BuyerCosts.ts";
 import { Settings } from "../core/settings/Settings.ts";
 import type { SettingsScope } from "../core/settings/SettingsScope.ts";
 import { SITES } from "../core/sites/sites.config.ts";
 import type { AuctionSite } from "../core/sites/sites.ts";
 import { TabState } from "../core/state/TabState.ts";
 import { AuctionHeader } from "./AuctionHeader.tsx";
-import { SettingsForm } from "./SettingsForm.tsx";
+import { SettingsForm, type ShownSettings } from "./SettingsForm.tsx";
 import { StatusCard } from "./StatusCard.tsx";
 import { useRates } from "./useRates.ts";
 
@@ -26,8 +27,8 @@ export type PanelProps = {
   version?: string;
 };
 
-/** The settings in the form and where they were found (null: the defaults). */
-type Shown = { settings: Settings; scope: SettingsScope | null };
+/** The values in the form and where the settings were found (null: the defaults). */
+type Shown = ShownSettings & { scope: SettingsScope | null };
 
 /**
  * Side panel (Chrome) / sidebar (Firefox): shows and saves the settings of the
@@ -55,11 +56,11 @@ export function Panel({ tabs, bus, store, sites = SITES, version = "0.0.0-dev" }
     const next = AuctionKey.from(state);
     if (AuctionKey.equals(next, key.current)) return;
     key.current = next;
-    const { book } = await store.load();
+    const { book, buyer } = await store.load();
     if (!AuctionKey.equals(next, key.current)) return; // the tab moved on in the meantime
     const found = book.resolve(next);
     const settings = found?.settings ?? Settings.DEFAULT;
-    setShown({ settings, scope: found?.scope ?? null });
+    setShown({ settings, buyer, scope: found?.scope ?? null });
     setCurrency(settings.currency);
   }, [tabs, bus, store, sites]);
 
@@ -84,15 +85,18 @@ export function Panel({ tabs, bus, store, sites = SITES, version = "0.0.0-dev" }
     };
   }, [tabs, bus, refresh]);
 
-  /** Save `settings` for the active tab's auction, with the matching rates; the tab recalculates. */
-  const save = async (settings: Settings) => {
+  /**
+   * Save `settings` for the active tab's auction, with the matching rates, and
+   * the buyer costs (for every auction); the tab recalculates.
+   */
+  const save = async (settings: Settings, buyer: BuyerCosts) => {
     const saveKey = key.current;
     if (!saveKey?.site) return;
     // Settings and matching rates in one write: open tabs never see one without the other.
     // Without matching rates the page shows n/a until the background has fetched them.
-    await store.save(saveKey, settings, (await ratesFor(settings.currency)) ?? undefined);
+    await store.save(saveKey, settings, (await ratesFor(settings.currency)) ?? undefined, buyer);
     const found = (await store.load()).book.resolve(saveKey);
-    setShown({ settings, scope: found?.scope ?? null });
+    setShown({ settings, buyer, scope: found?.scope ?? null });
     // Asking the tab for its state makes it re-read the settings and recalculate.
     await refresh();
   };
@@ -105,7 +109,8 @@ export function Panel({ tabs, bus, store, sites = SITES, version = "0.0.0-dev" }
           <AuctionHeader tab={tab} scope={shown.scope} />
           <SettingsForm
             shown={shown}
-            shipmentCurrencies={tab.currencies}
+            pageCurrencies={tab.currencies}
+            rates={rates}
             onCurrencyChange={setCurrency}
             onSave={save}
           />
@@ -128,7 +133,7 @@ function NoAuction({ active }: { active: boolean }) {
         </span>
       </div>
       <p className="mt-3 mb-0">
-        {active ? "No auction detected on this page" : "No auction or platform active"}
+        {active ? "No auction detected on this page" : "No auction or site active"}
       </p>
     </section>
   );

@@ -4,6 +4,7 @@ import { PriceAnnotator } from "../core/annotation/PriceAnnotator.ts";
 import { MSG } from "../core/messages.ts";
 import { ExchangeRates } from "../core/rates/ExchangeRates.ts";
 import type { AuctionKey } from "../core/settings/AuctionKey.ts";
+import { BuyerCosts } from "../core/settings/BuyerCosts.ts";
 import { Settings } from "../core/settings/Settings.ts";
 import { SettingsBook } from "../core/settings/SettingsBook.ts";
 import { SITES } from "../core/sites/sites.config.ts";
@@ -36,6 +37,7 @@ export class ContentController {
   #lastState: TabState | null = null;
   #book = new SettingsBook();
   #rates: RatesByCurrency = {};
+  #buyer = BuyerCosts.DEFAULT;
   #stopped = false;
   #observer: MutationObserver | null = null;
   /** the pending animation frame of a DOM change */
@@ -126,7 +128,7 @@ export class ContentController {
   #annotate(site: AuctionSite, url: string): TabState {
     const key: AuctionKey = { site: site.origin, ...identify(site, url) };
     const { settings, rates } = this.settingsFor(key);
-    return { ...this.#deps.annotator.annotate(site, settings, rates), ...key };
+    return { ...this.#deps.annotator.annotate(site, settings, rates, this.#buyer), ...key };
   }
 
   /**
@@ -140,9 +142,10 @@ export class ContentController {
   }
 
   async #loadSettings(): Promise<void> {
-    const { book, rates } = await this.#deps.store.load();
+    const { book, rates, buyer } = await this.#deps.store.load();
     this.#book = book;
     this.#rates = rates;
+    this.#buyer = buyer;
   }
 
   /**

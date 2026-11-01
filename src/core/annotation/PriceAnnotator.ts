@@ -3,6 +3,7 @@ import { convertPrice } from "../price.ts";
 import { TabState } from "../state/TabState.ts";
 import { AnnotationView } from "./AnnotationView.ts";
 import type { ExchangeRates } from "../rates/ExchangeRates.ts";
+import type { BuyerCosts } from "../settings/BuyerCosts.ts";
 import type { Settings } from "../settings/Settings.ts";
 import type { AuctionSite } from "../sites/sites.ts";
 
@@ -25,9 +26,15 @@ export class PriceAnnotator {
    * Annotations of elements that are not annotated any more are removed, so
    * the page never keeps a stale amount.
    * @param rates base `settings.currency`
+   * @param buyer the buyer's own costs; none when omitted
    * @returns active, with the counts and price currencies after the run
    */
-  annotate(site: AuctionSite, settings: Settings, rates: ExchangeRates): TabState {
+  annotate(
+    site: AuctionSite,
+    settings: Settings,
+    rates: ExchangeRates,
+    buyer?: BuyerCosts,
+  ): TabState {
     let annotated = 0;
     let unparsable = 0;
 
@@ -42,7 +49,7 @@ export class PriceAnnotator {
         source,
         (amount, currency) => {
           if (currency) currencies.add(currency);
-          return site.calculator(amount, currency, settings, rates);
+          return site.calculator(amount, currency, settings, rates, buyer);
         },
         settings.currency,
       );

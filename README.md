@@ -6,9 +6,9 @@ It is named after [*Minerva*](https://en.wikipedia.org/wiki/Minerva), the Roman 
 ## What it does
 
 While a page of a configured auction site is open, the extension reads the plain
-text price and its currency out of the configured elements, adds the auction premium
-and shipping cost entered in the side panel, converts the result into the currency
-selected there and appends the effective price as a sibling element right after each
+text price and its currency out of the configured elements, adds the auction premium,
+shipping cost and VAT entered in the side panel, converts the result into the currency
+selected there, adds your own import and payment costs if switched on and appends the effective price as a sibling element right after each
 price - kept up to date when the price or the settings change. Settings are saved per
 auction (falling back to the auction house's, then the site's). The side panel also
 shows what the extension does on the page and the exchange rates it needs. The sites,
@@ -43,66 +43,37 @@ Load `dist/chrome` via *Load unpacked* in `chrome://extensions`, or `dist/firefo
 ## Plans & Next Steps
 * Backend: Auction database
 * Tweak "your bid" price, too
-* Add further effective price factors (see below)
+* Minimum premium per lot (e.g. Heritage: 20 %, min. $19)
+* VAT status per lot (UK catalogues mark VAT and import lots with `*` / `**`) - needs
+  site-specific lot parsing
 
-### Further factors of the effective price
+### Factors of the effective price
 
-Besides auction premium and shipment, the effective price of a lot depends on
-more conditions. Collected from biddr's terms (which defer to each auction house's
-conditions) and the conditions of e.g. Künker, Sincona, CNG and Heritage:
+Besides auction premium and shipment, the panel now covers VAT on the hammer price,
+lots won (shipment and flat fees are charged per invoice and split over them) and,
+saved once for all auctions, import VAT, payment costs and flat fees. Related
+factors are added up into one input rather than getting their own: the premium is
+entered *including* its VAT and online surcharges, payment costs combine the
+exchange rate markup and card surcharges, flat fees combine customs clearance and
+bank fees. The formula and the inputs are described in
+[How it works](docs/how-it-works.md#the-effective-price).
 
-**Fix first: shipment is counted per lot.** The shipment is added to every price,
-but houses charge it once per invoice (at cost, at the buyer's risk). Either divide
-it by an "expected lots won" count (default 1) or show it as a separate
-"+ shipping" part instead of folding it into each lot.
+Sources: biddr's terms (which defer to each auction house's conditions) and the
+conditions of e.g. Künker, Sincona, CNG and Heritage:
 
-**Per auction** (fits the auction > house > site settings):
-
-| Factor | Typical values | Why it matters |
+| Factor | Typical values | In the panel |
 | --- | --- | --- |
-| VAT on the premium | Margin scheme: premium incl. VAT (Künker 25 %, Sincona 23 % incl. 8.1 %); regular taxation: 20 % + VAT | the same "20 %" is 20 % or 23.8 % |
-| VAT on the hammer price | Regularly taxed lots and, since 2025, lots imported into the EU: VAT on hammer + premium; Swiss houses: 8.1 % on everything but investment gold | up to +19-20 % on the whole price |
-| Buyer's residence | Künker: 20 % without VAT outside the EU, refunded against proof of export | already possible via a different premium |
-| Online/live bidding surcharge | CNG 21 % live internet vs. 19 % on its own site; UK houses +3.5-6 % + VAT | often taxed differently from the premium |
-| Minimum premium per lot | Heritage: 20 %, min. $19 | only relevant for cheap lots |
-
-**Per buyer** (independent of the auction):
-
-| Factor | Typical values |
-| --- | --- |
-| Import VAT on the customs value (hammer + premium + shipping + insurance) | DE 7 % for collector coins (precious metal coins only above 250 % of the metal value, BMF 2024-12-02); UK reportedly 5 % for heading 9705 (unverified, carriers charge 20 %); US no VAT, but state sales tax |
-| Customs duty | 0 % for coins (heading 9705) in EU and UK - skip |
-| Customs clearance fee | flat, charged by post/courier in the buyer's currency |
-| Exchange rate markup | we convert at the mid-market rate (Frankfurter), banks/cards add about 1-3 % |
-| Payment surcharge | card fees up to 4 % (Swiss houses) |
-| Bank transfer fee | flat per invoice (e.g. SWIFT) |
+| VAT on the premium | Margin scheme: premium incl. VAT (Künker 25 %, Sincona 23 % incl. 8.1 %); regular taxation: 20 % + VAT | added into the auction premium |
+| VAT on the hammer price | Regularly taxed lots and, since 2025, lots imported into the EU; Swiss houses: 8.1 % on everything but investment gold | *VAT on the hammer price* switch |
+| Buyer's residence | Künker: 20 % without VAT outside the EU, refunded against proof of export | a different auction premium |
+| Online/live bidding surcharge | CNG 21 % live internet vs. 19 % on its own site; UK houses +3.5-6 % + VAT | added into the auction premium |
+| Import VAT on the customs value | DE 7 % for collector coins (precious metal coins only above 250 % of the metal value, BMF 2024-12-02); UK reportedly 5 % for heading 9705 (unverified, carriers charge 20 %); US no VAT, but state sales tax | *Import VAT* |
+| Customs duty | 0 % for coins (heading 9705) in EU and UK | skipped |
+| Exchange rate markup | we convert at the mid-market rate (Frankfurter), banks/cards add about 1-3 % | added into *Payment costs* |
+| Payment surcharge | card fees up to 4 % (Swiss houses) | added into *Payment costs* |
+| Customs clearance fee, bank transfer fee | flat, per parcel / invoice | added into *Flat fees* |
 
 Not modelled on purpose: late payment interest, export licences, resale right
-(not for coins).
-
-**Suggested order:** (1) VAT rate plus what it applies to (none / premium /
-hammer + premium), per auction; (2) exchange rate markup; (3) import VAT plus
-clearance fee; (4) payment surcharge; (5) the shipment-per-lot fix. The online
-surcharge can go into the premium for now; minimum premium and bank fees can wait.
-
-```
-fees    = hammer × premium%
-vat     = vat% × (fees | hammer + fees | 0)
-lot     = hammer + fees + vat + shipment / lotsWon                (auction currency)
-landed  = convert(lot × (1 + importVat%), currency) × (1 + fxMarkup%) × (1 + payment%)
-        + clearanceFee                                            (buyer's currency)
-```
-
-Implementation notes:
-
-* The per-buyer factors belong into a separate, global buyer settings group (new
-  storage key in `SettingsStore`), not into `SettingsBook` - otherwise they would
-  have to be entered for every auction.
-* The clearance fee is the first amount in the output currency rather than the
-  auction's; the panel has to label it accordingly.
-* Everything else stays inside `effectivePrice` and `Settings.RANGES`;
-  the message flow does not change.
-* VAT status varying per lot within one auction (UK catalogues mark VAT and import
-  lots with `*` / `**`) needs site-specific lot parsing - a later step.
-* Most figures come from individual houses' terms and forum posts, not from
-  official tax sources; check the UK import VAT against HMRC before relying on it.
+(not for coins). Most figures come from individual houses' terms and forum posts,
+not from official tax sources; check the UK import VAT against HMRC before relying
+on it.
