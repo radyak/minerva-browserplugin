@@ -53,52 +53,80 @@ flowchart TB
 | Entry points | Create the controller (render the panel) with the real objects. |
 | `wxt.config.ts` (`manifest`) | The only other place where Chrome and Firefox differ. |
 
-## Components and dependencies
+## Components, files and how they work together
+
+Each box is a file (paths relative to `src/`), grouped by the context it runs in. Solid arrows inside a context are calls, the labelled arrows between contexts are messages (dotted: `STATE_CHANGED`, sent without expecting an answer), storage access and the outside world:
 
 ```mermaid
-flowchart LR
-  subgraph page["Auction page (tab)"]
-    DOM[("page DOM")]
-    CC["ContentController"]
-    PA["PriceAnnotator"]
-    AV["AnnotationView"]
-    CC --> PA --> AV --> DOM
-    PA --> PRICE["price.ts<br/>CurrencyDetector"]
-    PA --> CALC["site.calculator<br/>effectivePrice"]
+flowchart TB
+  PAGE[("auction page DOM")]
+
+  subgraph tab["Content script · every auction tab"]
+    direction TB
+    content["entrypoints/content.ts"]
+    CC["content/ContentController.ts"]
+    PA["core/annotation/PriceAnnotator.ts"]
+    AV["core/annotation/AnnotationView.ts"]
+    content --> CC --> PA --> AV
   end
 
-  subgraph bg["Background"]
-    BC["BackgroundController"]
-    RS["RatesService"]
-    RC["RatesClient"]
-    BC --> RS --> RC
+  subgraph panel["Side panel · React"]
+    direction TB
+    main["entrypoints/sidepanel/main.tsx<br/>+ index.html"]
+    Panel["panel/Panel.tsx"]
+    views["panel/SettingsForm.tsx<br/>panel/AuctionHeader.tsx<br/>panel/StatusCard.tsx"]
+    UR["panel/useRates.ts"]
+    main --> Panel --> views
+    Panel --> UR
   end
 
-  subgraph panel["Side panel (React)"]
-    PC["Panel"]
-    SF["SettingsForm"]
-    AH["AuctionHeader"]
-    SC["StatusCard"]
-    UR["useRates"]
-    PC --> SF & AH & SC & UR
+  subgraph bg["Background · service worker / event page"]
+    direction TB
+    background["entrypoints/background.ts"]
+    BC["background/BackgroundController.ts"]
+    RS["background/RatesService.ts"]
+    RC["core/rates/RatesClient.ts"]
+    side["browser/side-panel.ts"]
+    background --> BC --> RS --> RC
+    background --> side
   end
 
-  STORE[("storage.local<br/>auctionSettings · exchangeRates")]
-  API[("Frankfurter API<br/>ECB rates")]
+  LOCAL[("storage.local<br/>browser/SettingsStore.ts")]
+  API[("Frankfurter API")]
   BADGE[["toolbar badge"]]
 
+  AV -->|"inserts / updates siblings"| PAGE
+  PAGE -.->|"DOM changes"| CC
+
+  Panel -->|"SYNC_REQUEST → state"| CC
+  CC -.->|"STATE_CHANGED"| Panel
+  CC -.->|"STATE_CHANGED"| BC
+  BC -->|"SYNC_REQUEST on navigation"| CC
+  UR -->|"GET_RATES → rates"| BC
+
+  Panel -->|"save settings + rates"| LOCAL
+  LOCAL -->|"load · onChange"| CC
+  RS -->|"saveRates"| LOCAL
+  BC -->|"migrate"| LOCAL
   RC -->|fetch| API
   BC --> BADGE
-  CC <-->|"SYNC_REQUEST / STATE_CHANGED"| BC
-  PC <-->|"SYNC_REQUEST (active tab)"| CC
-  CC -.->|STATE_CHANGED| PC
-  PC <-->|GET_RATES| BC
-  PC -->|"save(key, settings, rates)"| STORE
-  RS -->|"saveRates()"| STORE
-  STORE -->|"load() / onChange()"| CC
-  STORE -->|"load()"| PC
-  BC -->|"migrate()"| STORE
 ```
+
+What happens along the arrows:
+
+- **On the page**, `content.ts` starts the `ContentController`, which loads the settings and rates from storage, finds the site and auction of the URL and lets `PriceAnnotator` price every price element; `AnnotationView` writes the siblings. DOM changes, in-page navigation, storage changes and `SYNC_REQUEST` trigger the same sync again; a changed state goes out as `STATE_CHANGED`.
+- **The panel** asks the active tab for its state (`SYNC_REQUEST`, answered with the tab's `TabState`) whenever it opens, the tab changes or a `STATE_CHANGED` arrives, shows the settings that apply to the tab's auction, loads the picked currency's rates from the background (`GET_RATES`) and saves settings and rates in one write.
+- **The background** sets the toolbar badge, sends `SYNC_REQUEST` to a tab that navigates, answers `GET_RATES` from the Frankfurter API (cached for an hour), keeps the saved rates fresh (`saveRates`) and migrates the stored data on install/update. `side-panel.ts` makes the toolbar button open the panel.
+
+Besides their own files, all three contexts import the same shared code:
+
+| Shared files | Used for |
+| --- | --- |
+| `browser/MessageBus.ts`, `core/messages.ts` | sending and handling the three typed messages |
+| `browser/SettingsStore.ts` | reading and writing `storage.local` (settings, rates, layout version) |
+| `core/sites/sites.config.ts`, `core/sites/sites.ts` | which sites are targeted; site, house and auction of a URL |
+| `core/state/TabState.ts`, `core/settings/*`, `core/rates/ExchangeRates.ts` | the tab's state, the saved settings and their lookup, exchange rates |
+| `core/price.ts`, `core/currency/*`, `core/pricing/PriceCalculator.ts` | reading a price, its currency, and the effective price (content script) |
 
 ### Source layout
 
@@ -119,7 +147,7 @@ src/
                    AnnotationView (inserts/updates the sibling, idempotent)
     sites/         sites.ts (AuctionSite, defineSite, findSite, identify: house / auction IDs
                    out of a URL, matchPatterns), sites.config.ts (the targeted sites)
-    messages.ts    message types
+    messages.ts    message types and the typed protocol
     state/         TabState (what the extension does in a tab: active, counts, price
                    currencies, site, house and auction IDs)
   browser/     the thin browser abstraction (API alias, messaging, settings storage,
@@ -130,11 +158,13 @@ src/
   content/     content script (ContentController) + the annotation stylesheet
   panel/       side panel UI (React + Bootstrap CSS): Panel, SettingsForm, AuctionHeader,
                StatusCard, useRates, panel.css
+  globals.d.ts __VERSION__, the build version (set by Vite's define in wxt.config.ts)
   assets/      icon.png (source of the generated icons/<size>.png), minerva-64.png
                (inlined into content.css)
 wxt.config.ts  build and manifest for both browsers (WXT)
-test/          Vitest (+ WxtVitest, jsdom): core units, browser layer and controllers
-               (fakes in test/support/)
+vitest.config.ts  the test runner (Vitest + WxtVitest)
+test/          *.test.ts: core units, browser layer and controllers (jsdom documents, fakes in
+               test/support/fakes.ts); panel.test.tsx: the React panel (Testing Library)
 ```
 
 ### Controllers and their dependencies
@@ -143,7 +173,7 @@ test/          Vitest (+ WxtVitest, jsdom): core units, browser layer and contro
 | --- | --- | --- |
 | `ContentController` | `window`, `bus`, `store`, `sites` (default `SITES`), `annotator` (default `PriceAnnotator`), `isValid` | Load settings and rates, annotate the page with the settings resolved for its `AuctionKey` (on every sync), re-sync on navigation/DOM/settings changes, answer `SYNC_REQUEST`, report `STATE_CHANGED` |
 | `BackgroundController` | `ext`, `bus`, `store`, `rates` (`RatesService`), `sites` | Toolbar badge, `SYNC_REQUEST` to a tab on navigation, answer `GET_RATES`, storage migration, rates refresh schedule |
-| `Panel` (props) | `tabs`, `bus`, `store`, `sites` | Ask the active tab for its state (`SYNC_REQUEST`, by URL without a content script), show the settings resolved for its auction (reloaded when its `AuctionKey` changes) and save them under that key, show rates of the selected currency, show the active tab's status |
+| `Panel` (props) | `tabs`, `bus`, `store`, `sites`, `version` | Ask the active tab for its state (`SYNC_REQUEST`, by URL without a content script), show the settings resolved for its auction (reloaded when its `AuctionKey` changes) and save them under that key, show rates of the selected currency, show the active tab's status |
 
 | Helper | Owned by | Purpose |
 | --- | --- | --- |

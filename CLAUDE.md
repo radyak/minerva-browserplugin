@@ -8,7 +8,8 @@ side panel shows status and exchange rates and holds the persisted auction premi
 
 `README.md` is the entry point; the chapters live in `docs/` (`how-it-works.md`: user-facing
 behaviour and the price-format table, `architecture.md`: components, messages, storage and event
-lifecycles with Mermaid diagrams, `configuration.md`, `development.md`: build and install steps;
+lifecycles with Mermaid diagrams, including one of the files and how they work together,
+`configuration.md`, `development.md`: build and install steps;
 `dev/framework-and-simplification-review.md`: the simplifications and the React panel; finished
 plans are kept in `dev/archive/`). Keep `docs/architecture.md` in sync when components, messages,
 storage keys or listeners change. This file covers what is needed to change the code safely.
@@ -32,20 +33,21 @@ npm run lint:firefox     # AMO validator
 ```
 
 Formatting is Prettier (`.prettierrc.json`, width 100; Markdown is excluded and formatted by
-hand), linting is ESLint's recommended set plus `typescript-eslint`'s for `.ts` (`eslint.config.js`).
+hand), linting is ESLint's recommended set plus `typescript-eslint`'s for `.ts`/`.tsx` and
+`eslint-plugin-react-hooks` for `src/panel/` (`eslint.config.js`).
 
 ## TypeScript
 
 - **`src/` and `wxt.config.ts` are TypeScript, strict** (`tsconfig.json` extends WXT's generated
   `.wxt/tsconfig.json`: `strict`, `noUncheckedIndexedAccess`, `noImplicitOverride`,
   `verbatimModuleSyntax`; `npm run typecheck` runs `wxt prepare` first). **The tests are
-  TypeScript too** (`test/*.test.ts`), checked by `test/tsconfig.json` without `strict`; the
+  TypeScript too** (`test/*.test.ts`, the panel's `test/panel.test.tsx`), checked by `test/tsconfig.json` without `strict`; the
   fakes in `test/support/fakes.ts` return `any` on purpose.
 - **Tests run on Vitest with `WxtVitest()`** (`vitest.config.ts`): it applies `wxt.config.ts`
   and replaces the extension API (`wxt/browser`, the `browser`/`chrome` globals) with WXT's
   in-memory `fakeBrowser`, reset per test where a test needs it (`fakeBrowser.reset()`). Tests run
   in Node and build their own jsdom documents. Type-only imports must be `import type` /
-  `{ type X }`; relative imports name the file with its `.ts` extension (house style).
+  `{ type X }`; relative imports name the file with its `.ts`/`.tsx` extension (house style).
 - **TypeScript is 6.0, not 7,** because `typescript-eslint` (8.x) needs the JS compiler API that
   TypeScript 7 no longer ships. Move to 7 once `typescript-eslint` supports it.
 - Types live in the code; JSDoc keeps the descriptions only (no `{type}` in `@param`/`@returns`).
@@ -85,10 +87,13 @@ hand), linting is ESLint's recommended set plus `typescript-eslint`'s for `.ts` 
   should mean editing only `sites.config.ts`.
 - **Auction sites are always "sites"**, never "platforms"; the browsers are "browsers" (WXT's
   `-b chrome|firefox`).
-- **`import.meta.env.BROWSER` is replaced at build time,** not a runtime variable, and only
-  exists in code bundled by WXT. `src/browser/ext.ts` re-exports `browser` from `wxt/browser`,
-  which tests cannot load — that is another reason core code stays free of `src/browser/`, and
-  why tests inject a fake `ext` instead.
+- **`import.meta.env.BROWSER` and `__VERSION__` are replaced at build time,** not runtime
+  variables, and only exist in code bundled by WXT. `__VERSION__` (declared in
+  `src/globals.d.ts`, set by `define` in `wxt.config.ts` from the environment variable
+  `VERSION`) reaches the panel only through `main.tsx` as the `Panel`'s `version` prop, so
+  components and tests never read it. `src/browser/ext.ts` re-exports `browser` from
+  `wxt/browser`; in tests `WxtVitest()` swaps that for `fakeBrowser`, but controllers and
+  components still get a fake `ext`/`tabs` injected instead of importing it.
 - **Entry points only wire things up.** They live in `src/entrypoints/` (WXT's `srcDir` is
   `src`): `content.ts` (`defineContentScript`) and `background.ts` (`defineBackground`) create a
   `ContentController` / `BackgroundController`, `sidepanel/main.tsx` (+ `index.html`) renders the

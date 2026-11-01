@@ -1,19 +1,23 @@
 # Minerva - Browser assistant for online auctions
 
-*Minerva* is a cross-browser WebExtension to support users in online auctions on platforms such as biddr.com, numisbids.com or l5.com.
+*Minerva* is a cross-browser WebExtension to support users in online auctions on sites such as biddr.com, numisbids.com or l5.com.
 It is named after [*Minerva*](https://en.wikipedia.org/wiki/Minerva), the Roman goddess of wisdom, reason, strategy and victory (among other aspects) and should help to make effective prices transparent and achieve a fair bargain.
 
 ## What it does
 
-**Phase 1 scope:** while a configured URL is open, the extension reads the plain
-text price and its currency out of a configured element, converts it into the
-currency selected in the side panel, adds the auction premium and shipping cost
-entered there and appends the resulting effective price as a sibling element
-right after it - kept up to date when the price or the settings change. The
-side panel also shows the exchange rate the current page needs. The target URL and
-the selector are configurable in one file - see [Configuration](docs/configuration.md).
+While a page of a configured auction site is open, the extension reads the plain
+text price and its currency out of the configured elements, adds the auction premium
+and shipping cost entered in the side panel, converts the result into the currency
+selected there and appends the effective price as a sibling element right after each
+price - kept up to date when the price or the settings change. Settings are saved per
+auction (falling back to the auction house's, then the site's). The side panel also
+shows what the extension does on the page and the exchange rates it needs. The sites,
+their URLs and price selectors are configured in one file - see
+[Configuration](docs/configuration.md).
 
-It is a cross-browser Manifest V3 WebExtension (Chrome and Firefox) with a shared core and per-browser packaging.
+Currently configured: biddr.com and numisbids.com.
+
+It is a cross-browser Manifest V3 WebExtension (Chrome and Firefox), built with [WXT](https://wxt.dev), TypeScript and React (side panel).
 
 ## Quick start
 
@@ -30,18 +34,16 @@ Load `dist/chrome` via *Load unpacked* in `chrome://extensions`, or `dist/firefo
 | Chapter | Contents |
 | --- | --- |
 | [How it works](docs/how-it-works.md) | What happens on the page and in the panel, currency detection, price formats |
-| [Architecture](docs/architecture.md) | Contexts, layers, components, HTML components, messages, storage, event lifecycles |
+| [Architecture](docs/architecture.md) | Contexts, layers, a diagram of the files and how they work together, panel components, messages, storage, event lifecycles |
 | [Configuration](docs/configuration.md) | Auction sites (`sites.config.ts`) and plugin-wide constants |
 | [Development](docs/development.md) | Build, test, packaging, installing the development build |
 | [Framework and simplification review](docs/dev/framework-and-simplification-review.md) | Review of 2026-11-01: simplifications, Vitest, the React panel - and what was done |
 | [Archive](docs/dev/archive/) | Finished plans: the architecture review of 2026-09-27, the WXT migration |
 
 ## Plans & Next Steps
-* Persistence
-* URL-based auction detection & persistence in auction scope
 * Backend: Auction database
 * Tweak "your bid" price, too
-* Migration to [WXT](https://wxt.dev): done (see [plan](docs/dev/archive/wxt-migration-plan.md))
+* Add further effective price factors (see below)
 
 ### Further factors of the effective price
 

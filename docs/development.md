@@ -8,7 +8,8 @@ npm run build            # both browsers -> dist/chrome, dist/firefox
 npm run build:chrome     # one browser only (or :firefox)
 npm run dev              # dev mode: Chrome with the extension loaded, auto-reload on change
 npm run dev:firefox      # the same for Firefox
-npm test                 # lint + typecheck + unit and controller tests
+npm test                 # lint + typecheck + unit, controller and panel tests
+npm run test:watch       # Vitest in watch mode
 npm run format           # apply Prettier and ESLint fixes
 npm run package          # dist/<name>-<version>-<browser>.zip, plus the sources zip for AMO
 ```
@@ -27,7 +28,7 @@ throwaway browser profile with the extension loaded (via `web-ext`).
 The source is TypeScript (strict, `tsconfig.json`), the tests are TypeScript too, checked less
 strictly (`test/tsconfig.json`); `npm run typecheck` runs both.
 
-Tests run on [Vitest](https://vitest.dev) (`vitest.config.ts`, `npm run test:unit`, `npm run test:watch`) with WXT's `WxtVitest()` plugin, which applies `wxt.config.ts` and replaces the extension API with WXT's in-memory `fakeBrowser`. Core modules are tested directly against jsdom documents, the browser layer and the three controllers with fakes (`test/support/fakes.ts`). `CLAUDE.md` lists the conventions and invariants to keep when changing the code.
+Tests run on [Vitest](https://vitest.dev) (`vitest.config.ts`, `npm run test:unit`, `npm run test:watch`) with WXT's `WxtVitest()` plugin, which applies `wxt.config.ts` and replaces the extension API with WXT's in-memory `fakeBrowser`. Core modules are tested directly against jsdom documents, the browser layer and the two controllers with fakes (`test/support/fakes.ts`), the React panel with Testing Library in a jsdom environment (`test/panel.test.tsx`). `CLAUDE.md` lists the conventions and invariants to keep when changing the code.
 
 The environment variable `VERSION` (e.g. `VERSION=1.2.3 npm run build`) sets the build version shown at the bottom of the panel, `0.0.0-dev` by default. The manifest keeps the `package.json` version, since browsers only accept dot-separated numbers there.
 
@@ -59,6 +60,11 @@ After the switch to WXT (phase 1 of [`dev/archive/wxt-migration-plan.md`](dev/ar
 the built extension got a basic manual test in the browser by the maintainer (2026-10-31, R0
 of the plan).
 
+The simplifications, the switch to Vitest and the React panel of 2026-11-01
+([review](dev/framework-and-simplification-review.md#6-outcome)) are covered by the tests,
+the builds and the AMO linter, but **not yet checked in a browser**: the panel finding the
+active tab in Chrome's side panel and Firefox's sidebar, following tab switches, Save
+recalculating the page, and the version shown at the bottom.
 
 Before the switch from the +20% surcharge to the shipment setting, built
 artifacts were smoke tested against a local fixture page in real browsers
