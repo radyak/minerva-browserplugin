@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test } from "vitest";
 
 import { Settings } from "../src/core/settings/Settings.ts";
 
@@ -62,6 +62,6 @@ test("turns settings back into plain data", () => {
 
 test("is immutable", () => {
   assert.throws(() => {
-    /** @type {any} */ (Settings.DEFAULT).shipment = 5;
+    (Settings.DEFAULT as any).shipment = 5;
   }, TypeError);
 });

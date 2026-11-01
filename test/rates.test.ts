@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test } from "vitest";
 
 import { ExchangeRates } from "../src/core/rates/ExchangeRates.ts";
 import { RatesClient } from "../src/core/rates/RatesClient.ts";
@@ -12,11 +12,11 @@ const fakeFetch =
   (body, status = 200) =>
   async (url) => {
     lastUrl = url;
-    return /** @type {any} */ ({
+    return {
       ok: status >= 200 && status < 300,
       status,
       json: async () => body,
-    });
+    } as any;
   };
 
 const CODES = ["EUR", "USD", "GBP", "CHF"];

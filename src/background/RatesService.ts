@@ -20,14 +20,10 @@ type Deps = {
  */
 export class RatesService {
   #cache = new Map<string, { rates: ExchangeRates; at: number }>();
-  readonly store: Deps["store"];
-  readonly client: Pick<RatesClient, "fetch">;
-  readonly now: () => number;
+  readonly #deps: Required<Deps>;
 
-  constructor({ store, client = new RatesClient(), now = () => Date.now() }: Deps) {
-    this.store = store;
-    this.client = client;
-    this.now = now;
+  constructor(deps: Deps) {
+    this.#deps = { client: new RatesClient(), now: () => Date.now(), ...deps };
   }
 
   /**
@@ -36,10 +32,11 @@ export class RatesService {
    * @throws {Error} when the rates cannot be loaded
    */
   async get(base: string, { fresh = false }: { fresh?: boolean } = {}): Promise<ExchangeRates> {
+    const { client, now } = this.#deps;
     const cached = this.#cache.get(base);
-    if (!fresh && cached && this.now() - cached.at < CACHE_MS) return cached.rates;
-    const rates = await this.client.fetch(base);
-    this.#cache.set(base, { rates, at: this.now() });
+    if (!fresh && cached && now() - cached.at < CACHE_MS) return cached.rates;
+    const rates = await client.fetch(base);
+    this.#cache.set(base, { rates, at: now() });
     return rates;
   }
 
@@ -50,11 +47,12 @@ export class RatesService {
    * @returns the currencies whose fresh rates were saved
    */
   async refreshSaved(): Promise<string[]> {
-    const { book } = await this.store.load();
-    const refreshed = [];
+    const { store } = this.#deps;
+    const { book } = await store.load();
+    const refreshed: string[] = [];
     for (const base of new Set([Settings.DEFAULT.currency, ...book.currencies()])) {
       try {
-        await this.store.saveRates(await this.get(base, { fresh: true }));
+        await store.saveRates(await this.get(base, { fresh: true }));
         refreshed.push(base);
       } catch (error) {
         console.warn(`[minerva] refreshing the ${base} exchange rates failed:`, error);

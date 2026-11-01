@@ -5,6 +5,7 @@ import { MessageBus } from "../browser/MessageBus.ts";
 import { SettingsStore } from "../browser/SettingsStore.ts";
 import { ContentController } from "../content/ContentController.ts";
 import { SITES } from "../core/sites/sites.config.ts";
+import { matchPatterns } from "../core/sites/sites.ts";
 // Listed under content_scripts[].css in the manifest (cssInjectionMode "manifest").
 import "../content/content.css";
 
@@ -16,7 +17,7 @@ import "../content/content.css";
  * site config.
  */
 export default defineContentScript({
-  matches: SITES.matchPatterns(),
+  matches: matchPatterns(SITES),
   runAt: "document_idle",
   main(ctx) {
     const controller = new ContentController({

@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test } from "vitest";
 import { JSDOM } from "jsdom";
 
 import { ANNOTATION_CLASS, UNPARSABLE_TEXT } from "../src/core/config.ts";
 import { PriceAnnotator } from "../src/core/annotation/PriceAnnotator.ts";
 import { ExchangeRates } from "../src/core/rates/ExchangeRates.ts";
-import { PriceCalculator } from "../src/core/pricing/PriceCalculator.ts";
 import { Settings } from "../src/core/settings/Settings.ts";
-import { AuctionSite } from "../src/core/sites/AuctionSite.ts";
+import type { PriceCalculator } from "../src/core/pricing/PriceCalculator.ts";
+import { defineSite } from "../src/core/sites/sites.ts";
 
 const SELECTOR = ".price";
 const SETTINGS = new Settings({ auctionPremium: 0, shipment: 100, currency: "EUR" });
@@ -25,16 +25,16 @@ function documentWithPrice(price = "500 EUR") {
 
 /**
  * Annotate `doc`'s prices as a site with these selectors (and calculator); the resulting counts.
- * @param {Document} doc
- * @param {string[]} [priceSelectors]
- * @param {import("../src/core/pricing/PriceCalculator.ts").PriceCalculator} [calculator]
+ * @param doc
+ * @param priceSelectors
+ * @param calculator
  */
 const annotate = (doc, priceSelectors = [SELECTOR], calculator = undefined) => {
-  const site = new AuctionSite({
+  const site = defineSite({
     origin: "https://shop.test",
     paths: ["/*"],
     priceSelectors,
-    calculator,
+    ...(calculator && { calculator }),
   });
   const { annotated, unparsable } = new PriceAnnotator(doc).annotate(site, SETTINGS, RATES);
   return { annotated, unparsable };
@@ -129,13 +129,10 @@ for (const price of ["500 EUR", "sold out"]) {
 }
 
 test("the site's calculator works out the price", () => {
-  class Doubling extends PriceCalculator {
-    calculate(amount, currency, settings, rates) {
-      return rates.convert(amount * 2 + settings.shipment, currency);
-    }
-  }
+  const doubling: PriceCalculator = (amount, currency, settings, rates) =>
+    rates?.convert(amount * 2 + settings.shipment, currency);
   const doc = documentWithPrice();
-  annotate(doc, [SELECTOR], new Doubling());
+  annotate(doc, [SELECTOR], doubling);
   assert.equal(annotations(doc)[0].textContent, "1100 EUR");
 });
 
@@ -212,13 +209,13 @@ test("clear removes every annotation", () => {
 });
 
 test("reports an active state with the counts", () => {
-  const site = new AuctionSite({
+  const site = defineSite({
     origin: "https://shop.test",
     paths: ["/*"],
     priceSelectors: [SELECTOR],
   });
   const state = new PriceAnnotator(documentWithPrice()).annotate(site, SETTINGS, RATES);
-  assert.deepEqual(state.toJSON(), {
+  assert.deepEqual(state, {
     active: true,
     annotated: 1,
     unparsable: 0,
@@ -236,7 +233,7 @@ test("reports the currencies of the prices, once each, also without a rate", () 
     <span class="price">$7</span>
     <span class="price">sold out</span>
   `).window.document;
-  const site = new AuctionSite({
+  const site = defineSite({
     origin: "https://shop.test",
     paths: ["/*"],
     priceSelectors: [SELECTOR],

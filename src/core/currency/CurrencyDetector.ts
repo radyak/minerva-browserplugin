@@ -1,3 +1,4 @@
+import { escapeRegExp } from "../regexp.ts";
 import { Currency } from "./Currency.ts";
 
 export interface CurrencyMatch {
@@ -8,8 +9,6 @@ export interface CurrencyMatch {
   /** position of `token` in the searched text */
   index: number;
 }
-
-const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
  * Finds the currency next to a number in page text. Codes must stand on their
@@ -29,7 +28,7 @@ export class CurrencyDetector {
     this.pattern = new RegExp(
       tokens
         .map((token) =>
-          Currency.isCode(token) ? `(?<![A-Za-z])${token}(?![A-Za-z])` : escape(token),
+          Currency.isCode(token) ? `(?<![A-Za-z])${token}(?![A-Za-z])` : escapeRegExp(token),
         )
         .join("|"),
       "g",

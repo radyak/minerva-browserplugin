@@ -1,14 +1,12 @@
 {
-  // The tests stay JavaScript (node:test loads them as they are), checked
-  // through their JSDoc comments, without strict mode.
+  // The tests: TypeScript like src/, but not strict - fakes and fixtures are
+  // deliberately loose (untyped parameters, null where src expects a value).
   "extends": "../tsconfig.json",
   "compilerOptions": {
-    "allowJs": true,
-    "checkJs": true,
-    "maxNodeModuleJsDepth": 0,
     "strict": false,
     "noUncheckedIndexedAccess": false,
-    "noImplicitOverride": false
+    "noImplicitOverride": false,
+    "types": ["node"]
   },
-  "include": ["../.wxt/wxt.d.ts", "**/*.mjs"]
+  "include": ["../.wxt/wxt.d.ts", "**/*.ts", "**/*.tsx"]
 }

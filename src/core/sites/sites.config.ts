@@ -1,14 +1,12 @@
-import { AuctionSite } from "./AuctionSite.ts";
-import { SiteRegistry } from "./SiteRegistry.ts";
-import { UrlParam } from "./UrlParam.ts";
+import { defineSite, type AuctionSite } from "./sites.ts";
 
 /**
  * Every auction site the extension acts on - the one place to edit when the
  * targets change. Both the manifests (build time, via `matchPatterns()`) and
- * the runtime code read from here. See AuctionSite for the fields.
+ * the runtime code read from here. See AuctionSite (./sites.ts) for the fields.
  */
-export const SITES = new SiteRegistry([
-  new AuctionSite({
+export const SITES: readonly AuctionSite[] = [
+  defineSite({
     origin: "https://www.biddr.com",
     paths: ["/*"],
     // The value is the second div of <div class="lot-price"><div>label</div><div>value</div>.
@@ -23,13 +21,13 @@ export const SITES = new SiteRegistry([
       ".lot-price > div:nth-child(2)",
     ],
     // https://www.biddr.com/agorawien/auction?a=7522&l=9222559
-    ids: { house: UrlParam.path("/:id/auction"), auction: UrlParam.query("a") },
+    ids: { house: { path: "/:id/auction" }, auction: { query: "a" } },
   }),
-  new AuctionSite({
+  defineSite({
     origin: "https://www.numisbids.com",
     paths: ["/sale/*"],
     priceSelectors: [".rateclick"],
     // https://www.numisbids.com/sale/7123 and /sale/7123/lot/45; the house is not in the URL.
-    ids: { auction: UrlParam.path("/sale/:id*") },
+    ids: { auction: { path: "/sale/:id*" } },
   }),
-]);
+];

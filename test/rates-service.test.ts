@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test, vi } from "vitest";
 
 import { RatesService } from "../src/background/RatesService.ts";
 import { ExchangeRates } from "../src/core/rates/ExchangeRates.ts";
 import { Settings } from "../src/core/settings/Settings.ts";
-import { bookOf, fakeStore } from "./support/fakes.mjs";
+import { bookOf, fakeStore } from "./support/fakes.ts";
 
 const HOUR = 60 * 60 * 1000;
 const GBP = new Settings({ auctionPremium: 0, shipment: 0, currency: "GBP" });
@@ -12,7 +12,7 @@ const GBP = new Settings({ auctionPremium: 0, shipment: 0, currency: "GBP" });
 /** A rates client counting its requests; each answer carries the request number as date. */
 function countingClient({ fail = false } = {}) {
   return {
-    requests: /** @type {string[]} */ ([]),
+    requests: [] as string[],
     async fetch(base) {
       this.requests.push(base);
       if (fail) throw new Error("offline");
@@ -59,8 +59,8 @@ test("refreshes the rates of every saved currency and of the default one", async
   ]);
 });
 
-test("keeps the saved rates of a currency whose refresh fails", async (t) => {
-  t.mock.method(console, "warn", () => {});
+test("keeps the saved rates of a currency whose refresh fails", async () => {
+  vi.spyOn(console, "warn").mockImplementation(() => {});
   const store = fakeStore({ book: bookOf([{ site: "https://a.test" }, GBP]) });
   const client = {
     async fetch(base) {

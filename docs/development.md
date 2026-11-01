@@ -8,7 +8,8 @@ npm run build            # both browsers -> dist/chrome, dist/firefox
 npm run build:chrome     # one browser only (or :firefox)
 npm run dev              # dev mode: Chrome with the extension loaded, auto-reload on change
 npm run dev:firefox      # the same for Firefox
-npm test                 # lint + typecheck + unit and controller tests
+npm test                 # lint + typecheck + unit, controller and panel tests
+npm run test:watch       # Vitest in watch mode
 npm run format           # apply Prettier and ESLint fixes
 npm run package          # dist/<name>-<version>-<browser>.zip, plus the sources zip for AMO
 ```
@@ -16,22 +17,24 @@ npm run package          # dist/<name>-<version>-<browser>.zip, plus the sources
 The build is [WXT](https://wxt.dev) (Vite underneath), configured in `wxt.config.ts`.
 It finds the entry points in `src/entrypoints/` (`background.ts`, `content.ts`,
 `sidepanel/`), generates the manifest for each browser - version from `package.json`,
-content script `matches` and `host_permissions` from `SITES.matchPatterns()`, `side_panel`
+content script `matches` and `host_permissions` from `matchPatterns(SITES)`, `side_panel`
 for Chrome and `sidebar_action` for Firefox - bundles content script and background as
 IIFE, scales `src/assets/icon.png` into `icons/<size>.png` (`@wxt-dev/auto-icons`, sharp;
 greyscale in dev mode, so the dev build is easy to tell apart) and inlines the icon
-referenced by `content.css` (`src/assets/minerva-64.png`) as a `data:` URL. Bootstrap's CSS is imported by the side panel and
+referenced by `content.css` (`src/assets/minerva-64.png`) as a `data:` URL. The side panel is React (`@wxt-dev/module-react` adds Vite's React plugin); Bootstrap's CSS is imported by it and
 bundled with `panel.css`. Dev mode writes to `dist/<browser>-dev` and starts a
 throwaway browser profile with the extension loaded (via `web-ext`).
 
-The source is TypeScript (strict, `tsconfig.json`), the tests are JavaScript checked
-through their JSDoc (`test/tsconfig.json`); `npm run typecheck` runs both. `node --test`
-loads the `.ts` sources directly - Node 24 strips the types - so the code sticks to
-erasable TypeScript syntax (no `enum`, `namespace` or parameter properties).
+The source is TypeScript (strict, `tsconfig.json`), the tests are TypeScript too, checked less
+strictly (`test/tsconfig.json`); `npm run typecheck` runs both.
 
-Tests use `node:test` and jsdom. Core modules are tested directly, the browser layer and the three controllers with fakes (`test/support/fakes.mjs`); the panel test runs against the real `src/entrypoints/sidepanel/index.html`. `CLAUDE.md` lists the conventions and invariants to keep when changing the code.
+Tests run on [Vitest](https://vitest.dev) (`vitest.config.ts`, `npm run test:unit`, `npm run test:watch`) with WXT's `WxtVitest()` plugin, which applies `wxt.config.ts` and replaces the extension API with WXT's in-memory `fakeBrowser`. Core modules are tested directly against jsdom documents, the browser layer and the two controllers with fakes (`test/support/fakes.ts`), the React panel with Testing Library in a jsdom environment (`test/panel.test.tsx`). `CLAUDE.md` lists the conventions and invariants to keep when changing the code.
 
-GitHub Actions (`.github/workflows/ci.yml`) runs on every push to `main` and every pull request: lint, typecheck, unit tests, the build of both targets, the AMO linter on the Firefox build and `npm run package`. The zips are attached to the run as the `minerva-extensions` artifact.
+The environment variable `VERSION` (e.g. `VERSION=1.2.3 npm run build`) sets the build version shown at the bottom of the panel, `0.0.0-dev` by default. The manifest keeps the `package.json` version, since browsers only accept dot-separated numbers there.
+
+GitHub Actions (`.github/workflows/ci.yml`) runs on every push to `main`, every pull request and every pushed release tag (`v1.2.3`, also with a suffix such as `v1.2.3-rc.1`): lint, typecheck, unit tests, the build of both targets, the AMO linter on the Firefox build and `npm run package`. The zips are attached to the run as the `minerva-extensions` artifact.
+
+Every run sets `VERSION` for its later steps: on a tag build the tag without its `v` (`1.2.3`), otherwise the latest release tag reachable from the commit plus the short commit hash (`1.2.3+abc1234`). As long as no release tag exists, the version from `package.json` stands in for the tag. The build picks it up from the environment, so the panel shows it.
 
 ## Install the development build
 
@@ -53,10 +56,15 @@ on `dist/firefox`.
 
 ## Verified in real browsers
 
-After the switch to WXT (phase 1 of [`dev/wxt-migration-plan.md`](dev/wxt-migration-plan.md)),
+After the switch to WXT (phase 1 of [`dev/archive/wxt-migration-plan.md`](dev/archive/wxt-migration-plan.md)),
 the built extension got a basic manual test in the browser by the maintainer (2026-10-31, R0
 of the plan).
 
+The simplifications, the switch to Vitest and the React panel of 2026-11-01
+([review](dev/framework-and-simplification-review.md#6-outcome)) are covered by the tests,
+the builds and the AMO linter, but **not yet checked in a browser**: the panel finding the
+active tab in Chrome's side panel and Firefox's sidebar, following tab switches, Save
+recalculating the page, and the version shown at the bottom.
 
 Before the switch from the +20% surcharge to the shipment setting, built
 artifacts were smoke tested against a local fixture page in real browsers

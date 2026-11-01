@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test } from "vitest";
 
 import { Currency } from "../src/core/currency/Currency.ts";
 import { CurrencyDetector } from "../src/core/currency/CurrencyDetector.ts";

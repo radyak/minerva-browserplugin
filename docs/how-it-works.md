@@ -5,10 +5,11 @@ What the extension does on a page and in the panel, from the user's point of vie
 - The content script asks `PriceAnnotator` (`src/core/annotation/`) to reconcile the page whenever
   it loads, the DOM changes (`MutationObserver` on `childList` **and**
   `characterData`, so late-rendered elements and in-place price edits are both
-  caught) or the background script reports a URL change.
+  caught), the page navigates in place (`popstate`, `hashchange`), the settings
+  change, or the background script reports a URL change.
 - For every match, the element's text is parsed by `src/core/price.ts`, the
   effective price is calculated by the site's calculator - by default
-  `EffectivePriceCalculator` in `src/core/pricing/` (price plus premium, plus shipment - which
+  `effectivePrice` in `src/core/pricing/` (price plus premium, plus shipment - which
   is entered in the auction's currency, like the price - converted into the selected currency), and the result is inserted as a sibling right
   after the
   price element (same tag, class `minerva-effective-price`, `aria-live="polite"`). The
@@ -25,7 +26,7 @@ What the extension does on a page and in the panel, from the user's point of vie
   `UNPARSABLE_TEXT` (`n/a`), flagged with `data-minerva-unparsable` and greyed out by
   `content.css`. It turns back into a real amount as soon as the text becomes a
   price again, and vice versa. Annotations are only dropped when the URL stops
-  matching.
+  matching or their element is no longer a price element of the site.
 - Prices are given back in the notation they came in - currency position,
   decimal and grouping separators and surrounding text are preserved; only the
   currency is swapped (a symbol for a symbol, a code for a code):
@@ -45,9 +46,12 @@ What the extension does on a page and in the panel, from the user's point of vie
   price: they are skipped when looking for the number and left out of the
   output, unless the whole text is one.
 - The background script watches `tabs.onUpdated` (covers SPA `pushState`
-  navigation), sets a badge on the toolbar icon and relays sync requests.
-- The panel is one HTML file used by both browsers - Chrome shows it via
-  `chrome.sidePanel`, Firefox via `sidebar_action`. Settings are saved per
+  navigation), sets an `ON` badge on the toolbar icon while a tab is on a
+  configured site and asks that tab to sync.
+- The panel is one page (React) used by both browsers - Chrome shows it via
+  `chrome.sidePanel`, Firefox via `sidebar_action`. It asks the active tab
+  directly what it is doing; a tab without the content script (not loaded yet)
+  is judged by its URL. Settings are saved per
   auction: *Save* stores them under the active tab's site, auction house and
   auction ID, together with the exchange rates of their currency, in one write to
   `storage.local` (`auctionSettings`, `exchangeRates`), and makes the active tab
@@ -80,5 +84,7 @@ What the extension does on a page and in the panel, from the user's point of vie
   (no site) or "No auction detected on this page" (site, but no IDs) instead; prices
   are still converted and the *Plugin status* card stays visible either way.
 - Below the *Plugin status* card the panel shows a disclaimer (bidding aid only, no
-  responsibility for the prices shown) and links for bug reports and feature
-  requests (email, GitHub repository).
+  responsibility for the prices shown), links for bug reports and feature
+  requests (email, GitHub repository) and, at the very bottom, the build version
+  (e.g. `v1.2.3+abc1234`; `v0.0.0-dev` for local builds, see
+  [Development](development.md#build-and-test)).

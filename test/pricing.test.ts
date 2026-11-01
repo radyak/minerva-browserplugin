@@ -1,23 +1,21 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test } from "vitest";
 
-import { EffectivePriceCalculator } from "../src/core/pricing/EffectivePriceCalculator.ts";
-import { PriceCalculator } from "../src/core/pricing/PriceCalculator.ts";
+import { effectivePrice } from "../src/core/pricing/PriceCalculator.ts";
 import { convertPrice } from "../src/core/price.ts";
 import { ExchangeRates } from "../src/core/rates/ExchangeRates.ts";
 import { Settings } from "../src/core/settings/Settings.ts";
 
-const CALCULATOR = new EffectivePriceCalculator();
 const EUR_SETTINGS = new Settings({ auctionPremium: 0, shipment: 0, currency: "EUR" });
 // Into EUR; GBP deliberately has no rate.
 const INTO_EUR = new ExchangeRates("EUR", "", { USD: 2 });
 
 const calculate = (amount, currency, settings = {}) =>
-  CALCULATOR.calculate(amount, currency, new Settings({ ...EUR_SETTINGS, ...settings }), INTO_EUR);
+  effectivePrice(amount, currency, new Settings({ ...EUR_SETTINGS, ...settings }), INTO_EUR);
 
 test("returns the amount unchanged without premium, shipment or conversion", () => {
   assert.equal(calculate(500, "EUR"), 500);
-  assert.equal(CALCULATOR.calculate(500, "EUR", Settings.DEFAULT, ExchangeRates.empty("EUR")), 500);
+  assert.equal(effectivePrice(500, "EUR", Settings.DEFAULT, ExchangeRates.empty("EUR")), 500);
 });
 
 test("converts with the rate of the input currency", () => {
@@ -49,20 +47,12 @@ test("converts the shipment along with the price", () => {
 test("is undefined without currency or rate", () => {
   assert.equal(calculate(500, undefined), undefined);
   assert.equal(calculate(500, "GBP"), undefined);
-  assert.equal(CALCULATOR.calculate(500, "EUR", EUR_SETTINGS, undefined), undefined);
+  assert.equal(effectivePrice(500, "EUR", EUR_SETTINGS, undefined), undefined);
 });
 
 test("is undefined for a rate that is not a finite number", () => {
   for (const rate of [NaN, Infinity, 0]) {
     const rates = new ExchangeRates("EUR", "", { USD: rate });
-    assert.equal(CALCULATOR.calculate(500, "USD", EUR_SETTINGS, rates), undefined, `${rate}`);
+    assert.equal(effectivePrice(500, "USD", EUR_SETTINGS, rates), undefined, `${rate}`);
   }
-});
-
-test("the base class leaves the calculation to its subclasses", () => {
-  class Unfinished extends PriceCalculator {}
-  assert.throws(
-    () => new Unfinished().calculate(1, "EUR", EUR_SETTINGS, INTO_EUR),
-    /Unfinished does not implement calculate\(\)/,
-  );
 });
