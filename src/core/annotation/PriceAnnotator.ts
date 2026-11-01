@@ -4,7 +4,7 @@ import { TabState } from "../state/TabState.ts";
 import { AnnotationView } from "./AnnotationView.ts";
 import type { ExchangeRates } from "../rates/ExchangeRates.ts";
 import type { Settings } from "../settings/Settings.ts";
-import type { AuctionSite } from "../sites/AuctionSite.ts";
+import type { AuctionSite } from "../sites/sites.ts";
 
 /**
  * Reads the price out of every price element of a document, works out the
@@ -42,7 +42,7 @@ export class PriceAnnotator {
         source,
         (amount, currency) => {
           if (currency) currencies.add(currency);
-          return site.calculator.calculate(amount, currency, settings, rates);
+          return site.calculator(amount, currency, settings, rates);
         },
         settings.currency,
       );
@@ -57,7 +57,7 @@ export class PriceAnnotator {
     }
     this.view.removeAllBut(shown);
 
-    return new TabState({ active: true, annotated, unparsable, currencies });
+    return TabState.of({ active: true, annotated, unparsable, currencies });
   }
 
   /**

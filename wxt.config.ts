@@ -1,6 +1,7 @@
 import { defineConfig } from "wxt";
 
 import { SITES } from "./src/core/sites/sites.config.ts";
+import { matchPatterns } from "./src/core/sites/sites.ts";
 
 const TITLE = "Minerva - Online Auction Assistant";
 
@@ -10,7 +11,7 @@ const TITLE = "Minerva - Online Auction Assistant";
  * The manifest is generated: version from package.json, background, content
  * script and side panel keys from src/entrypoints/, the rest from here. The
  * only per-browser part is `browser_specific_settings` below; at runtime the
- * difference is confined to src/browser/side-panel.js.
+ * difference is confined to src/browser/side-panel.ts.
  */
 export default defineConfig({
   srcDir: "src",
@@ -32,7 +33,7 @@ export default defineConfig({
     name: TITLE,
     description: "Assists with online auctions by making effective prices transparent",
     permissions: ["tabs", "storage", "alarms"],
-    host_permissions: SITES.matchPatterns(),
+    host_permissions: matchPatterns(SITES),
     action: {
       default_title: TITLE,
       default_icon: { 16: "icons/16.png", 32: "icons/32.png" },

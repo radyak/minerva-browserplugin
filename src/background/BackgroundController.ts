@@ -5,9 +5,9 @@ import type { SettingsStore } from "../browser/SettingsStore.ts";
 import { Currency } from "../core/currency/Currency.ts";
 import { MSG } from "../core/messages.ts";
 import type { ExchangeRatesJSON } from "../core/rates/ExchangeRates.ts";
-import type { SiteRegistry } from "../core/sites/SiteRegistry.ts";
 import { SITES } from "../core/sites/sites.config.ts";
-import { TabState, type TabStateJSON } from "../core/state/TabState.ts";
+import { findSite, type AuctionSite } from "../core/sites/sites.ts";
+import { TabState } from "../core/state/TabState.ts";
 import type { RatesService } from "./RatesService.ts";
 
 type Deps = {
@@ -16,7 +16,7 @@ type Deps = {
   bus: Pick<MessageBus, "on" | "sendToTab">;
   store: Pick<SettingsStore, "migrate">;
   rates: Pick<RatesService, "get" | "refreshSaved">;
-  sites?: SiteRegistry;
+  sites?: readonly AuctionSite[];
 };
 
 /** Badge colour while the extension is active in a tab (Bootstrap "danger"). */
@@ -28,23 +28,15 @@ const RATES_ALARM_MINUTES = 24 * 60;
 
 /**
  * Background script / service worker: owns the toolbar badge, watches tab
- * navigation, forwards sync requests to the content scripts, tells the panel
- * what the active tab is doing and owns the exchange rates (fetching them for
- * the panel, keeping the saved ones fresh). Everything it touches is passed in.
+ * navigation and asks the content scripts to sync, migrates the stored data and
+ * owns the exchange rates (fetching them for the panel, keeping the saved ones
+ * fresh). Everything it touches is passed in.
  */
 export class BackgroundController {
-  readonly ext: Deps["ext"];
-  readonly bus: Deps["bus"];
-  readonly store: Deps["store"];
-  readonly rates: Deps["rates"];
-  readonly sites: SiteRegistry;
+  readonly #deps: Required<Deps>;
 
-  constructor({ ext, bus, store, rates, sites = SITES }: Deps) {
-    this.ext = ext;
-    this.bus = bus;
-    this.store = store;
-    this.rates = rates;
-    this.sites = sites;
+  constructor(deps: Deps) {
+    this.#deps = { sites: SITES, ...deps };
   }
 
   /**
@@ -52,33 +44,33 @@ export class BackgroundController {
    * receives events whose listeners were added in its first turn.
    */
   start(): void {
-    this.ext.runtime.onInstalled.addListener(async () => {
-      // Settings saved by an older version: convert them once, on update.
-      await this.store.migrate(this.sites.sites.map((site) => site.origin));
+    const { ext, bus, store, rates, sites } = this.#deps;
+    ext.runtime.onInstalled.addListener(async () => {
+      // Stored data of an older layout: convert it once, on update.
+      await store.migrate();
       await this.#scheduleRatesRefresh();
-      await this.rates.refreshSaved();
+      await rates.refreshSaved();
     });
-    this.ext.runtime.onStartup.addListener(async () => {
+    ext.runtime.onStartup.addListener(async () => {
       // Firefox does not keep alarms across browser restarts.
       await this.#scheduleRatesRefresh();
-      await this.rates.refreshSaved();
+      await rates.refreshSaved();
     });
-    this.ext.alarms.onAlarm.addListener((alarm) => {
-      if (alarm.name === RATES_ALARM) this.rates.refreshSaved();
+    ext.alarms.onAlarm.addListener((alarm) => {
+      if (alarm.name === RATES_ALARM) rates.refreshSaved();
     });
 
-    this.ext.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    ext.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
       // `url` changes on real navigations and on history.pushState alike.
       if (!changeInfo.url && changeInfo.status !== "complete") return;
-      this.updateBadge(tabId, this.sites.isTarget(changeInfo.url ?? tab?.url));
-      this.bus.sendToTab(tabId, { type: MSG.SYNC_REQUEST });
+      this.updateBadge(tabId, findSite(sites, changeInfo.url ?? tab?.url) !== null);
+      bus.sendToTab(tabId, { type: MSG.SYNC_REQUEST });
     });
 
-    this.bus
+    bus
       .on(MSG.STATE_CHANGED, (message, sender) => {
         if (sender.tab?.id != null) this.updateBadge(sender.tab.id, TabState.from(message).active);
       })
-      .on(MSG.GET_ACTIVE_STATE, () => this.activeTabState())
       .on(MSG.GET_RATES, (message) => this.ratesFor(message.base));
   }
 
@@ -89,7 +81,7 @@ export class BackgroundController {
     const currency = Currency.of(base);
     if (!currency) return { error: `Unsupported currency: ${String(base)}` };
     try {
-      return { rates: (await this.rates.get(currency.code)).toJSON() };
+      return { rates: (await this.#deps.rates.get(currency.code)).toJSON() };
     } catch (error) {
       return { error: error instanceof Error ? error.message : String(error) };
     }
@@ -99,36 +91,18 @@ export class BackgroundController {
    * Show "ON" on the toolbar button of `tabId` while the extension is active there.
    */
   updateBadge(tabId: number, active: boolean): void {
-    this.ext.action?.setBadgeText({ tabId, text: active ? "ON" : "" });
-    if (active) this.ext.action?.setBadgeBackgroundColor({ tabId, color: BADGE_COLOR });
+    const { action } = this.#deps.ext;
+    action?.setBadgeText({ tabId, text: active ? "ON" : "" });
+    if (active) action?.setBadgeBackgroundColor({ tabId, color: BADGE_COLOR });
   }
 
   /** Create the daily refresh alarm unless it is already scheduled. */
   async #scheduleRatesRefresh(): Promise<void> {
-    if (await this.ext.alarms.get(RATES_ALARM)) return;
-    await this.ext.alarms.create(RATES_ALARM, {
+    const { alarms } = this.#deps.ext;
+    if (await alarms.get(RATES_ALARM)) return;
+    await alarms.create(RATES_ALARM, {
       delayInMinutes: RATES_ALARM_MINUTES,
       periodInMinutes: RATES_ALARM_MINUTES,
     });
-  }
-
-  /**
-   * The state of the active tab, freshly synced by its content script.
-   */
-  async activeTabState(): Promise<{ url: string | null } & TabStateJSON> {
-    const [tab] = await this.ext.tabs.query({ active: true, currentWindow: true });
-    if (!tab) return { url: null, ...TabState.inactive().toJSON() };
-    const state =
-      tab.id === undefined
-        ? undefined
-        : await this.bus.sendToTab(tab.id, { type: MSG.SYNC_REQUEST });
-    // No content script there (yet): judge by the URL alone.
-    const site = this.sites.find(tab.url);
-    const fallback = new TabState({
-      active: site !== null,
-      site: site?.origin ?? null,
-      ...site?.identify(tab.url),
-    });
-    return state ?? { url: tab.url ?? null, ...fallback.toJSON() };
   }
 }

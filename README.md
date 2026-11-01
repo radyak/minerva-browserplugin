@@ -33,14 +33,15 @@ Load `dist/chrome` via *Load unpacked* in `chrome://extensions`, or `dist/firefo
 | [Architecture](docs/architecture.md) | Contexts, layers, components, HTML components, messages, storage, event lifecycles |
 | [Configuration](docs/configuration.md) | Auction sites (`sites.config.ts`) and plugin-wide constants |
 | [Development](docs/development.md) | Build, test, packaging, installing the development build |
-| [Architecture review](docs/dev/architecture-review.md) | Review of 2026-09-27 and the refactoring plan it started |
+| [Framework and simplification review](docs/dev/framework-and-simplification-review.md) | Review of 2026-11-01: simplifications, Vitest, the React panel - and what was done |
+| [Archive](docs/dev/archive/) | Finished plans: the architecture review of 2026-09-27, the WXT migration |
 
 ## Plans & Next Steps
 * Persistence
 * URL-based auction detection & persistence in auction scope
 * Backend: Auction database
 * Tweak "your bid" price, too
-* Migration to [WXT](https://wxt.dev): build done (see [plan](docs/dev/wxt-migration-plan.md)); next: type safety, messaging, storage
+* Migration to [WXT](https://wxt.dev): done (see [plan](docs/dev/archive/wxt-migration-plan.md))
 
 ### Further factors of the effective price
 
@@ -97,7 +98,7 @@ Implementation notes:
   have to be entered for every auction.
 * The clearance fee is the first amount in the output currency rather than the
   auction's; the panel has to label it accordingly.
-* Everything else stays inside `EffectivePriceCalculator` and `Settings.RANGES`;
+* Everything else stays inside `effectivePrice` and `Settings.RANGES`;
   the message flow does not change.
 * VAT status varying per lot within one auction (UK catalogues mark VAT and import
   lots with `*` / `**`) needs site-specific lot parsing - a later step.

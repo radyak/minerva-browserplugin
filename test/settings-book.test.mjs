@@ -4,7 +4,7 @@ import test from "node:test";
 import { AuctionKey } from "../src/core/settings/AuctionKey.ts";
 import { Settings } from "../src/core/settings/Settings.ts";
 import { SettingsBook } from "../src/core/settings/SettingsBook.ts";
-import { SETTINGS_SCOPES, SettingsScope } from "../src/core/settings/SettingsScope.ts";
+import { SETTINGS_SCOPES } from "../src/core/settings/SettingsScope.ts";
 import { bookOf } from "./support/fakes.mjs";
 
 const A = "https://a.test";
@@ -13,7 +13,7 @@ const premium = (auctionPremium) => new Settings({ auctionPremium, shipment: 0, 
 
 /** The premium and scope `book` resolves for `key`, or null. */
 const resolve = (book, key) => {
-  const found = book.resolve(new AuctionKey(key));
+  const found = book.resolve(AuctionKey.from(key));
   return found && [found.settings.auctionPremium, found.scope.name];
 };
 
@@ -52,7 +52,7 @@ test("does not take unknown IDs for equal ones", () => {
 });
 
 test("replaces what was saved under the same key and keeps it the newest", () => {
-  const key = new AuctionKey({ site: A, house: "leu", auction: "1" });
+  const key = AuctionKey.from({ site: A, house: "leu", auction: "1" });
   const book = bookOf(
     [key, premium(10)],
     [{ site: A, house: "leu", auction: "2" }, premium(20)],
@@ -65,11 +65,11 @@ test("replaces what was saved under the same key and keeps it the newest", () =>
     ],
   );
   assert.deepEqual(resolve(book, { site: A, house: "leu", auction: "9" }), [15, "house"]);
-  assert.throws(() => book.with(new AuctionKey({ auction: "1" }), premium(1)), /site/);
+  assert.throws(() => book.with(AuctionKey.from({ auction: "1" }), premium(1)), /site/);
 });
 
 test("follows the order and choice of its scopes", () => {
-  const siteOnly = [new SettingsScope({ name: "site", fields: ["site"], label: "this site" })];
+  const siteOnly = [{ name: "site", fields: /** @type {const} */ (["site"]), label: "this site" }];
   const entries = bookOf(
     [{ site: A, house: "leu", auction: "1" }, premium(10)],
     [{ site: A, house: "cng", auction: "2" }, premium(20)],
@@ -98,7 +98,15 @@ test("survives a round trip through storage and drops entries without a site", (
   assert.deepEqual(SettingsBook.from([{ house: "leu", settings: {} }, null]).entries, []);
   assert.deepEqual(SettingsBook.from("garbage").entries, []);
   assert.deepEqual(SettingsBook.from([{ site: A, settings: { auctionPremium: 500 } }]).entries, [
-    { key: new AuctionKey({ site: A }), settings: Settings.DEFAULT },
+    { key: AuctionKey.from({ site: A }), settings: Settings.DEFAULT },
+  ]);
+});
+
+test("stores only the key's own fields, even when given a whole tab state", () => {
+  const state = { site: A, house: "leu", auction: "1", active: true, annotated: 2 };
+  const book = new SettingsBook().with(state, premium(10));
+  assert.deepEqual(book.toJSON(), [
+    { site: A, house: "leu", auction: "1", settings: premium(10).toJSON() },
   ]);
 });
 

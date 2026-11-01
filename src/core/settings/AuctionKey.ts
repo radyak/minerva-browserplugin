@@ -1,58 +1,37 @@
-/** `AuctionKey#toJSON()`. */
-export type AuctionKeyJSON = { site: string | null; house: string | null; auction: string | null };
-
-/** One part of an AuctionKey. */
-export type KeyField = (typeof AuctionKey.FIELDS)[number];
-
 /**
  * Which auction settings belong to: the site (its origin), the auction house
- * and the auction, as far as the page URL tells (see AuctionSite `ids`). The
- * composite key settings are saved under in the SettingsBook; null stands for
- * "not known". Immutable.
+ * and the auction, as far as the page URL tells (see AuctionSite `ids`); null
+ * stands for "not known". The key settings are saved under in the SettingsBook.
+ * A TabState is an AuctionKey too.
  */
-export class AuctionKey {
-  /** The parts of a key, from the broadest to the most specific. */
-  static FIELDS = Object.freeze(["site", "house", "auction"] as const);
+export type AuctionKey = {
   readonly site: string | null;
   readonly house: string | null;
   readonly auction: string | null;
+};
+
+/** One part of an AuctionKey. */
+export type KeyField = keyof AuctionKey;
+
+/** A non-empty string, or null for anything else. */
+export const idOf = (value: unknown): string | null =>
+  typeof value === "string" && value !== "" ? value : null;
+
+export const AuctionKey = {
+  /** The parts of a key, from the broadest to the most specific. */
+  FIELDS: ["site", "house", "auction"] as const,
 
   /**
-   * @param values.site origin of the AuctionSite
-   * @param values.house auction house ID
-   * @param values.auction auction ID
+   * Just the key of anything carrying `site`, `house` and `auction` (a TabState,
+   * a stored entry, a partial key); anything but a non-empty string is unknown.
    */
-  constructor({
-    site = null,
-    house = null,
-    auction = null,
-  }: { site?: string | null; house?: string | null; auction?: string | null } = {}) {
-    this.site = site;
-    this.house = house;
-    this.auction = auction;
-    Object.freeze(this);
-  }
+  from(data: unknown): AuctionKey {
+    const values = data as Partial<Record<KeyField, unknown>> | null | undefined;
+    return { site: idOf(values?.site), house: idOf(values?.house), auction: idOf(values?.auction) };
+  },
 
-  /**
-   * The key of anything carrying `site`, `house` and `auction` (a TabState, a
-   * stored entry); anything but a non-empty string counts as unknown.
-   */
-  static from(data: unknown): AuctionKey {
-    const values = data as Record<string, unknown> | null | undefined;
-    const id = (value: unknown) => (typeof value === "string" && value !== "" ? value : null);
-    return new AuctionKey({
-      site: id(values?.site),
-      house: id(values?.house),
-      auction: id(values?.auction),
-    });
-  }
-
-  equals(other: AuctionKey | null | undefined): boolean {
-    return other != null && AuctionKey.FIELDS.every((field) => this[field] === other[field]);
-  }
-
-  /** Plain data to store. */
-  toJSON(): AuctionKeyJSON {
-    return { site: this.site, house: this.house, auction: this.auction };
-  }
-}
+  /** Whether `a` and `b` name the same auction (fields compared one by one). */
+  equals(a: AuctionKey, b: AuctionKey | null | undefined): boolean {
+    return b != null && AuctionKey.FIELDS.every((field) => a[field] === b[field]);
+  },
+};

@@ -4,25 +4,18 @@ import test from "node:test";
 import { BackgroundController } from "../src/background/BackgroundController.ts";
 import { MSG } from "../src/core/messages.ts";
 import { ExchangeRates } from "../src/core/rates/ExchangeRates.ts";
-import { AuctionSite } from "../src/core/sites/AuctionSite.ts";
-import { SiteRegistry } from "../src/core/sites/SiteRegistry.ts";
-import { UrlParam } from "../src/core/sites/UrlParam.ts";
+import { defineSite } from "../src/core/sites/sites.ts";
 import { fakeBus } from "./support/fakes.mjs";
 
-const SITES = new SiteRegistry([
-  new AuctionSite({
-    origin: "https://shop.test",
-    paths: ["/lot/*"],
-    priceSelectors: [".price"],
-    ids: { house: UrlParam.query("h"), auction: UrlParam.path("/lot/:id") },
-  }),
-]);
+const SITES = [
+  defineSite({ origin: "https://shop.test", paths: ["/lot/*"], priceSelectors: [".price"] }),
+];
 
 /**
  * The parts of the extension API the controller uses, recording badges and listeners.
  * @returns {any}
  */
-function fakeExt({ activeTab } = /** @type {{activeTab?: any}} */ ({})) {
+function fakeExt() {
   const ext = {
     badges: /** @type {any[]} */ ([]),
     colors: /** @type {any[]} */ ([]),
@@ -45,7 +38,6 @@ function fakeExt({ activeTab } = /** @type {{activeTab?: any}} */ ({})) {
     },
     tabs: {
       onUpdated: { addListener: (listener) => ext.onUpdated.push(listener) },
-      query: async () => (activeTab ? [activeTab] : []),
     },
     runtime: {
       onInstalled: { addListener: (listener) => ext.onInstalled.push(listener) },
@@ -70,15 +62,14 @@ function fakeRates() {
   };
 }
 
-function start({ activeTab = undefined, tabAnswer = undefined } = {}) {
-  const ext = fakeExt({ activeTab });
-  const bus = fakeBus({ answers: { tab: tabAnswer } });
+function start() {
+  const ext = fakeExt();
+  const bus = fakeBus();
   const rates = fakeRates();
-  /** @type {Array<readonly string[]>} the sites of each migration */
   const migrations = [];
   const store = {
-    migrate: async (sites) => {
-      migrations.push(sites);
+    migrate: async () => {
+      migrations.push("migrated");
       return true;
     },
   };
@@ -115,45 +106,10 @@ test("updates the badge from the state a content script reports", () => {
   ]);
 });
 
-test("answers the active tab's state as synced by its content script", async () => {
-  const answer = { url: "https://shop.test/lot/1", active: true, annotated: 2, unparsable: 1 };
-  const { bus } = start({ activeTab: { id: 9, url: answer.url }, tabAnswer: answer });
-  assert.deepEqual(await bus.deliver({ type: MSG.GET_ACTIVE_STATE }), answer);
-  assert.deepEqual(bus.sentToTabs, [[9, { type: MSG.SYNC_REQUEST }]]);
-});
-
-test("judges by the URL when the active tab has no content script", async () => {
-  const { bus } = start({ activeTab: { id: 9, url: "https://shop.test/lot/1?h=leu" } });
-  assert.deepEqual(await bus.deliver({ type: MSG.GET_ACTIVE_STATE }), {
-    url: "https://shop.test/lot/1?h=leu",
-    active: true,
-    annotated: 0,
-    unparsable: 0,
-    currencies: [],
-    site: "https://shop.test",
-    house: "leu",
-    auction: "1",
-  });
-});
-
-test("is inactive without an active tab", async () => {
-  const { bus } = start();
-  assert.deepEqual(await bus.deliver({ type: MSG.GET_ACTIVE_STATE }), {
-    url: null,
-    active: false,
-    annotated: 0,
-    unparsable: 0,
-    currencies: [],
-    site: null,
-    house: null,
-    auction: null,
-  });
-});
-
 test("on install or update: migrates, schedules the daily refresh and refreshes the rates", async () => {
   const { ext, rates, migrations } = start();
   await ext.onInstalled[0]({ reason: "update" });
-  assert.deepEqual(migrations, [["https://shop.test"]]);
+  assert.deepEqual(migrations, ["migrated"]);
   assert.deepEqual([...ext.scheduled.keys()], ["refresh-exchange-rates"]);
   assert.equal(rates.refreshes, 1);
 });

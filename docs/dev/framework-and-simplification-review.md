@@ -16,7 +16,7 @@ Most of the "this feels like a lot" comes from somewhere else: **ceremony around
 2. **Move the tests to Vitest** (`WxtVitest()` + `fakeBrowser`). This is the precondition for any JSX framework, and on its own removes several of the constraints in `CLAUDE.md`.
 3. **Rewrite the side panel in Preact (or React) with JSX.** Worth it, but only after 1 and 2: it roughly halves the panel and deletes the `index.html` ↔ view-class coupling, but it does not touch the parts that are hard to understand.
 
-This revises the earlier "no UI framework for the panel" decision ([`architecture-review.md`](architecture-review.md#52-panel-ui), [`wxt-migration-plan.md`](wxt-migration-plan.md#4-decisions-that-stay)): the panel has since grown to six classes (controller, five views, `SelectedRates`) and a settings-source indicator, which is the point the review named for reconsidering.
+This revises the earlier "no UI framework for the panel" decision ([`architecture-review.md`](archive/architecture-review.md#52-panel-ui), [`wxt-migration-plan.md`](archive/wxt-migration-plan.md#4-decisions-that-stay)): the panel has since grown to six classes (controller, five views, `SelectedRates`) and a settings-source indicator, which is the point the review named for reconsidering.
 
 ---
 

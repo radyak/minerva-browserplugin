@@ -16,7 +16,7 @@ npm run package          # dist/<name>-<version>-<browser>.zip, plus the sources
 The build is [WXT](https://wxt.dev) (Vite underneath), configured in `wxt.config.ts`.
 It finds the entry points in `src/entrypoints/` (`background.ts`, `content.ts`,
 `sidepanel/`), generates the manifest for each browser - version from `package.json`,
-content script `matches` and `host_permissions` from `SITES.matchPatterns()`, `side_panel`
+content script `matches` and `host_permissions` from `matchPatterns(SITES)`, `side_panel`
 for Chrome and `sidebar_action` for Firefox - bundles content script and background as
 IIFE, scales `src/assets/icon.png` into `icons/<size>.png` (`@wxt-dev/auto-icons`, sharp;
 greyscale in dev mode, so the dev build is easy to tell apart) and inlines the icon
@@ -53,7 +53,7 @@ on `dist/firefox`.
 
 ## Verified in real browsers
 
-After the switch to WXT (phase 1 of [`dev/wxt-migration-plan.md`](dev/wxt-migration-plan.md)),
+After the switch to WXT (phase 1 of [`dev/archive/wxt-migration-plan.md`](dev/archive/wxt-migration-plan.md)),
 the built extension got a basic manual test in the browser by the maintainer (2026-10-31, R0
 of the plan).
 

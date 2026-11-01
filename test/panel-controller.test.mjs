@@ -7,6 +7,7 @@ import { MSG } from "../src/core/messages.ts";
 import { ExchangeRates } from "../src/core/rates/ExchangeRates.ts";
 import { AuctionKey } from "../src/core/settings/AuctionKey.ts";
 import { Settings } from "../src/core/settings/Settings.ts";
+import { defineSite } from "../src/core/sites/sites.ts";
 import { PanelController } from "../src/panel/PanelController.ts";
 import { bookOf, fakeBus, fakeStore, settle } from "./support/fakes.mjs";
 
@@ -38,12 +39,13 @@ function manualClient() {
  * A fake `tabs` API recording its listeners.
  * @returns {any}
  */
-function fakeTabs() {
+function fakeTabs(activeTab) {
   const activated = [];
   const updated = [];
   return {
     activated,
     updated,
+    query: async () => (activeTab ? [activeTab] : []),
     onActivated: { addListener: (listener) => activated.push(listener) },
     onUpdated: { addListener: (listener) => updated.push(listener) },
   };
@@ -62,19 +64,23 @@ const ON_USD_PAGE = {
   auction: null,
 };
 
-/** @param {{book?: any, client?: any, state?: object}} [options] */
+/**
+ * @param {{book?: any, client?: any, state?: object | null, tab?: any}} [options] `state`
+ *   is what the content script of the active `tab` answers (null: there is none)
+ */
 async function openPanel({
   book = bookOf([{ site: SHOP }, GBP]),
   client = undefined,
   state = ON_USD_PAGE,
+  tab = { id: 1, url: `${SHOP}/lot/1` },
 } = {}) {
   const { window } = new JSDOM(PANEL_HTML);
   const doc = window.document;
-  const tabs = fakeTabs();
+  const tabs = fakeTabs(tab);
   const rates = client ?? { fetch: async (base) => ratesOf(base) };
   const bus = fakeBus({
     answers: {
-      [MSG.GET_ACTIVE_STATE]: state,
+      tab: () => state,
       // What BackgroundController.ratesFor() answers.
       [MSG.GET_RATES]: async ({ base }) => {
         try {
@@ -86,7 +92,15 @@ async function openPanel({
     },
   });
   const store = fakeStore({ book });
-  const controller = new PanelController({ document: doc, tabs, bus, store });
+  const sites = [
+    defineSite({
+      origin: SHOP,
+      paths: ["/lot/*"],
+      priceSelectors: [".price"],
+      ids: { house: { query: "h" }, auction: { path: "/lot/:id" } },
+    }),
+  ];
+  const controller = new PanelController({ document: doc, tabs, bus, store, sites });
   const started = controller.start();
   const $ = (selector) => /** @type {any} */ (doc.querySelector(selector));
   return { window, doc, $, tabs, bus, store, controller, started };
@@ -168,6 +182,26 @@ test("shows the form and the auction only while the tab is on an auction", async
   assert.equal(inactive.$("#auction-ids").hidden, true);
 });
 
+test("judges the active tab by its URL when it has no content script", async () => {
+  const { $, started } = await openPanel({
+    state: null, // no receiver
+    tab: { id: 1, url: `${SHOP}/lot/7?h=leu` },
+  });
+  await started;
+  assert.equal($("#status").textContent, "0 prices annotated");
+  assert.equal($("#auction-house").textContent, "leu");
+  assert.equal($("#auction-id").textContent, "7");
+  assert.equal($("#settings").hidden, false);
+});
+
+test("is inactive without an active tab", async () => {
+  const { $, bus, started } = await openPanel({ tab: null });
+  await started;
+  assert.equal($("#status").textContent, "inactive");
+  assert.equal($("#settings").hidden, true);
+  assert.deepEqual(bus.sentToTabs, []);
+});
+
 test("shows no rate when the page needs none", async () => {
   const inGbp = await openPanel({ state: { ...ON_USD_PAGE, currencies: ["GBP"] } });
   await inGbp.started;
@@ -185,8 +219,7 @@ test("follows the currencies of the active tab", async () => {
   let state = ON_USD_PAGE;
   const { bus, $, started } = await openPanel();
   await started;
-  bus.send = async (message) =>
-    message.type === MSG.GET_ACTIVE_STATE ? state : { rates: ratesOf(message.base).toJSON() };
+  bus.sendToTab = async () => state;
   state = { ...ON_USD_PAGE, currencies: ["CHF", "EUR"] };
   bus.deliver({ type: MSG.STATE_CHANGED });
   await settle();
@@ -222,7 +255,7 @@ test("saves the entered settings with the matching rates in one go", async () =>
   assert.deepEqual(store.saved, [
     {
       // Under the key of the page: house "leu", auction unknown.
-      key: new AuctionKey({ site: SHOP, house: "leu" }),
+      key: AuctionKey.from({ site: SHOP, house: "leu" }),
       settings: new Settings({ auctionPremium: 25, shipment: 7, currency: "GBP" }),
       rates: ratesOf("GBP"),
     },
@@ -231,7 +264,11 @@ test("saves the entered settings with the matching rates in one go", async () =>
   assert.equal($("#shipment").value, "7");
   assert.equal(source($), "Saved for this auction house.");
   assert.equal($("#saved").hidden, false);
-  assert.equal(bus.sent.filter((message) => message.type === MSG.GET_ACTIVE_STATE).length, 2);
+  // Asked the tab on open and after saving: it re-reads the settings and recalculates.
+  assert.deepEqual(bus.sentToTabs, [
+    [1, { type: MSG.SYNC_REQUEST }],
+    [1, { type: MSG.SYNC_REQUEST }],
+  ]);
 });
 
 test("does not save invalid input", async () => {
@@ -314,8 +351,7 @@ test("saves settings without rates when they could not be loaded", async () => {
 test("refreshes the status on state changes, tab switches and navigation", async () => {
   const { tabs, bus, started } = await openPanel();
   await started;
-  const statusRequests = () =>
-    bus.sent.filter((message) => message.type === MSG.GET_ACTIVE_STATE).length;
+  const statusRequests = () => bus.sentToTabs.length;
   const before = statusRequests();
   bus.deliver({ type: MSG.STATE_CHANGED });
   tabs.activated[0]({ tabId: 2 });
@@ -329,8 +365,7 @@ test("shows the currencies of the page's prices next to the shipment", async () 
   /** @type {any} */
   let state = { ...ON_USD_PAGE, currencies: [] };
   const { bus, $, started } = await openPanel({ state });
-  bus.send = async (message) =>
-    message.type === MSG.GET_ACTIVE_STATE ? state : { rates: ratesOf(message.base).toJSON() };
+  bus.sendToTab = async () => state;
   await started;
   assert.equal($("#shipment-currency").textContent, "–"); // no price found yet
 
@@ -350,8 +385,7 @@ test("fills the form with the settings of the auction the active tab is on", asy
     [{ site: SHOP, house: "leu", auction: "1" }, CHF],
   );
   const { window, bus, $, started } = await openPanel({ book, state });
-  bus.send = async (message) =>
-    message.type === MSG.GET_ACTIVE_STATE ? state : { rates: ratesOf(message.base).toJSON() };
+  bus.sendToTab = async () => state;
   await started;
   const showing = () => [$("#currency").value, $("#auction-premium").value, source($)];
   const navigate = async (changes) => {
@@ -394,7 +428,7 @@ test("saves for the auction of the active tab, from the defaults when nothing wa
     store.saved.map(({ key, settings }) => [key, settings]),
     [
       [
-        new AuctionKey({ site: SHOP, house: "leu", auction: "3" }),
+        AuctionKey.from({ site: SHOP, house: "leu", auction: "3" }),
         new Settings({ auctionPremium: 15, shipment: 0, currency: Settings.DEFAULT.currency }),
       ],
     ],

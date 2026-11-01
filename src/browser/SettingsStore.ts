@@ -1,15 +1,18 @@
 import { storage, type WxtStorageItem } from "wxt/utils/storage";
 
 import { ExchangeRates, type ExchangeRatesJSON } from "../core/rates/ExchangeRates.ts";
-import { AuctionKey } from "../core/settings/AuctionKey.ts";
-import { Settings } from "../core/settings/Settings.ts";
+import type { AuctionKey } from "../core/settings/AuctionKey.ts";
+import type { Settings } from "../core/settings/Settings.ts";
 import { SettingsBook, type SettingsEntryJSON } from "../core/settings/SettingsBook.ts";
 
 /** Saved rates per base currency. */
 export type RatesByCurrency = Readonly<Record<string, ExchangeRates>>;
 
-/** The stored rates: `ExchangeRates#toJSON()` per base currency. */
-type StoredRates = Record<string, ExchangeRatesJSON>;
+/** The stored values, as read: possibly of an older layout, possibly malformed. */
+export type StoredLayout = { auctionSettings: unknown; exchangeRates: unknown };
+
+/** Turns the stored values of the previous layout version into those of the next one. */
+export type Migration = (stored: StoredLayout) => StoredLayout;
 
 /**
  * The settings saved per auction and the exchange rates to convert into their
@@ -20,46 +23,55 @@ type StoredRates = Record<string, ExchangeRatesJSON>;
  * Built on WXT's storage (`wxt/utils/storage`), which binds to the global
  * extension API when it is imported - the tests put WXT's `fakeBrowser` there.
  *
- * Layout: `{ auctionSettings: SettingsBook#toJSON(), exchangeRates: { [base]: ExchangeRates#toJSON() } }`.
+ * Layout: `{ auctionSettings: SettingsBook#toJSON(), exchangeRates: { [base]:
+ * ExchangeRates#toJSON() }, storageVersion }`.
  */
 export class SettingsStore {
   /** browser.storage.local keys. */
-  static KEYS = Object.freeze({ settings: "auctionSettings", exchangeRates: "exchangeRates" });
-
-  /** Key of the 0.1.0 layout, one set of settings for every auction; see `migrate()`. */
-  static GLOBAL_KEY = "settings";
-
-  /** Keys of the layout before 0.1.0 had one key per setting; see `migrate()`. */
-  static LEGACY_KEYS = Object.freeze({
-    auctionPremium: "settings.auctionPremium",
-    shipment: "settings.shipment",
-    currency: "settings.currency",
-    exchangeRates: "settings.exchangeRates",
+  static KEYS = Object.freeze({
+    settings: "auctionSettings",
+    exchangeRates: "exchangeRates",
+    version: "storageVersion",
   });
+
+  /**
+   * Version of the stored layout. To change the layout, raise it and add the
+   * conversion from the previous version to `MIGRATIONS`.
+   */
+  static VERSION = 1;
+
+  /** `MIGRATIONS[n]` turns the values of layout version n - 1 into version n. None yet. */
+  static MIGRATIONS: Readonly<Record<number, Migration>> = {};
 
   // Defined here, not at module level: defining an item reads it right away,
   // and entry points are imported in Node at build time (see CLAUDE.md).
   // Stored data may be malformed; `load()` validates whatever it reads.
   readonly #settings: WxtStorageItem<SettingsEntryJSON[], Record<string, never>>;
-  readonly #rates: WxtStorageItem<StoredRates, Record<string, never>>;
+  readonly #rates: WxtStorageItem<Record<string, ExchangeRatesJSON>, Record<string, never>>;
+  /** null when nothing recorded it yet: data stored without a version is of version 1. */
+  readonly #version: WxtStorageItem<number | null, Record<string, never>>;
+  readonly #layout: { version: number; migrations: Readonly<Record<number, Migration>> };
 
-  constructor() {
+  /** @param layout the current layout version and its migrations; for tests */
+  constructor({ version = SettingsStore.VERSION, migrations = SettingsStore.MIGRATIONS } = {}) {
     const { KEYS } = SettingsStore;
-    this.#settings = storage.defineItem<SettingsEntryJSON[]>(`local:${KEYS.settings}`, {
-      fallback: [],
-    });
-    this.#rates = storage.defineItem<StoredRates>(`local:${KEYS.exchangeRates}`, {
-      fallback: {},
-    });
+    this.#settings = storage.defineItem(`local:${KEYS.settings}`, { fallback: [] });
+    this.#rates = storage.defineItem(`local:${KEYS.exchangeRates}`, { fallback: {} });
+    this.#version = storage.defineItem<number>(`local:${KEYS.version}`);
+    this.#layout = { version, migrations };
   }
 
   /**
-   * The saved settings and the saved rates per base currency, read together.
+   * The saved settings and the saved rates per base currency, read together
+   * (one storage.local.get, so never settings of one write with rates of
+   * another) and converted to the current layout first if they are older.
    */
   async load(): Promise<{ book: SettingsBook; rates: RatesByCurrency }> {
-    // One storage.local.get for both: never settings of one write with rates of another.
-    const [settings, rates] = await storage.getItems([this.#settings, this.#rates]);
-    return { book: SettingsBook.from(settings?.value), rates: ratesFrom(rates?.value) };
+    const { stored } = await this.#read();
+    return {
+      book: SettingsBook.from(stored.auctionSettings),
+      rates: ratesFrom(stored.exchangeRates),
+    };
   }
 
   /**
@@ -71,14 +83,14 @@ export class SettingsStore {
     const { book, rates: saved } = await this.load();
     await storage.setItems([
       { item: this.#settings, value: book.with(key, settings).toJSON() },
-      ...(rates
-        ? [{ item: this.#rates, value: ratesToJSON({ ...saved, [rates.base]: rates }) }]
-        : []),
+      { item: this.#rates, value: ratesToJSON(rates ? { ...saved, [rates.base]: rates } : saved) },
+      { item: this.#version, value: this.#layout.version },
     ]);
   }
 
   /**
-   * Save fresh rates of one base currency, keeping everything else.
+   * Save fresh rates of one base currency, keeping everything else (the
+   * settings are not written, so this never undoes a concurrent `save()`).
    */
   async saveRates(rates: ExchangeRates): Promise<void> {
     const { rates: saved } = await this.load();
@@ -87,8 +99,8 @@ export class SettingsStore {
 
   /**
    * Call `listener` whenever settings or rates change, from any extension page:
-   * once per changed key, so a `save()` with rates calls it twice - each call
-   * sees both new values, as they were written together.
+   * once per changed key, so a `save()` calls it twice - each call sees both
+   * new values, as they were written together.
    * @returns stops calling `listener`
    */
   onChange(listener: () => void): () => void {
@@ -97,68 +109,43 @@ export class SettingsStore {
   }
 
   /**
-   * Convert what older versions saved and remove their keys: settings saved for
-   * every auction (one key per setting before 0.1.0, one `settings` key in
-   * 0.1.0) become the settings of each of `sites`; rates saved for one currency
-   * become the rates of that currency. Settings already saved per auction win.
-   *
-   * This is not a job for WXT's versioned items (`version` + `migrations`): those
-   * migrate one key's value, while this turns old keys into new ones and needs
-   * `sites`. Use them for changes of the current keys from now on.
-   * @param sites origins of the configured sites
-   * @returns whether there was anything to migrate
+   * Bring the stored data to the current layout version and record that
+   * version. Called by the background on install and update, before anything
+   * else writes - other contexts convert older data on reading in the meantime
+   * (`load()`), and every `save()` writes the current layout.
+   * @returns whether stored data was converted
    */
-  async migrate(sites: readonly string[]): Promise<boolean> {
-    const { KEYS, GLOBAL_KEY, LEGACY_KEYS } = SettingsStore;
-    const legacyKeys = Object.values(LEGACY_KEYS);
-    const oldKeys = [...legacyKeys, GLOBAL_KEY];
-    const stored = await readLocal([...oldKeys, ...Object.values(KEYS)]);
-    const singleRates = isSingleRates(stored[KEYS.exchangeRates]);
-    if (!oldKeys.some((key) => key in stored) && !singleRates) return false;
-
-    const updates: Record<string, unknown> = {};
-    const legacySettings = legacyKeys.some((key) => key in stored) && {
-      auctionPremium: stored[LEGACY_KEYS.auctionPremium],
-      shipment: stored[LEGACY_KEYS.shipment],
-      currency: stored[LEGACY_KEYS.currency],
-    };
-    const global = stored[GLOBAL_KEY] ?? legacySettings;
-    if (global && !(KEYS.settings in stored)) {
-      const settings = Settings.from(global);
-      const book = sites.reduce(
-        (sum, site) => sum.with(new AuctionKey({ site }), settings),
-        new SettingsBook(),
-      );
-      updates[KEYS.settings] = book.toJSON();
-    }
-    const oldRates = singleRates
-      ? stored[KEYS.exchangeRates]
-      : !(KEYS.exchangeRates in stored) && stored[LEGACY_KEYS.exchangeRates];
-    if (isSingleRates(oldRates)) {
-      const rates = ExchangeRates.fromStorage(oldRates, oldRates.base);
-      updates[KEYS.exchangeRates] = ratesToJSON({ [rates.base]: rates });
-    }
-
-    const writes = Object.entries(updates).map(([key, value]) => ({
-      key: `local:${key}` as const,
-      value,
-    }));
-    if (writes.length > 0) await storage.setItems(writes);
-    await storage.removeItems(oldKeys.map((key) => `local:${key}` as const));
-    return true;
+  async migrate(): Promise<boolean> {
+    const { stored, from, versioned } = await this.#read();
+    const migrated = from < this.#layout.version;
+    if (versioned && !migrated) return false;
+    await storage.setItems([
+      ...(migrated
+        ? [
+            { item: this.#settings, value: stored.auctionSettings as SettingsEntryJSON[] },
+            { item: this.#rates, value: stored.exchangeRates as Record<string, ExchangeRatesJSON> },
+          ].filter(({ value }) => value != null)
+        : []),
+      { item: this.#version, value: this.#layout.version },
+    ]);
+    return migrated;
   }
-}
 
-/**
- * The values of `keys` in storage.local, in one read; keys without a value are left out.
- */
-async function readLocal(keys: readonly string[]): Promise<Record<string, unknown>> {
-  const values = await storage.getItems(keys.map((key) => `local:${key}` as const));
-  return Object.fromEntries(
-    values
-      .filter(({ value }) => value !== null)
-      .map(({ key, value }) => [key.slice("local:".length), value]),
-  );
+  /** The stored values in the current layout, and the version they were stored in. */
+  async #read(): Promise<{ stored: StoredLayout; from: number; versioned: boolean }> {
+    const [settings, rates, version] = await storage.getItems([
+      this.#settings,
+      this.#rates,
+      this.#version,
+    ]);
+    const versioned = typeof version?.value === "number";
+    const from = versioned ? Number(version?.value) : 1;
+    let stored: StoredLayout = { auctionSettings: settings?.value, exchangeRates: rates?.value };
+    for (let next = from + 1; next <= this.#layout.version; next += 1) {
+      stored = this.#layout.migrations[next]?.(stored) ?? stored;
+    }
+    return { stored, from, versioned };
+  }
 }
 
 /**
@@ -166,7 +153,7 @@ async function readLocal(keys: readonly string[]): Promise<Record<string, unknow
  * @returns rates saved for another base than their key are dropped
  */
 function ratesFrom(stored: unknown): RatesByCurrency {
-  if (typeof stored !== "object" || stored === null || isSingleRates(stored)) return {};
+  if (typeof stored !== "object" || stored === null) return {};
   return Object.fromEntries(
     Object.entries(stored)
       .map(([base, data]) => ExchangeRates.fromStorage(data, base))
@@ -177,11 +164,4 @@ function ratesFrom(stored: unknown): RatesByCurrency {
 
 function ratesToJSON(rates: RatesByCurrency): Record<string, ExchangeRatesJSON> {
   return Object.fromEntries(Object.entries(rates).map(([base, value]) => [base, value.toJSON()]));
-}
-
-/**
- * Is `stored` the rates of one currency, as 0.1.0 saved them (`{ base, date, rates }`)?
- */
-function isSingleRates(stored: unknown): stored is { base: string } {
-  return typeof (stored as { base?: unknown } | null | undefined)?.base === "string";
 }

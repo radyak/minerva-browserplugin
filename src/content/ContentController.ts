@@ -3,12 +3,11 @@ import type { RatesByCurrency, SettingsStore } from "../browser/SettingsStore.ts
 import { PriceAnnotator } from "../core/annotation/PriceAnnotator.ts";
 import { MSG } from "../core/messages.ts";
 import { ExchangeRates } from "../core/rates/ExchangeRates.ts";
-import { AuctionKey } from "../core/settings/AuctionKey.ts";
+import type { AuctionKey } from "../core/settings/AuctionKey.ts";
 import { Settings } from "../core/settings/Settings.ts";
 import { SettingsBook } from "../core/settings/SettingsBook.ts";
-import type { AuctionSite } from "../core/sites/AuctionSite.ts";
-import type { SiteRegistry } from "../core/sites/SiteRegistry.ts";
 import { SITES } from "../core/sites/sites.config.ts";
+import { findSite, identify, type AuctionSite } from "../core/sites/sites.ts";
 import { TabState } from "../core/state/TabState.ts";
 
 type Deps = {
@@ -16,7 +15,7 @@ type Deps = {
   window: Window & typeof globalThis;
   bus: Pick<MessageBus, "on" | "off" | "send">;
   store: Pick<SettingsStore, "load" | "onChange">;
-  sites?: SiteRegistry;
+  sites?: readonly AuctionSite[];
   annotator?: PriceAnnotator;
   /**
    * whether the extension is still there; asked before each sync caused by the
@@ -43,27 +42,15 @@ export class ContentController {
   #frame: number | null = null;
   #unwatchStore: (() => void) | null = null;
 
-  readonly window: Deps["window"];
-  readonly bus: Deps["bus"];
-  readonly store: Deps["store"];
-  readonly sites: SiteRegistry;
-  readonly annotator: PriceAnnotator;
-  readonly isValid: () => boolean;
+  readonly #deps: Required<Deps>;
 
-  constructor({
-    window,
-    bus,
-    store,
-    sites = SITES,
-    annotator = new PriceAnnotator(window.document),
-    isValid = () => true,
-  }: Deps) {
-    this.window = window;
-    this.bus = bus;
-    this.store = store;
-    this.sites = sites;
-    this.annotator = annotator;
-    this.isValid = isValid;
+  constructor(deps: Deps) {
+    this.#deps = {
+      sites: SITES,
+      annotator: new PriceAnnotator(deps.window.document),
+      isValid: () => true,
+      ...deps,
+    };
   }
 
   /** Load the settings, annotate the page and keep it annotated from now on. */
@@ -71,21 +58,22 @@ export class ContentController {
     // Settings first, so the page never shows an amount computed without them.
     await this.#loadSettings();
     if (this.#stopped) return;
+    const { window, bus, store } = this.#deps;
 
-    this.bus.on(MSG.SYNC_REQUEST, async () => {
+    bus.on(MSG.SYNC_REQUEST, async () => {
       // Re-read the settings: the panel sends this right after saving them, and
       // must not depend on storage.onChanged having arrived first.
       await this.#loadSettings();
-      return { url: this.window.location.href, ...this.sync("request").toJSON() };
+      return { url: window.location.href, ...this.sync("request") };
     });
 
     // Single page apps swap the URL without reloading; the background script
     // notices and sends SYNC_REQUEST, these two cover the in-page cases.
-    this.window.addEventListener("popstate", this.#onPopState);
-    this.window.addEventListener("hashchange", this.#onHashChange);
+    window.addEventListener("popstate", this.#onPopState);
+    window.addEventListener("hashchange", this.#onHashChange);
 
     // Recalculate when the settings are saved in the panel or another tab.
-    this.#unwatchStore = this.store.onChange(async () => {
+    this.#unwatchStore = store.onChange(async () => {
       await this.#loadSettings();
       this.sync("settings");
     });
@@ -103,14 +91,15 @@ export class ContentController {
   stop(): void {
     if (this.#stopped) return;
     this.#stopped = true;
+    const { window, bus, annotator } = this.#deps;
     this.#observer?.disconnect();
-    if (this.#frame !== null) this.window.cancelAnimationFrame(this.#frame);
+    if (this.#frame !== null) window.cancelAnimationFrame(this.#frame);
     this.#frame = null;
-    this.window.removeEventListener("popstate", this.#onPopState);
-    this.window.removeEventListener("hashchange", this.#onHashChange);
-    this.bus.off(MSG.SYNC_REQUEST);
+    window.removeEventListener("popstate", this.#onPopState);
+    window.removeEventListener("hashchange", this.#onHashChange);
+    bus.off(MSG.SYNC_REQUEST);
     this.#unwatchStore?.();
-    this.annotator.clear();
+    annotator.clear();
   }
 
   /**
@@ -120,13 +109,14 @@ export class ContentController {
    */
   sync(reason: string): TabState {
     if (this.#stopped) return this.#lastState ?? TabState.inactive();
-    const url = this.window.location.href;
-    const site = this.sites.find(url);
+    const { window, sites, annotator, bus } = this.#deps;
+    const url = window.location.href;
+    const site = findSite(sites, url);
     // Off every site, clean up whatever an earlier run left behind.
-    const state = site ? this.#annotate(site, url) : this.annotator.clear();
-    const changed = !state.equals(this.#lastState);
+    const state = site ? this.#annotate(site, url) : annotator.clear();
+    const changed = !TabState.equals(state, this.#lastState);
     this.#lastState = state;
-    if (changed) this.bus.send({ type: MSG.STATE_CHANGED, url, ...state.toJSON(), reason });
+    if (changed) bus.send({ type: MSG.STATE_CHANGED, url, ...state, reason });
     return state;
   }
 
@@ -134,12 +124,9 @@ export class ContentController {
    * Annotate the page of `url` on `site` with the settings of its auction.
    */
   #annotate(site: AuctionSite, url: string): TabState {
-    const key = new AuctionKey({ site: site.origin, ...site.identify(url) });
+    const key: AuctionKey = { site: site.origin, ...identify(site, url) };
     const { settings, rates } = this.settingsFor(key);
-    return new TabState({
-      ...this.annotator.annotate(site, settings, rates).toJSON(),
-      ...key.toJSON(),
-    });
+    return { ...this.#deps.annotator.annotate(site, settings, rates), ...key };
   }
 
   /**
@@ -153,7 +140,7 @@ export class ContentController {
   }
 
   async #loadSettings(): Promise<void> {
-    const { book, rates } = await this.store.load();
+    const { book, rates } = await this.#deps.store.load();
     this.#book = book;
     this.#rates = rates;
   }
@@ -166,14 +153,15 @@ export class ContentController {
    * extra pass instead of looping.
    */
   #observeDom(): void {
-    this.#observer = new this.window.MutationObserver(() => {
+    const { window } = this.#deps;
+    this.#observer = new window.MutationObserver(() => {
       if (this.#frame !== null) return;
-      this.#frame = this.window.requestAnimationFrame(() => {
+      this.#frame = window.requestAnimationFrame(() => {
         this.#frame = null;
         this.#syncIfValid("mutation");
       });
     });
-    this.#observer.observe(this.window.document.documentElement, {
+    this.#observer.observe(window.document.documentElement, {
       childList: true,
       characterData: true,
       subtree: true,
@@ -188,6 +176,6 @@ export class ContentController {
    * notices a dead runtime (and stops this controller) when nothing else does.
    */
   #syncIfValid(reason: string): void {
-    if (this.isValid()) this.sync(reason);
+    if (this.#deps.isValid()) this.sync(reason);
   }
 }

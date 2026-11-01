@@ -1,8 +1,6 @@
-import { AuctionKey, type AuctionKeyJSON } from "./AuctionKey.ts";
+import { AuctionKey } from "./AuctionKey.ts";
 import { Settings, type SettingsJSON } from "./Settings.ts";
-import { SETTINGS_SCOPES } from "./SettingsScope.ts";
-
-import type { SettingsScope } from "./SettingsScope.ts";
+import { SETTINGS_SCOPES, scopeMatches, type SettingsScope } from "./SettingsScope.ts";
 
 /** Settings saved under the key of the page they were saved on. */
 export type SettingsEntry = { key: AuctionKey; settings: Settings };
@@ -11,7 +9,7 @@ export type SettingsEntry = { key: AuctionKey; settings: Settings };
 export type ResolvedSettings = SettingsEntry & { scope: SettingsScope };
 
 /** `SettingsBook#toJSON()`: one stored entry. */
-export type SettingsEntryJSON = AuctionKeyJSON & { settings: SettingsJSON };
+export type SettingsEntryJSON = AuctionKey & { settings: SettingsJSON };
 
 /**
  * Every set of settings saved in the panel, each under the AuctionKey of the
@@ -54,7 +52,7 @@ export class SettingsBook {
    */
   resolve(key: AuctionKey): ResolvedSettings | null {
     for (const scope of this.scopes) {
-      const entry = this.entries.findLast((saved) => scope.matches(saved.key, key));
+      const entry = this.entries.findLast((saved) => scopeMatches(scope, saved.key, key));
       if (entry) return { ...entry, scope };
     }
     return null;
@@ -67,8 +65,9 @@ export class SettingsBook {
    */
   with(key: AuctionKey, settings: Settings): SettingsBook {
     if (key.site === null) throw new Error("Settings can only be saved for a site");
-    const others = this.entries.filter((entry) => !entry.key.equals(key));
-    return new SettingsBook([...others, { key, settings }], this.scopes);
+    const others = this.entries.filter((entry) => !AuctionKey.equals(entry.key, key));
+    // Only the key's own fields: `key` may be a whole TabState.
+    return new SettingsBook([...others, { key: AuctionKey.from(key), settings }], this.scopes);
   }
 
   /** The currencies of all saved settings. */
@@ -79,7 +78,7 @@ export class SettingsBook {
   /** Plain data to store. */
   toJSON(): SettingsEntryJSON[] {
     return this.entries.map(({ key, settings }) => ({
-      ...key.toJSON(),
+      ...key,
       settings: settings.toJSON(),
     }));
   }

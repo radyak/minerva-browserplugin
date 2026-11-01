@@ -1,5 +1,5 @@
 import { SETTINGS_SCOPES, type SettingsScope } from "../../core/settings/SettingsScope.ts";
-import type { TabState } from "../../core/state/TabState.ts";
+import { TabState } from "../../core/state/TabState.ts";
 
 /** Text for an ID the URL does not reveal. */
 const UNKNOWN_ID = "unknown";
@@ -15,7 +15,7 @@ const PILL_INACTIVE = "badge rounded-pill text-body-tertiary border";
  * The top of the panel: the auction house and auction the active tab is on,
  * as read from its URL, and which saved settings the form shows (auction,
  * house, site or the defaults). Shown together with the settings form, i.e.
- * only while the tab is on an auction (`TabState#onAuction`).
+ * only while the tab is on an auction (`TabState.onAuction()`).
  */
 export class AuctionView {
   readonly ids: HTMLElement;
@@ -65,7 +65,7 @@ export class AuctionView {
   }
 
   render(state: TabState): void {
-    this.ids.hidden = !state.onAuction;
+    this.ids.hidden = !TabState.onAuction(state);
     this.house.textContent = state.house ?? UNKNOWN_ID;
     this.auction.textContent = state.auction ?? UNKNOWN_ID;
   }

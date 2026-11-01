@@ -1,4 +1,4 @@
-import type { TabState } from "../../core/state/TabState.ts";
+import { TabState } from "../../core/state/TabState.ts";
 
 /** Below Minerva while the extension is inactive in the active tab. */
 const INACTIVE_TEXT = "No auction or platform active";
@@ -8,7 +8,7 @@ const NO_AUCTION_TEXT = "No auction detected on this page";
 
 /**
  * Switches the panel between the settings form (the active tab is on an
- * auction, see `TabState#onAuction`) and Minerva saying "?" (otherwise). The
+ * auction, see `TabState.onAuction()`) and Minerva saying "?" (otherwise). The
  * "Plugin status" card stays visible either way.
  */
 export class InactiveView {
@@ -35,8 +35,8 @@ export class InactiveView {
   }
 
   render(state: TabState) {
-    this.form.hidden = !state.onAuction;
-    this.notice.hidden = state.onAuction;
+    this.form.hidden = !TabState.onAuction(state);
+    this.notice.hidden = TabState.onAuction(state);
     this.text.textContent = state.active ? NO_AUCTION_TEXT : INACTIVE_TEXT;
   }
 }

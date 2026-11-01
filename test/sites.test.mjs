@@ -3,46 +3,59 @@ import test from "node:test";
 
 import { JSDOM } from "jsdom";
 
-import { EffectivePriceCalculator } from "../src/core/pricing/EffectivePriceCalculator.ts";
-import { AuctionSite } from "../src/core/sites/AuctionSite.ts";
-import { SiteRegistry } from "../src/core/sites/SiteRegistry.ts";
+import { effectivePrice } from "../src/core/pricing/PriceCalculator.ts";
 import { SITES } from "../src/core/sites/sites.config.ts";
-import { UrlParam } from "../src/core/sites/UrlParam.ts";
-import { matchPatternFor, urlMatches, urlOnOrigin } from "../src/core/sites/url-matcher.ts";
+import {
+  defineSite,
+  findSite,
+  identify,
+  matchPatternFor,
+  matchPatterns,
+} from "../src/core/sites/sites.ts";
 
-test("matches a plain prefix glob", () => {
+const site = (origin, paths, ids = undefined) =>
+  defineSite({ origin, paths, priceSelectors: [".p"], ...(ids && { ids }) });
+/** Whether `url` is on a site of `origin` with these `paths`. */
+const onSite = (url, origin, paths) => findSite([site(origin, paths)], url) !== null;
+
+test("a path glob matches a prefix with *, exactly otherwise", () => {
+  const paths = ["/live/g-m-auction", "/lots/*"];
   assert.equal(
-    urlMatches("https://example.com/app/dashboard", "https://example.com/app/dashboard*"),
+    onSite("https://www.biddr.com/live/g-m-auction", "https://www.biddr.com", paths),
     true,
   );
+  assert.equal(onSite("https://www.biddr.com/lots/42", "https://www.biddr.com", paths), true);
+  assert.equal(onSite("https://www.biddr.com/lots/42/x?y=1", "https://www.biddr.com", paths), true);
+  assert.equal(onSite("https://www.biddr.com/live/other", "https://www.biddr.com", paths), false);
   assert.equal(
-    urlMatches(
-      "https://example.com/app/dashboard/reports?x=1",
-      "https://example.com/app/dashboard*",
-    ),
+    onSite("https://www.biddr.com/live/g-m-auction/x", "https://www.biddr.com", paths),
+    false,
+  );
+});
+
+test("query and hash are ignored, a trailing slash in the origin too", () => {
+  const paths = ["/live/g-m-auction"];
+  assert.equal(
+    onSite("https://www.biddr.com/live/g-m-auction?x=1#y", "https://www.biddr.com/", paths),
     true,
   );
 });
 
-test("rejects other paths and hosts", () => {
-  assert.equal(
-    urlMatches("https://example.com/app/settings", "https://example.com/app/dashboard*"),
-    false,
-  );
-  assert.equal(
-    urlMatches("https://evil.example.com/app/dashboard", "https://example.com/app/dashboard*"),
-    false,
-  );
+test("treats regex characters in paths as literals", () => {
+  assert.equal(onSite("https://x.test/a+b", "https://x.test", ["/a+b"]), true);
+  assert.equal(onSite("https://x.test/aab", "https://x.test", ["/a+b"]), false);
 });
 
-test("treats regex characters as literals", () => {
-  assert.equal(urlMatches("https://example.com/a+b", "https://example.com/a+b"), true);
-  assert.equal(urlMatches("https://example.com/aab", "https://example.com/a+b"), false);
-});
-
-test("handles missing urls", () => {
-  assert.equal(urlMatches(undefined, "https://example.com/*"), false);
-  assert.equal(urlMatches("", "https://example.com/*"), false);
+test("rejects other origins and missing urls", () => {
+  const paths = ["/*"];
+  assert.equal(onSite("http://www.biddr.com/", "https://www.biddr.com", paths), false);
+  assert.equal(onSite("https://evil.biddr.com/", "https://www.biddr.com", paths), false);
+  assert.equal(onSite("https://www.biddr.com.evil.test/", "https://www.biddr.com", paths), false);
+  assert.equal(onSite("http://localhost:8081/", "http://localhost:8080", paths), false);
+  assert.equal(onSite("http://localhost:8080/", "http://localhost:8080", paths), true);
+  assert.equal(onSite(undefined, "https://www.biddr.com", paths), false);
+  assert.equal(onSite("", "https://www.biddr.com", paths), false);
+  assert.equal(onSite("not a url", "https://www.biddr.com", paths), false);
 });
 
 test("builds a match pattern from protocol + host", () => {
@@ -52,152 +65,97 @@ test("builds a match pattern from protocol + host", () => {
   assert.equal(matchPatternFor("http://localhost:8080"), "http://localhost/*");
 });
 
-test("urlOnOrigin matches the origin and the path", () => {
-  const paths = ["/live/g-m-auction", "/lots/*"];
-  assert.equal(
-    urlOnOrigin("https://www.biddr.com/live/g-m-auction", "https://www.biddr.com", paths),
-    true,
-  );
-  assert.equal(
-    urlOnOrigin("https://www.biddr.com/live/g-m-auction?x=1#y", "https://www.biddr.com/", paths),
-    true,
-  );
-  assert.equal(urlOnOrigin("https://www.biddr.com/lots/42", "https://www.biddr.com", paths), true);
-  assert.equal(
-    urlOnOrigin("https://www.biddr.com/live/other", "https://www.biddr.com", paths),
-    false,
-  );
-  assert.equal(
-    urlOnOrigin("https://www.biddr.com/live/g-m-auction/x", "https://www.biddr.com", paths),
-    false,
-  );
-});
+const TEST_SITES = [
+  site("https://shop.test", ["/lot/*", "/search"]),
+  site("https://other.test/", ["/*"]),
+  site("https://other.test", ["/*"]),
+];
+const [SHOP, OTHER] = TEST_SITES;
 
-test("urlOnOrigin rejects other origins", () => {
-  const paths = ["/*"];
-  assert.equal(urlOnOrigin("http://www.biddr.com/", "https://www.biddr.com", paths), false);
-  assert.equal(urlOnOrigin("https://evil.biddr.com/", "https://www.biddr.com", paths), false);
-  assert.equal(
-    urlOnOrigin("https://www.biddr.com.evil.test/", "https://www.biddr.com", paths),
-    false,
-  );
-  assert.equal(urlOnOrigin("http://localhost:8081/", "http://localhost:8080", paths), false);
-  assert.equal(urlOnOrigin("http://localhost:8080/", "http://localhost:8080", paths), true);
-  assert.equal(urlOnOrigin(undefined, "https://www.biddr.com", paths), false);
-  assert.equal(urlOnOrigin("not a url", "https://www.biddr.com", paths), false);
-});
-
-const TEST_SITES = new SiteRegistry([
-  new AuctionSite({
-    origin: "https://shop.test",
-    paths: ["/lot/*", "/search"],
-    priceSelectors: [".a"],
-  }),
-  new AuctionSite({ origin: "https://other.test/", paths: ["/*"], priceSelectors: [".b"] }),
-  new AuctionSite({ origin: "https://other.test", paths: ["/*"], priceSelectors: [".c"] }),
-]);
-const [SHOP, OTHER] = TEST_SITES.sites;
-
-test("find picks the site whose origin and paths match the url", () => {
-  assert.equal(TEST_SITES.find("https://shop.test/lot/1"), SHOP);
-  // Query and hash are ignored.
-  assert.equal(TEST_SITES.find("https://shop.test/search?q=coin#top"), SHOP);
-  assert.equal(TEST_SITES.find("https://shop.test/search/saved"), null);
+test("findSite picks the first site whose origin and paths match the url", () => {
+  assert.equal(findSite(TEST_SITES, "https://shop.test/lot/1"), SHOP);
+  assert.equal(findSite(TEST_SITES, "https://shop.test/search?q=coin#top"), SHOP);
+  assert.equal(findSite(TEST_SITES, "https://shop.test/search/saved"), null);
   // The first matching site wins.
-  assert.equal(TEST_SITES.find("https://other.test/x"), OTHER);
+  assert.equal(findSite(TEST_SITES, "https://other.test/x"), OTHER);
   // On the origin, but outside every path.
-  assert.equal(TEST_SITES.find("https://shop.test/account"), null);
-  assert.equal(TEST_SITES.find("https://not-the-target.invalid/"), null);
-  assert.equal(TEST_SITES.find(undefined), null);
-});
-
-test("isTarget tells whether any site matches", () => {
-  assert.equal(TEST_SITES.isTarget("https://shop.test/lot/1"), true);
-  assert.equal(TEST_SITES.isTarget("https://not-the-target.invalid/"), false);
+  assert.equal(findSite(TEST_SITES, "https://shop.test/account"), null);
+  assert.equal(findSite(TEST_SITES, "https://not-the-target.invalid/"), null);
+  assert.equal(findSite(TEST_SITES, undefined), null);
 });
 
 test("collects one match pattern per host", () => {
-  assert.deepEqual(TEST_SITES.matchPatterns(), ["https://shop.test/*", "https://other.test/*"]);
-  assert.equal(SHOP.matchPattern, "https://shop.test/*");
+  assert.deepEqual(matchPatterns(TEST_SITES), ["https://shop.test/*", "https://other.test/*"]);
 });
 
 test("sites use the effective price calculation unless configured otherwise", () => {
-  assert.ok(SHOP.calculator instanceof EffectivePriceCalculator);
-  const calculator = new EffectivePriceCalculator();
-  const site = new AuctionSite({
+  assert.equal(SHOP.calculator, effectivePrice);
+  const calculator = () => 42;
+  const custom = defineSite({
     origin: "https://x.test",
     paths: ["/*"],
     priceSelectors: [".p"],
     calculator,
   });
-  assert.equal(site.calculator, calculator);
+  assert.equal(custom.calculator, calculator);
 });
 
-test("UrlParam reads a query parameter", () => {
-  const param = UrlParam.query("a");
-  assert.equal(param.extract(new URL("https://x.test/h/auction?a=7522&l=9")), "7522");
-  assert.equal(param.extract(new URL("https://x.test/h/auction?l=9")), null);
-  assert.equal(param.extract(new URL("https://x.test/h/auction?a=")), null);
+test("reads an ID from a query parameter", () => {
+  const ids = (url) => identify(site("https://x.test", ["/*"], { auction: { query: "a" } }), url);
+  assert.equal(ids("https://x.test/h/auction?a=7522&l=9").auction, "7522");
+  assert.equal(ids("https://x.test/h/auction?l=9").auction, null);
+  assert.equal(ids("https://x.test/h/auction?a=").auction, null);
 });
 
-test("UrlParam reads one path segment, the rest of the pattern being a glob", () => {
-  const sale = UrlParam.path("/sale/:id*");
-  assert.equal(sale.extract(new URL("https://x.test/sale/7123")), "7123");
-  assert.equal(sale.extract(new URL("https://x.test/sale/7123/lot/45?x=1")), "7123");
-  assert.equal(sale.extract(new URL("https://x.test/sale/")), null);
-  assert.equal(sale.extract(new URL("https://x.test/other/7123")), null);
-
-  const house = UrlParam.path("/:id/auction");
-  assert.equal(house.extract(new URL("https://x.test/agorawien/auction?a=1")), "agorawien");
-  assert.equal(house.extract(new URL("https://x.test/auctions/calendar")), null);
-  assert.equal(house.extract(new URL("https://x.test/a%20b/auction")), "a b");
+test("reads an ID from one path segment, the rest of the pattern being a glob", () => {
+  const read = (path, url) =>
+    identify(site("https://x.test", ["/*"], { auction: { path } }), url).auction;
+  assert.equal(read("/sale/:id*", "https://x.test/sale/7123"), "7123");
+  assert.equal(read("/sale/:id*", "https://x.test/sale/7123/lot/45?x=1"), "7123");
+  assert.equal(read("/sale/:id*", "https://x.test/sale/"), null);
+  assert.equal(read("/sale/:id*", "https://x.test/other/7123"), null);
+  assert.equal(read("/:id/auction", "https://x.test/agorawien/auction?a=1"), "agorawien");
+  assert.equal(read("/:id/auction", "https://x.test/auctions/calendar"), null);
+  assert.equal(read("/:id/auction", "https://x.test/a%20b/auction"), "a b");
   // Regex characters in the pattern are literal.
-  assert.equal(UrlParam.path("/a.b/:id").extract(new URL("https://x.test/axb/1")), null);
+  assert.equal(read("/a.b/:id", "https://x.test/axb/1"), null);
 });
 
-test("UrlParam needs exactly one placeholder in a path pattern", () => {
-  assert.throws(() => UrlParam.path("/sale/*"), /:id/);
-  assert.throws(() => UrlParam.path("/:id/:id"), /:id/);
+test("an ID path needs exactly one placeholder", () => {
+  assert.throws(() => site("https://x.test", ["/*"], { auction: { path: "/sale/*" } }), /:id/);
+  assert.throws(() => site("https://x.test", ["/*"], { house: { path: "/:id/:id" } }), /:id/);
 });
 
 test("a site identifies house and auction from the URL, as far as configured", () => {
-  const site = new AuctionSite({
-    origin: "https://x.test",
-    paths: ["/*"],
-    priceSelectors: [".p"],
-    ids: { house: UrlParam.path("/:id/auction"), auction: UrlParam.query("a") },
+  const leu = site("https://x.test", ["/*"], {
+    house: { path: "/:id/auction" },
+    auction: { query: "a" },
   });
-  assert.deepEqual(site.identify("https://x.test/leu/auction?a=7"), { house: "leu", auction: "7" });
-  assert.deepEqual(site.identify("https://x.test/leu/auction"), { house: "leu", auction: null });
-  assert.deepEqual(site.identify("not a url"), { house: null, auction: null });
+  assert.deepEqual(identify(leu, "https://x.test/leu/auction?a=7"), { house: "leu", auction: "7" });
+  assert.deepEqual(identify(leu, "https://x.test/leu/auction"), { house: "leu", auction: null });
+  assert.deepEqual(identify(leu, "not a url"), { house: null, auction: null });
   // Without ids nothing is known.
-  assert.deepEqual(SHOP.identify("https://shop.test/lot/1?a=7"), { house: null, auction: null });
+  assert.deepEqual(identify(SHOP, "https://shop.test/lot/1?a=7"), { house: null, auction: null });
 });
 
 test("the configured sites identify their real URLs", () => {
-  const identify = (url) => SITES.find(url)?.identify(url);
-  assert.deepEqual(identify("https://www.biddr.com/agorawien/auction?a=7522&l=9222559"), {
+  const ids = (url) => {
+    const found = findSite(SITES, url);
+    return found && identify(found, url);
+  };
+  assert.deepEqual(ids("https://www.biddr.com/agorawien/auction?a=7522&l=9222559"), {
     house: "agorawien",
     auction: "7522",
   });
-  assert.deepEqual(identify("https://www.numisbids.com/sale/7123/lot/45"), {
+  assert.deepEqual(ids("https://www.numisbids.com/sale/7123/lot/45"), {
     house: null,
     auction: "7123",
   });
 });
 
-test("sites are immutable", () => {
-  assert.throws(() => {
-    /** @type {any} */ (SHOP.paths).push("/x");
-  }, TypeError);
-  assert.throws(() => {
-    /** @type {any} */ (TEST_SITES.sites).push(SHOP);
-  }, TypeError);
-});
-
 test("every configured site is well formed", () => {
-  assert.ok(SITES.sites.length > 0);
-  for (const site of SITES.sites) {
+  assert.ok(SITES.length > 0);
+  for (const site of SITES) {
     const name = site.origin;
     const url = new URL(site.origin);
     assert.ok(

@@ -6,22 +6,19 @@ import { ContentController } from "../src/content/ContentController.ts";
 import { ANNOTATION_CLASS } from "../src/core/config.ts";
 import { MSG } from "../src/core/messages.ts";
 import { ExchangeRates } from "../src/core/rates/ExchangeRates.ts";
-import { PriceCalculator } from "../src/core/pricing/PriceCalculator.ts";
 import { Settings } from "../src/core/settings/Settings.ts";
-import { AuctionSite } from "../src/core/sites/AuctionSite.ts";
-import { SiteRegistry } from "../src/core/sites/SiteRegistry.ts";
-import { UrlParam } from "../src/core/sites/UrlParam.ts";
+import { defineSite } from "../src/core/sites/sites.ts";
 import { bookOf, fakeBus, fakeStore, settle } from "./support/fakes.mjs";
 
-const SITES = new SiteRegistry([
-  new AuctionSite({
+const SITES = [
+  defineSite({
     origin: "https://shop.test",
     paths: ["/lot/*"],
     priceSelectors: [".price"],
-    ids: { house: UrlParam.query("h"), auction: UrlParam.path("/lot/:id") },
+    ids: { house: { query: "h" }, auction: { path: "/lot/:id" } },
   }),
-  new AuctionSite({ origin: "https://other.test", paths: ["/*"], priceSelectors: [".other"] }),
-]);
+  defineSite({ origin: "https://other.test", paths: ["/*"], priceSelectors: [".other"] }),
+];
 const EUR = new Settings({ auctionPremium: 20, shipment: 10, currency: "EUR" });
 const INTO_EUR = new ExchangeRates("EUR", "", { USD: 2 });
 /** A book with `settings` saved for both test sites as a whole. */
@@ -161,20 +158,15 @@ test("cleans up what an earlier run left behind off the sites", async () => {
 });
 
 test("each site uses its own calculator", async () => {
-  class Flat extends PriceCalculator {
-    calculate() {
-      return 42;
-    }
-  }
-  const sites = new SiteRegistry([
-    new AuctionSite({ origin: "https://shop.test", paths: ["/*"], priceSelectors: [".price"] }),
-    new AuctionSite({
+  const sites = [
+    defineSite({ origin: "https://shop.test", paths: ["/*"], priceSelectors: [".price"] }),
+    defineSite({
       origin: "https://flat.test",
       paths: ["/*"],
       priceSelectors: [".price"],
-      calculator: new Flat(),
+      calculator: () => 42,
     }),
-  ]);
+  ];
   const annotationOn = async (url) => {
     const { window } = new JSDOM(`<span class="price">500 USD</span>`, { url });
     await new ContentController({

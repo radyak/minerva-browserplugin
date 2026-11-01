@@ -86,11 +86,11 @@ export function fakeStore({ book = new SettingsBook(), rates = [] } = {}) {
 
 /**
  * A SettingsBook out of `[key values, settings]` pairs, oldest first.
- * @param {Array<[ConstructorParameters<typeof AuctionKey>[0], Settings]>} entries
+ * @param {Array<[Partial<AuctionKey>, Settings]>} entries
  */
 export const bookOf = (...entries) =>
   entries.reduce(
-    (book, [key, settings]) => book.with(new AuctionKey(key), settings),
+    (book, [key, settings]) => book.with(AuctionKey.from(key), settings),
     new SettingsBook(),
   );
 

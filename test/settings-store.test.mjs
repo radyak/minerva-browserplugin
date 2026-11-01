@@ -35,8 +35,8 @@ const CHF = new Settings({ auctionPremium: 18, shipment: 30, currency: "CHF" });
 const GBP_RATES = new ExchangeRates("GBP", "2026-09-25", { EUR: 1.16, USD: 1.32 });
 const CHF_RATES = new ExchangeRates("CHF", "2026-09-25", { EUR: 1.07 });
 const BIDDR = "https://www.biddr.com";
-const AUCTION = new AuctionKey({ site: BIDDR, house: "leu", auction: "7" });
-const SITE = new AuctionKey({ site: BIDDR });
+const AUCTION = AuctionKey.from({ site: BIDDR, house: "leu", auction: "7" });
+const SITE = AuctionKey.from({ site: BIDDR });
 
 test("loads an empty book and no rates when nothing is saved", async (t) => {
   await storageWith(t);
@@ -53,6 +53,7 @@ test("saves settings and their rates in one write and loads them back", async (t
   assert.deepEqual(await data(), {
     auctionSettings: [{ site: BIDDR, house: "leu", auction: "7", settings: GBP.toJSON() }],
     exchangeRates: { GBP: GBP_RATES.toJSON() },
+    storageVersion: 1,
   });
   const { book, rates } = await store.load();
   assert.deepEqual(book.resolve(AUCTION)?.settings, GBP);
@@ -131,56 +132,63 @@ test("stops reporting changes once unsubscribed", async (t) => {
   assert.equal(calls, 0);
 });
 
-const SITES = [BIDDR, "https://www.numisbids.com"];
-const forEverySite = (settings) =>
-  SITES.map((site) => ({ site, house: null, auction: null, settings: settings.toJSON() }));
+test("records the layout version on install, once", async (t) => {
+  const { writes, data } = await storageWith(t);
+  const store = new SettingsStore();
+  assert.equal(await store.migrate(), false);
+  assert.deepEqual(await data(), { storageVersion: 1 });
+  assert.equal(await store.migrate(), false);
+  assert.equal(writes.length, 1);
+});
 
-test("migrates the settings of 0.1.0 to settings of every site", async (t) => {
-  const { data } = await storageWith(t, {
-    settings: GBP.toJSON(),
-    exchangeRates: GBP_RATES.toJSON(),
-    unrelated: 1,
+/** A layout version 2 that renames `shipment` to `shipping` in every entry. */
+const RENAMED = {
+  version: 2,
+  migrations: {
+    2: ({ auctionSettings, exchangeRates }) => ({
+      auctionSettings: auctionSettings.map(({ settings: { shipping, ...settings }, ...key }) => ({
+        ...key,
+        settings: { ...settings, shipment: shipping },
+      })),
+      exchangeRates,
+    }),
+  },
+};
+const V1_ENTRY = {
+  ...AUCTION,
+  settings: { auctionPremium: 20, shipping: 15, currency: "GBP" },
+};
+
+test("converts data of an older layout on reading, before it is migrated", async (t) => {
+  await storageWith(t, { auctionSettings: [V1_ENTRY] });
+  const { book } = await new SettingsStore(RENAMED).load();
+  assert.deepEqual(book.resolve(AUCTION)?.settings, GBP);
+});
+
+test("migrates data of an older layout in one write and records the new version", async (t) => {
+  const { writes, data } = await storageWith(t, {
+    auctionSettings: [V1_ENTRY],
+    exchangeRates: { GBP: GBP_RATES.toJSON() },
+    storageVersion: 1,
   });
-  assert.equal(await new SettingsStore().migrate(SITES), true);
+  const store = new SettingsStore(RENAMED);
+  assert.equal(await store.migrate(), true);
+  assert.equal(writes.length, 1);
   assert.deepEqual(await data(), {
-    auctionSettings: forEverySite(GBP),
+    auctionSettings: [{ ...AUCTION, settings: GBP.toJSON() }],
     exchangeRates: { GBP: GBP_RATES.toJSON() },
-    unrelated: 1,
+    storageVersion: 2,
   });
+  assert.equal(await store.migrate(), false);
 });
 
-test("migrates settings saved with one key per setting", async (t) => {
-  const { data } = await storageWith(t, {
-    "settings.auctionPremium": 20,
-    "settings.shipment": 15,
-    "settings.currency": "GBP",
-    "settings.exchangeRates": GBP_RATES.toJSON(),
-    unrelated: 1,
-  });
-  assert.equal(await new SettingsStore().migrate(SITES), true);
-  assert.deepEqual(await data(), {
-    auctionSettings: forEverySite(GBP),
-    exchangeRates: { GBP: GBP_RATES.toJSON() },
-    unrelated: 1,
-  });
-});
-
-test("migration keeps settings already saved per auction", async (t) => {
-  const saved = [{ ...AUCTION.toJSON(), settings: CHF.toJSON() }];
-  const { data } = await storageWith(t, {
-    auctionSettings: saved,
-    settings: GBP.toJSON(),
-    "settings.shipment": 99,
-  });
-  assert.equal(await new SettingsStore().migrate(SITES), true);
-  assert.deepEqual(await data(), { auctionSettings: saved });
-});
-
-test("migration does nothing in the current layout", async (t) => {
-  const { writes } = await storageWith(t, {
-    auctionSettings: [{ ...AUCTION.toJSON(), settings: GBP.toJSON() }],
-    exchangeRates: { GBP: GBP_RATES.toJSON() },
-  });
-  assert.equal(await new SettingsStore().migrate(SITES), false);
-  assert.equal(writes.length, 0);
+test("a save writes the current layout version", async (t) => {
+  const { data } = await storageWith(t, { auctionSettings: [V1_ENTRY] });
+  await new SettingsStore(RENAMED).save(SITE, CHF);
+  const saved = await data();
+  assert.equal(saved.storageVersion, 2);
+  assert.deepEqual(saved.auctionSettings, [
+    { ...AUCTION, settings: GBP.toJSON() },
+    { ...SITE, settings: CHF.toJSON() },
+  ]);
 });

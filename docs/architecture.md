@@ -31,8 +31,8 @@ flowchart TB
     side["side-panel.ts<br/>sidePanel vs sidebarAction"]
   end
   subgraph core["src/core/ (no extension API, plain DOM)"]
-    domain["Currency · ExchangeRates · Settings<br/>AuctionKey · SettingsScope · SettingsBook<br/>TabState · AuctionSite · SiteRegistry"]
-    logic["PriceAnnotator · AnnotationView<br/>price.ts · PriceCalculator · RatesClient"]
+    domain["Currency · ExchangeRates · Settings · SettingsBook<br/>plain data: AuctionKey · SettingsScope · TabState · AuctionSite"]
+    logic["PriceAnnotator · AnnotationView<br/>price.ts · effectivePrice · sites.ts · RatesClient"]
   end
 
   content_js --> CC
@@ -64,7 +64,7 @@ flowchart LR
     AV["AnnotationView"]
     CC --> PA --> AV --> DOM
     PA --> PRICE["price.ts<br/>CurrencyDetector"]
-    PA --> CALC["site.calculator<br/>EffectivePriceCalculator"]
+    PA --> CALC["site.calculator<br/>effectivePrice"]
   end
 
   subgraph bg["Background"]
@@ -92,8 +92,9 @@ flowchart LR
   RC -->|fetch| API
   BC --> BADGE
   CC <-->|"SYNC_REQUEST / STATE_CHANGED"| BC
+  PC <-->|"SYNC_REQUEST (active tab)"| CC
   CC -.->|STATE_CHANGED| PC
-  PC <-->|"GET_ACTIVE_STATE / GET_RATES"| BC
+  PC <-->|GET_RATES| BC
   PC -->|"save(key, settings, rates)"| STORE
   RS -->|"saveRates()"| STORE
   STORE -->|"load() / onChange()"| CC
@@ -107,19 +108,19 @@ flowchart LR
 src/
   core/        browser-agnostic logic
     config.ts      plugin-wide constants
+    regexp.ts      RegExp escaping and the "*"-only glob used for paths and currency tokens
     settings/      Settings (ranges, validation of the panel settings), AuctionKey (site +
                    house + auction), SettingsBook (settings saved per key, lookup),
                    SettingsScope + SETTINGS_SCOPES (the lookup order)
-    pricing/       PriceCalculator (per site), EffectivePriceCalculator (the default)
+    pricing/       PriceCalculator (the function type, per site), effectivePrice (the default)
     rates/         ExchangeRates (rates for one base, conversion), RatesClient (Frankfurter / ECB)
     currency/      Currency (the supported currencies: code, symbol, tokens),
                    CurrencyDetector (finds the currency next to a price)
     price.ts       price parsing, conversion, re-formatting
     annotation/    PriceAnnotator (reads and prices the elements),
                    AnnotationView (inserts/updates the sibling, idempotent)
-    sites/         AuctionSite, SiteRegistry, sites.config.ts (the targeted sites),
-                   url-matcher.ts (glob matching for URLs),
-                   UrlParam (reads house / auction IDs out of a URL)
+    sites/         sites.ts (AuctionSite, defineSite, findSite, identify: house / auction IDs
+                   out of a URL, matchPatterns), sites.config.ts (the targeted sites)
     messages.ts    message types
     state/         TabState (what the extension does in a tab: active, counts, price
                    currencies, site, house and auction IDs)
@@ -140,9 +141,9 @@ test/          node:test + jsdom: core units, browser layer and controllers (fak
 
 | Controller | Constructor dependencies | Responsibilities |
 | --- | --- | --- |
-| `ContentController` | `window`, `bus`, `store`, `sites` (default `SITES`), `annotator` (default `PriceAnnotator`) | Load settings and rates, annotate the page with the settings resolved for its `AuctionKey` (on every sync), re-sync on navigation/DOM/settings changes, answer `SYNC_REQUEST`, report `STATE_CHANGED` |
-| `BackgroundController` | `ext`, `bus`, `store`, `rates` (`RatesService`), `sites` | Toolbar badge, forward `SYNC_REQUEST` on navigation, answer `GET_ACTIVE_STATE` and `GET_RATES`, settings migration, rates refresh schedule |
-| `PanelController` | `document`, `tabs`, `bus`, `store` | Show the settings resolved for the active tab's auction (reloaded when its `AuctionKey` changes) and save them under that key, show rates of the selected currency, show the active tab's status |
+| `ContentController` | `window`, `bus`, `store`, `sites` (default `SITES`), `annotator` (default `PriceAnnotator`), `isValid` | Load settings and rates, annotate the page with the settings resolved for its `AuctionKey` (on every sync), re-sync on navigation/DOM/settings changes, answer `SYNC_REQUEST`, report `STATE_CHANGED` |
+| `BackgroundController` | `ext`, `bus`, `store`, `rates` (`RatesService`), `sites` | Toolbar badge, `SYNC_REQUEST` to a tab on navigation, answer `GET_RATES`, storage migration, rates refresh schedule |
+| `PanelController` | `document`, `tabs`, `bus`, `store`, `sites` | Ask the active tab for its state (`SYNC_REQUEST`, by URL without a content script), show the settings resolved for its auction (reloaded when its `AuctionKey` changes) and save them under that key, show rates of the selected currency, show the active tab's status |
 
 | Helper | Owned by | Purpose |
 | --- | --- | --- |
@@ -150,7 +151,7 @@ test/          node:test + jsdom: core units, browser layer and controllers (fak
 | `SelectedRates` | Panel | Rates of the currency picked in the panel; a newer request supersedes older ones |
 | `PriceAnnotator` / `AnnotationView` | Content | *What* to show (wrapper rule, pricing) / the only class writing to the page, only on change |
 | `MessageBus` | all | `on(type, handler)` dispatch; returns `true` for async answers so the channel stays open |
-| `SettingsStore` | all | `load()` → `{ book, rates }` in one read, `save(key, settings, rates)` in one write, `saveRates()`, `onChange()` (once per changed key) → unsubscribe, `migrate(sites)`; two WXT storage items (`local:auctionSettings`, `local:exchangeRates`) |
+| `SettingsStore` | all | `load()` → `{ book, rates }` in one read, `save(key, settings, rates)` in one write, `saveRates()`, `onChange()` (once per changed key) → unsubscribe, `migrate()`; WXT storage items `local:auctionSettings`, `local:exchangeRates`, `local:storageVersion` |
 
 ## HTML components
 
@@ -202,27 +203,29 @@ stateDiagram-v2
 
 ## Messages
 
-Four message types, defined in `src/core/messages.ts` and sent through `MessageBus`. `Protocol` in the same file types each one's payload and answer; `MessageBus.on/send/sendToTab` are generic over it, so senders and handlers cannot drift apart:
+Three message types, defined in `src/core/messages.ts` and sent through `MessageBus`. `Protocol` in the same file types each one's payload and answer; `MessageBus.on/send/sendToTab` are generic over it, so senders and handlers cannot drift apart:
 
 | Type | From → to | Payload | Answer | Sent when |
 | --- | --- | --- | --- | --- |
-| `SYNC_REQUEST` | background → content (`tabs.sendMessage`) | – | `{ url, active, annotated, unparsable, currencies, site, house, auction }` after re-reading the settings and syncing | a tab navigates (`tabs.onUpdated`), the panel asks for the active tab's state |
+| `SYNC_REQUEST` | background or panel → content (`tabs.sendMessage`) | – | `{ url, active, annotated, unparsable, currencies, site, house, auction }` after re-reading the settings and syncing | a tab navigates (`tabs.onUpdated`, background); the panel opens, saves, or sees a tab switch, navigation or `STATE_CHANGED` (to the active tab) |
 | `STATE_CHANGED` | content → background + panel | `{ url, active, annotated, unparsable, currencies, site, house, auction, reason }` | – | a sync changed the tab's `TabState` |
-| `GET_ACTIVE_STATE` | panel → background | – | the active tab's state (from its content script, or judged by URL without one) | panel opens, after Save, on tab switches/navigation, on `STATE_CHANGED` |
 | `GET_RATES` | panel → background | `{ base }` | `{ rates }` (`ExchangeRates#toJSON()`) or `{ error }` | panel opens, a currency is picked |
 
-Class instances do not survive messaging (structured clone): senders use `toJSON()`, receivers rebuild with `TabState.from()` / `ExchangeRates.fromJSON()`.
+Messages are structured-cloned, so they carry plain data: a `TabState` is plain data already and is sent as it is, rates as `ExchangeRates#toJSON()`. Receivers validate what arrives with `TabState.from()` / `ExchangeRates.fromJSON()`.
 
 ## Storage
 
-Everything is stored in `storage.local` through `SettingsStore`, which defines one WXT storage item per key (`storage.defineItem("local:…", { fallback })`); there is no message for settings, storage is the channel. Reads of both keys are one `storage.local.get` (`storage.getItems`), a save with rates is one `storage.local.set` (`storage.setItems`). The items carry no version yet; WXT treats data without version metadata as version 1, so the next change of a value's shape can add `version: 2` and a migration.
+Everything is stored in `storage.local` through `SettingsStore`, which defines one WXT storage item per key (`storage.defineItem("local:…")`); there is no message for settings, storage is the channel. A read is one `storage.local.get` (`storage.getItems`), a save one `storage.local.set` (`storage.setItems`) of settings, rates and layout version.
 
 | Key | Value | Written by | Read by |
 | --- | --- | --- | --- |
 | `auctionSettings` | `[{ site, house, auction, settings: { auctionPremium, shipment, currency } }]` (`SettingsBook#toJSON()`), oldest first, one entry per key | panel on Save | content script, panel, background (currencies to refresh) |
 | `exchangeRates` | `{ [base]: { base, date, rates } }` (`ExchangeRates#toJSON()` per currency; `1 base = rates[code] code`) | panel on Save (with the settings, one write), background on refresh | content script |
+| `storageVersion` | layout version of the two keys above (`SettingsStore.VERSION`, currently 1; missing = 1) | panel on Save, background on install/update (`migrate()`) | every `load()` |
 
-The settings of a page are found by `SettingsBook#resolve()`, which tries `SETTINGS_SCOPES` (auction, then house, then site; see [Configuration](configuration.md#which-saved-settings-apply)); without a match the defaults apply. Without stored rates for a currency, only prices already in it are converted. Older layouts are converted once by `SettingsStore.migrate()`: the global settings of 0.1.0 (`settings`, rates of one currency in `exchangeRates`) and the one-key-per-setting layout before it (`settings.auctionPremium`, …) become site-wide settings of every configured site.
+The settings of a page are found by `SettingsBook#resolve()`, which tries `SETTINGS_SCOPES` (auction, then house, then site; see [Configuration](configuration.md#which-saved-settings-apply)); without a match the defaults apply. Without stored rates for a currency, only prices already in it are converted.
+
+A layout change raises `SettingsStore.VERSION` and adds a function to `SettingsStore.MIGRATIONS` that turns the values of the previous version into the new one (none exist yet). Every `load()` applies the missing migrations in memory, so all contexts read the current layout even before the stored data is converted; the background's `migrate()` on `runtime.onInstalled` writes the converted data and the version once. It is a small runner of our own over both keys rather than WXT's per-item versioning, because `storage.setItems()` - our one-write save - stores no WXT version metadata.
 
 ## Lifecycles
 
@@ -236,17 +239,17 @@ The settings of a page are found by `SettingsBook#resolve()`, which tries `SETTI
 | Content | `storage.local.onChanged` of `auctionSettings` or `exchangeRates` (WXT `item.watch()`, once per changed key) | reload settings/rates, `sync("settings")` |
 | Content | `SYNC_REQUEST` | reload settings/rates, `sync("request")`, answer the state |
 | Content | WXT `ctx.onInvalidated` (extension reloaded/updated/removed, or a newer copy of the script started in the tab) | `stop()`: disconnect the observer, cancel the pending frame, remove the listeners, `bus.off()`, unsubscribe from storage, remove all annotations |
-| Background | `runtime.onInstalled` | migrate old settings, schedule the daily alarm, refresh the saved rates |
+| Background | `runtime.onInstalled` | migrate the stored layout (records its version), schedule the daily alarm, refresh the saved rates |
 | Background | `runtime.onStartup` | schedule the alarm if missing (Firefox drops alarms on restart), refresh the saved rates |
 | Background | `alarms.onAlarm` (`refresh-exchange-rates`, daily) | refresh the saved rates |
 | Background | `tabs.onUpdated` (`url` changed or `status: complete`) | badge by URL, `SYNC_REQUEST` to the tab |
 | Background | `STATE_CHANGED` | badge by the reported state |
-| Background | `GET_ACTIVE_STATE`, `GET_RATES` | answer (see [Messages](#messages)) |
+| Background | `GET_RATES` | answer (see [Messages](#messages)) |
 | Background | toolbar button | Chrome: opens the side panel natively; Firefox: `action.onClicked` toggles the sidebar |
-| Panel | panel opens | ask for the active tab's state, show the settings resolved for its auction, load their rates |
+| Panel | panel opens | ask the active tab for its state (`SYNC_REQUEST`), show the settings resolved for its auction, load their rates |
 | Panel | `#currency` `change` | load the rates of the picked currency |
-| Panel | `#settings` `submit` | validate, save settings + rates under the active tab's `AuctionKey`, refresh the status |
-| Panel | `STATE_CHANGED`, `tabs.onActivated`, `tabs.onUpdated` | refresh the status and the shipment's currency; on another `AuctionKey`, show the settings resolved for it |
+| Panel | `#settings` `submit` | validate, save settings + rates under the active tab's `AuctionKey`, ask the tab again (it recalculates) |
+| Panel | `STATE_CHANGED`, `tabs.onActivated`, `tabs.onUpdated` | ask the active tab again: status and the shipment's currency; on another `AuctionKey`, show the settings resolved for it |
 
 ### Content script lifecycle
 
@@ -279,10 +282,8 @@ sequenceDiagram
   CC-)BC: STATE_CHANGED (reason "load")
   CC-)PC: STATE_CHANGED (if the panel is open)
   BC->>BC: badge "ON"
-  PC->>BC: GET_ACTIVE_STATE
-  BC->>CC: SYNC_REQUEST
-  CC-->>BC: state
-  BC-->>PC: state → StatusView, on another AuctionKey the resolved settings → form
+  PC->>CC: SYNC_REQUEST (the active tab)
+  CC-->>PC: state → status, on another AuctionKey the resolved settings → form
 
   Note over Page,CC: the page changes a price or renders late
   Page->>CC: MutationObserver
@@ -317,10 +318,8 @@ sequenceDiagram
   PC->>Store: save(key, settings, rates) — one write
   Store-)Other: storage.local.onChanged → reload + sync("settings")
   Store-)Tab: storage.local.onChanged → reload + sync("settings")
-  PC->>BC: GET_ACTIVE_STATE
-  BC->>Tab: SYNC_REQUEST (re-reads settings first)
-  Tab-->>BC: state
-  BC-->>PC: state → StatusView, "Saved."
+  PC->>Tab: SYNC_REQUEST (re-reads settings first)
+  Tab-->>PC: state → status, "Saved."
 ```
 
 ### Exchange rate refresh
@@ -337,7 +336,7 @@ sequenceDiagram
 
   alt install / update
     Browser->>BC: runtime.onInstalled
-    BC->>Store: migrate(sites) old keys
+    BC->>Store: migrate() to the current layout version
     BC->>Browser: create alarm (daily) if missing
   else browser start
     Browser->>BC: runtime.onStartup
@@ -357,7 +356,7 @@ sequenceDiagram
 
 ## Build time
 
-WXT generates the manifest of each browser from `wxt.config.ts` and the entry points: the version comes from `package.json`, the content script's `matches` and the `host_permissions` from `SITES.matchPatterns()` (read at build time), so the configured sites decide where the content script is injected. Background, content script and side panel keys follow from the files in `src/entrypoints/` - Chrome gets `side_panel` + the `sidePanel` permission and a service worker, Firefox `sidebar_action` and an event page (`background.scripts`). `import.meta.env.BROWSER` is replaced per build, so `side-panel.ts` keeps only its own branch. `manifest.icons` and the `icons/<size>.png` files come from `@wxt-dev/auto-icons`, which scales `src/assets/icon.png` after bundling.
+WXT generates the manifest of each browser from `wxt.config.ts` and the entry points: the version comes from `package.json`, the content script's `matches` and the `host_permissions` from `matchPatterns(SITES)` (read at build time), so the configured sites decide where the content script is injected. Background, content script and side panel keys follow from the files in `src/entrypoints/` - Chrome gets `side_panel` + the `sidePanel` permission and a service worker, Firefox `sidebar_action` and an event page (`background.scripts`). `import.meta.env.BROWSER` is replaced per build, so `side-panel.ts` keeps only its own branch. `manifest.icons` and the `icons/<size>.png` files come from `@wxt-dev/auto-icons`, which scales `src/assets/icon.png` after bundling.
 
 ```mermaid
 flowchart LR
