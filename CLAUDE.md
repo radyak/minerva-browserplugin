@@ -108,16 +108,18 @@ hand), linting is ESLint's recommended set plus `typescript-eslint`'s for `.ts`/
   `content.ts` wires `ctx.onInvalidated(() => controller.stop())` and passes `() => ctx.isValid`
   as the controller's `isValid`; the controller never gets `ctx`. Anything `ContentController#start()`
   registers (listeners, observer, bus handler, storage subscription) must be undone in `stop()`,
-  which also removes the annotations — the old copy keeps running in open tabs after a reload.
+  which also removes the annotations and the pop-up — the old copy keeps running in open tabs after a reload.
 - **The side panel is React** (`@wxt-dev/module-react`, `src/panel/*.tsx`): `Panel` holds the
   state (active tab, shown settings, picked currency) and the listeners - registered in an
   effect and removed in its clean-up, which `StrictMode` exercises in dev builds -
-  `SettingsForm` (with `PriceBreakdownView`), `AuctionHeader` and `StatusCard` render, `useRates` loads the rates. The form
+  `SettingsForm`, `AuctionHeader` and `StatusCard` render, `useRates` loads the rates. The form
   and the IDs are only shown while `TabState.onAuction()` (active with a house or auction ID).
   The markup lives in the components (Bootstrap classes; `index.html` is just the root); keep
   labels and roles meaningful, the test (`test/panel.test.tsx`, Testing Library in a jsdom
   environment) finds elements by them. React stays out of the content script: the page is
-  written to only by `AnnotationView`. ESLint runs `eslint-plugin-react-hooks` on `src/panel/`.
+  written to only by `AnnotationView` and `BreakdownPopup`. The form reports its unsaved values
+  (`onDraft`), which `Panel` sends to the active tab as `PREVIEW` for the price pop-up. ESLint
+  runs `eslint-plugin-react-hooks` on `src/panel/`.
 - **WXT config (`wxt.config.ts`):** `imports: false` — no auto-imports, every module imports
   `defineBackground` etc. explicitly (`wxt/utils/define-background`), so every module says where
   its names come from; `manifestVersion: 3` for both browsers (WXT defaults Firefox to MV2). A new entry
@@ -139,12 +141,20 @@ hand), linting is ESLint's recommended set plus `typescript-eslint`'s for `.ts`/
 
 ## Things that bite
 
-- **The annotator must stay idempotent.** `AnnotationView` (`src/core/annotation/`) is the only
-  class that writes to the page, and it only writes when the text/dataset actually changes,
+- **The annotator must stay idempotent.** `AnnotationView` and `BreakdownPopup`
+  (`src/core/annotation/`) are the only classes that write to the page, and they only write when
+  the text/dataset/position actually changes,
   because the content script's `MutationObserver` watches `childList` **and** `characterData` on
   the whole document. An unconditional write turns into an infinite observer loop. Any new DOM
-  write belongs into `AnnotationView`, with the same "only on change" guard. `PriceAnnotator`
+  write belongs into one of them, with the same "only on change" guard. `PriceAnnotator`
   decides *what* to show (wrapper rule, pricing).
+- **The price pop-up** (`BreakdownPopup`, one per page) opens on a click on a bubble, caught by
+  `ContentController` on the document in the capture phase (a bubble may sit inside a link). It is
+  `position: fixed` on the body, placed next to its bubble, re-rendered on every sync and
+  `PREVIEW`, and closed when its bubble disappears. Its rows come from `explainPrice()`
+  (`src/core/pricing/`), which builds on `priceBreakdown()`. `content.css` resets it with
+  `all: initial !important`; `AnnotationView.query()` skips it (`POPUP_CLASS`) just like the
+  annotations. `stop()` closes it.
 - **The annotation's layout follows the price element without touching it:** controls are not
   copied as the tag (a `span` instead), and `data-minerva-align` (`AnnotationView#alignment()`,
   from the element's computed `text-align` and whether it fills its container) lets
@@ -232,9 +242,9 @@ hand), linting is ESLint's recommended set plus `typescript-eslint`'s for `.ts`/
   `lot = amount × (1 + auctionPremium% + hammerVat%) + shipment / lotsWon`, converted, then
   `× (1 + paymentCosts% + importVat%) + flatFees / lotsWon`, in `settings.currency`. The premium
   is the *effective* one (its VAT and online surcharges added in by the user), so the hammer VAT
-  applies to the hammer price only. The panel's breakdown uses the same function - keep one
-  source for the formula. The shipment is entered in the auction's currency (the price's, not
-  `settings.currency`), so it is converted together with the price; the panel shows the
+  applies to the hammer price only. The page's price pop-up (`explainPrice()`) uses the same
+  function - keep one source for the formula. The shipment is entered in the auction's currency
+  (the price's, not `settings.currency`), so it is converted together with the price; the panel shows the
   `TabState#currencies` next to it. A site with different fees gets a function of its own,
   passed as `calculator` in `sites.config.ts`. `currency` is the input currency read from the price text,
   `rates` an `ExchangeRates` with `settings.currency` as base. A missing currency or rate returns
@@ -261,7 +271,7 @@ hand), linting is ESLint's recommended set plus `typescript-eslint`'s for `.ts`/
 
 ## Message flow
 
-Three types only, in `src/core/messages.ts`:
+Four types only, in `src/core/messages.ts`:
 
 - background → content: `SYNC_REQUEST` on `tabs.onUpdated` (fires for SPA `pushState` too, which
   is how in-page navigation is caught); content also self-syncs on load, `popstate`, `hashchange`
@@ -273,6 +283,10 @@ Three types only, in `src/core/messages.ts`:
   (`TabState.equals()`). Background turns it into the toolbar badge, the panel re-asks the tab.
 - panel → background: `GET_RATES` (`base`), answered with `{ rates }` (`ExchangeRates#toJSON()`)
   or `{ error }`.
+- panel → content (active tab): `PREVIEW` (`{ preview: { key, settings, buyer, rates } | null }`),
+  the form's unsaved values for the price pop-up only - the annotations keep the saved values.
+  Applied only while `key` is the page's `AuctionKey`; `null` when nothing is unsaved (after
+  Save, on a tab switch, when the panel closes).
 
 Listen with `MessageBus.on(type, handler)`, never `runtime.onMessage` directly: the handler
 returns its answer (or a promise of it, `undefined` for none) and the bus returns `true` to keep

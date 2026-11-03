@@ -32,7 +32,7 @@ flowchart TB
   end
   subgraph core["src/core/ (no extension API, plain DOM)"]
     domain["Currency · ExchangeRates · Settings · SettingsBook<br/>plain data: AuctionKey · SettingsScope · TabState · AuctionSite"]
-    logic["PriceAnnotator · AnnotationView<br/>price.ts · effectivePrice · sites.ts · RatesClient"]
+    logic["PriceAnnotator · AnnotationView · BreakdownPopup<br/>price.ts · effectivePrice · explainPrice · sites.ts · RatesClient"]
   end
 
   content_js --> CC
@@ -67,14 +67,16 @@ flowchart TB
     CC["content/ContentController.ts"]
     PA["core/annotation/PriceAnnotator.ts"]
     AV["core/annotation/AnnotationView.ts"]
+    BP["core/annotation/BreakdownPopup.ts"]
     content --> CC --> PA --> AV
+    CC --> BP
   end
 
   subgraph panel["Side panel · React"]
     direction TB
     main["entrypoints/sidepanel/main.tsx<br/>+ index.html"]
     Panel["panel/Panel.tsx"]
-    views["panel/SettingsForm.tsx<br/>panel/PriceBreakdownView.tsx<br/>panel/AuctionHeader.tsx<br/>panel/StatusCard.tsx"]
+    views["panel/SettingsForm.tsx<br/>panel/AuctionHeader.tsx<br/>panel/StatusCard.tsx"]
     UR["panel/useRates.ts"]
     main --> Panel --> views
     Panel --> UR
@@ -96,10 +98,12 @@ flowchart TB
   BADGE[["toolbar badge"]]
 
   AV -->|"inserts / updates siblings"| PAGE
-  PAGE -.->|"DOM changes"| CC
+  BP -->|"shows / moves the pop-up"| PAGE
+  PAGE -.->|"DOM changes · clicks on a bubble"| CC
 
   Panel -->|"SYNC_REQUEST → state"| CC
   CC -.->|"STATE_CHANGED"| Panel
+  Panel -->|"PREVIEW (unsaved values)"| CC
   CC -.->|"STATE_CHANGED"| BC
   BC -->|"SYNC_REQUEST on navigation"| CC
   UR -->|"GET_RATES → rates"| BC
@@ -114,8 +118,8 @@ flowchart TB
 
 What happens along the arrows:
 
-- **On the page**, `content.ts` starts the `ContentController`, which loads the settings and rates from storage, finds the site and auction of the URL and lets `PriceAnnotator` price every price element; `AnnotationView` writes the siblings. DOM changes, in-page navigation, storage changes and `SYNC_REQUEST` trigger the same sync again; a changed state goes out as `STATE_CHANGED`.
-- **The panel** asks the active tab for its state (`SYNC_REQUEST`, answered with the tab's `TabState`) whenever it opens, the tab changes or a `STATE_CHANGED` arrives, shows the settings that apply to the tab's auction, loads the picked currency's rates from the background (`GET_RATES`) and saves settings and rates in one write.
+- **On the page**, `content.ts` starts the `ContentController`, which loads the settings and rates from storage, finds the site and auction of the URL and lets `PriceAnnotator` price every price element; `AnnotationView` writes the siblings. A click on a bubble opens `BreakdownPopup` for it, filled by `explainPrice()`. DOM changes, in-page navigation, storage changes and `SYNC_REQUEST` trigger the same sync again; a changed state goes out as `STATE_CHANGED`.
+- **The panel** asks the active tab for its state (`SYNC_REQUEST`, answered with the tab's `TabState`) whenever it opens, the tab changes or a `STATE_CHANGED` arrives, shows the settings that apply to the tab's auction, loads the picked currency's rates from the background (`GET_RATES`), sends the form's unsaved values to the active tab for its pop-up (`PREVIEW`) and saves settings and rates in one write.
 - **The background** sets the toolbar badge, sends `SYNC_REQUEST` to a tab that navigates, answers `GET_RATES` from the Frankfurter API (cached for an hour), keeps the saved rates fresh (`saveRates`) and migrates the stored data on install/update. `side-panel.ts` makes the toolbar button open the panel.
 
 Besides their own files, all three contexts import the same shared code:
@@ -140,13 +144,15 @@ src/
                    AuctionKey (site + house + auction), SettingsBook (settings saved per
                    key, lookup), SettingsScope + SETTINGS_SCOPES (the lookup order)
     pricing/       PriceCalculator (the function type, per site), priceBreakdown (the parts),
-                   effectivePrice (the default: their total)
+                   effectivePrice (the default: their total), explainPrice (the pop-up's
+                   rows for one price, in the page's notation)
     rates/         ExchangeRates (rates for one base, conversion), RatesClient (Frankfurter / ECB)
     currency/      Currency (the supported currencies: code, symbol, tokens),
                    CurrencyDetector (finds the currency next to a price)
     price.ts       price parsing, conversion, re-formatting
     annotation/    PriceAnnotator (reads and prices the elements),
-                   AnnotationView (inserts/updates the sibling, idempotent)
+                   AnnotationView (inserts/updates the sibling, idempotent),
+                   BreakdownPopup (the one pop-up explaining a price, idempotent)
     sites/         sites.ts (AuctionSite, defineSite, findSite, identify: house / auction IDs
                    out of a URL, matchPatterns), sites.config.ts (the targeted sites)
     messages.ts    message types and the typed protocol
@@ -159,7 +165,7 @@ src/
   background/  background script / service worker (BackgroundController, RatesService)
   content/     content script (ContentController) + the annotation stylesheet
   panel/       side panel UI (React + Bootstrap CSS): Panel, SettingsForm,
-               PriceBreakdownView, AuctionHeader, StatusCard, useRates, panel.css
+               AuctionHeader, StatusCard, useRates, panel.css
   globals.d.ts __VERSION__, the build version (set by Vite's define in wxt.config.ts)
   assets/      icon.png (source of the generated icons/<size>.png), minerva-64.png
                (inlined into content.css)
@@ -181,7 +187,8 @@ test/          *.test.ts: core units, browser layer and controllers (jsdom docum
 | --- | --- | --- |
 | `RatesService` | Background | The only user of `RatesClient`; one-hour cache for the panel's requests, refreshes the saved rates of every currency in use |
 | `useRates` | Panel | Rates of the currency picked in the panel (React hook); a newer request supersedes older ones, Save waits for the latest |
-| `PriceAnnotator` / `AnnotationView` | Content | *What* to show (wrapper rule, pricing) / the only class writing to the page, only on change |
+| `PriceAnnotator` / `AnnotationView` | Content | *What* to show (wrapper rule, pricing) / writes the annotations, only on change |
+| `BreakdownPopup` | Content | the one pop-up explaining a price (`position: fixed`, appended to the body, next to its bubble); the only other class writing to the page, only on change |
 | `MessageBus` | all | `on(type, handler)` dispatch; returns `true` for async answers so the channel stays open |
 | `SettingsStore` | all | `load()` → `{ book, rates, buyer }` in one read, `save(key, settings, rates, buyer)` in one write, `saveRates()`, `onChange()` (once per changed key) → unsubscribe, `migrate()`; WXT storage items `local:auctionSettings`, `local:exchangeRates`, `local:buyerCosts`, `local:storageVersion` |
 
@@ -189,14 +196,13 @@ test/          *.test.ts: core units, browser layer and controllers (jsdom docum
 
 ### Side panel (`src/panel/`, React)
 
-`index.html` only holds `<div id="root">` and the Firefox sidebar's `manifest.*` meta tags; `main.tsx` renders `<Panel>` into it with the real `tabs`, `MessageBus` and `SettingsStore`. The markup lives in the components, styled with Bootstrap classes (its CSS is imported by `main.tsx`, `panel.css` adds the help toggle, the section headings, the breakdown's toggle and Minerva's idle bubble):
+`index.html` only holds `<div id="root">` and the Firefox sidebar's `manifest.*` meta tags; `main.tsx` renders `<Panel>` into it with the real `tabs`, `MessageBus` and `SettingsStore`. The markup lives in the components, styled with Bootstrap classes (its CSS is imported by `main.tsx`, `panel.css` adds the help toggle, the section headings and Minerva's idle bubble):
 
 | Component | Shows | State and events |
 | --- | --- | --- |
 | `Panel` | everything below; the form and the header only while the active tab is on an auction (`TabState.onAuction()`: active with a house or auction ID), otherwise Minerva saying "?" with "No auction or site active" (inactive) / "No auction detected on this page" - neither until the tab's state is known | the active tab's `TabState`, the shown settings and their scope, the picked currency; asks the tab on open, on `STATE_CHANGED`, `tabs.onActivated`, `tabs.onUpdated`; `save()` |
 | `AuctionHeader` | house and auction ID from the URL ("unknown" when not found); "Values from" pills, one per `SETTINGS_SCOPES` entry plus *Defaults*, the one the form's values come from highlighted (`aria-current`, tooltip "Saved for this auction house.") | – |
-| `SettingsForm` | section *This auction*: currency (options from `Currency.CODES`), effective auction premium (%), shipment with the currencies of the page's prices next to it ("–" for none), lots won, the switch *VAT on the hammer price* revealing the hammer price VAT (%, required while on); section *Your costs · all auctions*: the switch *Add import and payment costs* revealing import VAT (%), payment costs (%) and flat fees (in the picked currency); `min`/`max`/`step` from `Settings.RANGES` / `BuyerCosts.RANGES`; a "?" toggle per input for its hint; `PriceBreakdownView`; *Save*, filled while the form differs from the shown values; "Saved." for 2 s | the inputs' text and the switches (an emptied input keeps the shown value), reset when values are shown anew; currency `change` → `onCurrencyChange`, `submit` → validate the rendered inputs → `onSave(settings, buyer)` |
-| `PriceBreakdownView` | collapsible (`<details>`) *How a price adds up*: a hammer price of 1,000 in the page's first currency, part by part (`priceBreakdown()`), with the form's current values; parts that are 0 left out | – |
+| `SettingsForm` | section *This auction*: currency (options from `Currency.CODES`), effective auction premium (%), shipment with the currencies of the page's prices next to it ("–" for none), lots won, the switch *VAT on the hammer price* revealing the hammer price VAT (%, required while on); section *Your costs · all auctions*: the switch *Add import and payment costs* revealing import VAT (%), payment costs (%) and flat fees (in the picked currency); `min`/`max`/`step` from `Settings.RANGES` / `BuyerCosts.RANGES`; a "?" toggle per input for its hint; *Save*, filled while the form differs from the shown values; "Saved." for 2 s | the inputs' text and the switches (an emptied input keeps the shown value), reset when values are shown anew; currency `change` → `onCurrencyChange`, `submit` → validate the rendered inputs → `onSave(settings, buyer)`; the entered values (as JSON) → `onDraft` whenever they change, `null` while they equal the shown ones or once unmounted |
 | `StatusCard` | status badge ("3 prices annotated, 1 n/a" / "inactive" / "checking…"), the rates the page needs ("1 GBP = 1.16 EUR"), their date / "Loading…" / "Exchange rates unavailable.", the disclaimer, the build version at the very bottom ("v1.2.3+abc1234", `__VERSION__` from the environment variable `VERSION` at build time, "v0.0.0-dev" without) | – |
 | `useRates` (hook) | – | loads the picked currency's rates (`GET_RATES`); a superseded request is dropped, `ratesFor()` waits for the latest for Save |
 
@@ -206,7 +212,8 @@ For every price element on a configured site, `AnnotationView` inserts one sibli
 
 ```html
 <span class="current-bid">USD 1.359</span>
-<span class="minerva-effective-price" aria-live="polite" data-minerva-source="USD 1.359">EUR 779,50</span>
+<span class="minerva-effective-price" aria-live="polite" role="button" tabindex="0"
+      aria-haspopup="dialog" title="How this price adds up" data-minerva-source="USD 1.359">EUR 779,50</span>
 ```
 
 | Part | Meaning |
@@ -218,6 +225,27 @@ For every price element on a configured site, `AnnotationView` inserts one sibli
 | `data-minerva-align` | `center` / `right` when the price element takes the whole width of its container and aligns its text that way (a centred block, a full-width button): the bubble then sits on its own line below, aligned alike; absent otherwise. Re-checked on every sync (`AnnotationView#alignment()`) |
 
 The bubble is always as wide as its text (`width: fit-content`, no flex growth), also in containers that stretch their children.
+
+### Price pop-up (content script)
+
+A click on a bubble (or Enter / Space on a focused one) - caught by `ContentController` in the capture phase, so a bubble inside a link does not follow it - opens the one `BreakdownPopup`, appended to the body:
+
+```html
+<div class="minerva-breakdown" role="dialog" aria-label="How this price adds up" style="top: …px; left: …px">
+  <div class="minerva-breakdown-header"><div class="minerva-breakdown-title">How this price adds up</div><button class="minerva-breakdown-close" aria-label="Close">×</button></div>
+  <div class="minerva-breakdown-body" role="table">
+    <div class="minerva-breakdown-row" role="row"><div class="minerva-breakdown-label" role="cell">Hammer price</div><div class="minerva-breakdown-amount" role="cell">USD 1.359</div></div>
+    …
+    <div class="minerva-breakdown-row minerva-breakdown-total" role="row">…= Effective price…</div>
+  </div>
+  <div class="minerva-breakdown-note">With the unsaved values from the side panel.</div>
+</div>
+```
+
+- **Content:** `explainPrice(source, site, settings, rates, buyer)` (`src/core/pricing/`) of the bubble's `data-minerva-source` - the parts of `priceBreakdown()`, amounts formatted with the page's notation, or a message (no price, unknown currency, no rate). A site with its own `calculator` only gets hammer and effective price. Settings, rates and buyer costs are the panel's unsaved values (`PREVIEW`) when they are for the page's `AuctionKey`, the saved ones otherwise; the note shows which.
+- **Updates:** re-rendered on every sync (DOM changes, settings saved, `SYNC_REQUEST`) and every `PREVIEW`, but written only when its content changed. Placed in window coordinates below the bubble (above it when there is no room below), re-placed on `scroll` and `resize`.
+- **Closes** on its `×`, Escape, a second click on its bubble, when its bubble is removed (the price element is no longer annotated), when the URL leaves the site and on `stop()`. Clicking another bubble moves it there.
+- **Isolation:** `content.css` resets the pop-up and its parts (`all: initial !important`) and styles them with `!important`, so the page's styles do not leak in; `AnnotationView.query()` skips `.minerva-breakdown` (`POPUP_CLASS`), so a broad price selector never annotates it.
 
 ```mermaid
 stateDiagram-v2
@@ -233,15 +261,16 @@ stateDiagram-v2
 
 ## Messages
 
-Three message types, defined in `src/core/messages.ts` and sent through `MessageBus`. `Protocol` in the same file types each one's payload and answer; `MessageBus.on/send/sendToTab` are generic over it, so senders and handlers cannot drift apart:
+Four message types, defined in `src/core/messages.ts` and sent through `MessageBus`. `Protocol` in the same file types each one's payload and answer; `MessageBus.on/send/sendToTab` are generic over it, so senders and handlers cannot drift apart:
 
 | Type | From → to | Payload | Answer | Sent when |
 | --- | --- | --- | --- | --- |
 | `SYNC_REQUEST` | background or panel → content (`tabs.sendMessage`) | – | `{ url, active, annotated, unparsable, currencies, site, house, auction }` after re-reading the settings and syncing | a tab navigates (`tabs.onUpdated`, background); the panel opens, saves, or sees a tab switch, navigation or `STATE_CHANGED` (to the active tab) |
 | `STATE_CHANGED` | content → background + panel | `{ url, active, annotated, unparsable, currencies, site, house, auction, reason }` | – | a sync changed the tab's `TabState` |
 | `GET_RATES` | panel → background | `{ base }` | `{ rates }` (`ExchangeRates#toJSON()`) or `{ error }` | panel opens, a currency is picked |
+| `PREVIEW` | panel → content (active tab) | `{ preview: { key, settings, buyer, rates } \| null }` (`SettingsJSON`, `BuyerCostsJSON`, `ExchangeRatesJSON` or `null` while loading); `null`: nothing unsaved | – | the form's values change while they differ from the shown ones; `null` once they equal them again, after Save, on a tab switch and when the panel closes |
 
-Messages are structured-cloned, so they carry plain data: a `TabState` is plain data already and is sent as it is, rates as `ExchangeRates#toJSON()`. Receivers validate what arrives with `TabState.from()` / `ExchangeRates.fromJSON()`.
+Messages are structured-cloned, so they carry plain data: a `TabState` is plain data already and is sent as it is, rates as `ExchangeRates#toJSON()`. Receivers validate what arrives with `TabState.from()` / `ExchangeRates.fromJSON()` / `Settings.from()`, `BuyerCosts.from()`, `AuctionKey.from()` and `ExchangeRates.fromStorage()` (`PREVIEW`).
 
 ## Storage
 
@@ -269,7 +298,10 @@ A layout change raises `SettingsStore.VERSION` and adds a function to `SettingsS
 | Content | `popstate`, `hashchange` | `sync("popstate")` / `sync("hashchange")` |
 | Content | `storage.local.onChanged` of `auctionSettings`, `exchangeRates` or `buyerCosts` (WXT `item.watch()`, once per changed key) | reload settings/rates/buyer costs, `sync("settings")` |
 | Content | `SYNC_REQUEST` | reload settings/rates, `sync("request")`, answer the state |
-| Content | WXT `ctx.onInvalidated` (extension reloaded/updated/removed, or a newer copy of the script started in the tab) | `stop()`: disconnect the observer, cancel the pending frame, remove the listeners, `bus.off()`, unsubscribe from storage, remove all annotations |
+| Content | `PREVIEW` | keep (or drop) the panel's unsaved values, refresh the pop-up |
+| Content | `click` / `keydown` (Enter, Space, Escape) on the document, capture phase | on a bubble: open the pop-up for it (close it on its own bubble); Escape: close it |
+| Content | `scroll` (capture), `resize` | re-place the pop-up |
+| Content | WXT `ctx.onInvalidated` (extension reloaded/updated/removed, or a newer copy of the script started in the tab) | `stop()`: disconnect the observer, cancel the pending frame, remove the listeners, `bus.off()`, unsubscribe from storage, close the pop-up, remove all annotations |
 | Background | `runtime.onInstalled` | migrate the stored layout (records its version), schedule the daily alarm, refresh the saved rates |
 | Background | `runtime.onStartup` | schedule the alarm if missing (Firefox drops alarms on restart), refresh the saved rates |
 | Background | `alarms.onAlarm` (`refresh-exchange-rates`, daily) | refresh the saved rates |
@@ -279,8 +311,9 @@ A layout change raises `SettingsStore.VERSION` and adds a function to `SettingsS
 | Background | toolbar button | Chrome: opens the side panel natively; Firefox: `action.onClicked` toggles the sidebar |
 | Panel | panel opens | ask the active tab for its state (`SYNC_REQUEST`), show the settings resolved for its auction, load their rates |
 | Panel | currency picked | load the rates of the picked currency |
+| Panel | form values change | `PREVIEW` to the active tab: the unsaved values with the rates into their currency, `null` once there are none |
 | Panel | form submitted (*Save*) | validate, save settings + rates under the active tab's `AuctionKey`, ask the tab again (it recalculates) |
-| Panel | panel closes (unmount) | remove the `STATE_CHANGED` handler and the `tabs` listeners |
+| Panel | panel closes (unmount) | remove the `STATE_CHANGED` handler and the `tabs` listeners; `PREVIEW null` to the tab last sent unsaved values |
 | Panel | `STATE_CHANGED`, `tabs.onActivated`, `tabs.onUpdated` | ask the active tab again: status and the shipment's currency; on another `AuctionKey`, show the settings resolved for it |
 
 ### Content script lifecycle

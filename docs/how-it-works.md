@@ -75,9 +75,17 @@ What the extension does on a page and in the panel, from the user's point of vie
   values for later; a switched off hammer VAT is saved as none. Invalid values
   (outside the ranges, a fraction of a lot, a switched on hammer VAT without a
   rate) are marked and nothing is saved.
-- *How a price adds up*, below the form, opens an example: a hammer price of
-  1,000 in the page's currency, part by part, with the values in the form - saved
-  or not. Parts that are 0 are left out.
+- Clicking a Minerva bubble on the page (Minerva or the speech bubble; Enter or
+  Space when it has the focus) opens *How this price adds up* next to it: that
+  lot's hammer price, part by part, up to the effective price, written like the
+  page writes its prices. Parts that are 0 are left out. The pop-up floats above
+  the page with a drop shadow and moves nothing; there is only ever one - clicking
+  another bubble moves it there, clicking its own bubble again, its `×` or Escape
+  closes it. It follows the form as you type: while the panel holds unsaved
+  values for this auction it calculates with them (and says so), otherwise with
+  the saved ones; the bubbles on the page keep showing the saved values until
+  *Save*. A site with a calculator of its own only shows the hammer and the
+  effective price.
 - Selecting a currency (EUR, USD, GBP, CHF; default EUR) immediately loads the
   rates against the other three from the Frankfurter API (through the background script) and saves them with the
   settings. The *Plugin status* card only shows the rates the active tab needs:

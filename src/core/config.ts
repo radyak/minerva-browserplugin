@@ -6,6 +6,9 @@
 /** Class of the sibling element the extension inserts (see content/content.css). */
 export const ANNOTATION_CLASS = "minerva-effective-price";
 
+/** Class of the pop-up explaining one annotated price (see content/content.css). */
+export const POPUP_CLASS = "minerva-breakdown";
+
 /** Shown in the sibling element when the target text holds no parsable price. */
 export const UNPARSABLE_TEXT = "n/a";
 

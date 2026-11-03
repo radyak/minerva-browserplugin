@@ -1,4 +1,4 @@
-import { ANNOTATION_CLASS } from "../config.ts";
+import { ANNOTATION_CLASS, POPUP_CLASS } from "../config.ts";
 
 export interface Annotation {
   /** what to show: the effective price or UNPARSABLE_TEXT */
@@ -49,11 +49,11 @@ export class AnnotationView {
 
   /**
    * The elements matching any of `selectors`, each once - never our own
-   * annotations, even if a selector happens to match them.
+   * annotations or the pop-up, even if a selector happens to match them.
    */
   query(selectors: readonly string[]): Element[] {
     return [...this.doc.querySelectorAll(selectors.join(", "))].filter(
-      (element) => !element.closest(`.${ANNOTATION_CLASS}`),
+      (element) => !element.closest(`.${ANNOTATION_CLASS}, .${POPUP_CLASS}`),
     );
   }
 
@@ -157,6 +157,11 @@ export class AnnotationView {
     const annotation = this.doc.createElement(tag);
     annotation.className = ANNOTATION_CLASS;
     annotation.setAttribute("aria-live", "polite");
+    // Opens the pop-up explaining the price (ContentController listens).
+    annotation.setAttribute("role", "button");
+    annotation.setAttribute("tabindex", "0");
+    annotation.setAttribute("aria-haspopup", "dialog");
+    annotation.title = "How this price adds up";
     element.insertAdjacentElement("afterend", annotation);
     return annotation;
   }

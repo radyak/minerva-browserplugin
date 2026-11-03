@@ -84,16 +84,6 @@ body {
   font-weight: 600;
 }
 
-/* The collapsible example below the form. */
-.price-breakdown summary {
-  color: var(--bs-secondary-color);
-  cursor: pointer;
-}
-
-.price-breakdown summary:hover {
-  color: var(--bs-primary);
-}
-
 /* The inputs a switch reveals, set off below it so they read as its part. */
 .switched-part {
   margin-left: 0.5rem;

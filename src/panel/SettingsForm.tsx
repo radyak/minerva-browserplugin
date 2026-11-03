@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 
 import { Currency } from "../core/currency/Currency.ts";
-import type { ExchangeRates } from "../core/rates/ExchangeRates.ts";
-import { BuyerCosts, type NumericBuyerCost } from "../core/settings/BuyerCosts.ts";
-import { Settings, type NumericSetting } from "../core/settings/Settings.ts";
-import { PriceBreakdownView } from "./PriceBreakdownView.tsx";
+import {
+  BuyerCosts,
+  type BuyerCostsJSON,
+  type NumericBuyerCost,
+} from "../core/settings/BuyerCosts.ts";
+import { Settings, type NumericSetting, type SettingsJSON } from "../core/settings/Settings.ts";
 
 /** Every value entered in a number input. */
 type NumberField = NumericSetting | NumericBuyerCost;
@@ -23,6 +25,9 @@ type Draft = {
 
 /** The settings of the auction and the buyer's costs, as shown when the form was filled. */
 export type ShownSettings = { readonly settings: Settings; readonly buyer: BuyerCosts };
+
+/** The values entered but not saved, as plain data (what a PREVIEW message carries). */
+export type DraftValues = { readonly settings: SettingsJSON; readonly buyer: BuyerCostsJSON };
 
 /** How long the "Saved." note stays visible, in milliseconds. */
 const SAVED_NOTE_MS = 2000;
@@ -53,30 +58,30 @@ const toDraft = ({ settings, buyer }: ShownSettings): Draft => ({
  * premium, shipment split over the lots won, and - behind a switch - the VAT on
  * the hammer price), saved per auction, and "Your costs" (import VAT, payment
  * costs, flat fees - all behind one switch), saved once for every auction.
- * Below them a collapsible example of how a price adds up with the entered
- * values. Save stores both sections.
+ * Save stores both sections; until then the entered values are reported
+ * through `onDraft`, so the page's price pop-up can show them.
  * @param props.shown the values to show; a new object (another auction, after
  *   saving) replaces whatever was typed, even when the values are the same
  * @param props.pageCurrencies currencies of the page's prices, which the
  *   shipment is entered in
- * @param props.rates into the picked currency, for the example; undefined
- *   while loading, null when unavailable
  * @param props.onCurrencyChange called with the picked currency
  * @param props.onSave called with the entered values when they are valid; an
  *   emptied input keeps its shown value
+ * @param props.onDraft called with the entered values whenever they change,
+ *   null while they equal the shown ones; it should keep its identity
  */
 export function SettingsForm({
   shown,
   pageCurrencies,
-  rates,
   onCurrencyChange,
   onSave,
+  onDraft,
 }: {
   shown: ShownSettings;
   pageCurrencies: readonly string[];
-  rates: ExchangeRates | null | undefined;
   onCurrencyChange: (code: string) => void;
   onSave: (settings: Settings, buyer: BuyerCosts) => Promise<void>;
+  onDraft?: (draft: DraftValues | null) => void;
 }) {
   const [draft, setDraft] = useState(() => toDraft(shown));
   // Reset the draft whenever values are shown anew (React's "adjust state while rendering").
@@ -120,6 +125,13 @@ export function SettingsForm({
     draft.currency !== shown.settings.currency ||
     draft.buyerEnabled !== shown.buyer.enabled ||
     (Object.keys(RANGES) as NumberField[]).some((name) => value(name) !== shownValue(name));
+  // As text, so the effect only runs when the values change, not on every render.
+  const draftText = changed ? JSON.stringify(entered()) : null;
+  useEffect(() => {
+    onDraft?.(draftText === null ? null : (JSON.parse(draftText) as DraftValues));
+    // Unmounted (no auction in the tab any more), nothing is entered.
+    return () => onDraft?.(null);
+  }, [draftText, onDraft]);
 
   const enter = (name: NumberField, text: string) => {
     setDraft({ ...draft, [name]: text });
@@ -327,12 +339,6 @@ export function SettingsForm({
             </div>
           )}
         </fieldset>
-
-        <PriceBreakdownView
-          {...entered()}
-          currency={pageCurrencies[0] ?? draft.currency}
-          rates={rates}
-        />
 
         <div className="d-flex align-items-center gap-2">
           {/* Filled while there are unsaved changes, outlined otherwise. */}

@@ -1,9 +1,12 @@
 import type { MessageBus } from "../browser/MessageBus.ts";
 import type { RatesByCurrency, SettingsStore } from "../browser/SettingsStore.ts";
+import { BreakdownPopup } from "../core/annotation/BreakdownPopup.ts";
 import { PriceAnnotator } from "../core/annotation/PriceAnnotator.ts";
-import { MSG } from "../core/messages.ts";
+import { ANNOTATION_CLASS } from "../core/config.ts";
+import { MSG, type Preview } from "../core/messages.ts";
+import { explainPrice } from "../core/pricing/explainPrice.ts";
 import { ExchangeRates } from "../core/rates/ExchangeRates.ts";
-import type { AuctionKey } from "../core/settings/AuctionKey.ts";
+import { AuctionKey } from "../core/settings/AuctionKey.ts";
 import { BuyerCosts } from "../core/settings/BuyerCosts.ts";
 import { Settings } from "../core/settings/Settings.ts";
 import { SettingsBook } from "../core/settings/SettingsBook.ts";
@@ -18,6 +21,7 @@ type Deps = {
   store: Pick<SettingsStore, "load" | "onChange">;
   sites?: readonly AuctionSite[];
   annotator?: PriceAnnotator;
+  popup?: BreakdownPopup;
   /**
    * whether the extension is still there; asked before each sync caused by the
    * page (the content script entry point passes WXT's `ctx.isValid`, which
@@ -38,6 +42,13 @@ export class ContentController {
   #book = new SettingsBook();
   #rates: RatesByCurrency = {};
   #buyer = BuyerCosts.DEFAULT;
+  /** the panel's unsaved values, for the pop-up only; null when there are none */
+  #preview: {
+    key: AuctionKey;
+    settings: Settings;
+    buyer: BuyerCosts;
+    rates: ExchangeRates | null;
+  } | null = null;
   #stopped = false;
   #observer: MutationObserver | null = null;
   /** the pending animation frame of a DOM change */
@@ -50,6 +61,7 @@ export class ContentController {
     this.#deps = {
       sites: SITES,
       annotator: new PriceAnnotator(deps.window.document),
+      popup: new BreakdownPopup(deps.window.document),
       isValid: () => true,
       ...deps,
     };
@@ -68,11 +80,20 @@ export class ContentController {
       await this.#loadSettings();
       return { url: window.location.href, ...this.sync("request") };
     });
+    bus.on(MSG.PREVIEW, ({ preview }) => {
+      this.#preview = preview ? previewOf(preview) : null;
+      this.#refreshPopup();
+    });
 
     // Single page apps swap the URL without reloading; the background script
     // notices and sends SYNC_REQUEST, these two cover the in-page cases.
     window.addEventListener("popstate", this.#onPopState);
     window.addEventListener("hashchange", this.#onHashChange);
+    // Capturing: an annotation inside a link must open the pop-up, not the link.
+    window.document.addEventListener("click", this.#onClick, true);
+    window.document.addEventListener("keydown", this.#onKeyDown, true);
+    window.addEventListener("resize", this.#onMove);
+    window.addEventListener("scroll", this.#onMove, { capture: true, passive: true });
 
     // Recalculate when the settings are saved in the panel or another tab.
     this.#unwatchStore = store.onChange(async () => {
@@ -93,14 +114,20 @@ export class ContentController {
   stop(): void {
     if (this.#stopped) return;
     this.#stopped = true;
-    const { window, bus, annotator } = this.#deps;
+    const { window, bus, annotator, popup } = this.#deps;
     this.#observer?.disconnect();
     if (this.#frame !== null) window.cancelAnimationFrame(this.#frame);
     this.#frame = null;
     window.removeEventListener("popstate", this.#onPopState);
     window.removeEventListener("hashchange", this.#onHashChange);
+    window.document.removeEventListener("click", this.#onClick, true);
+    window.document.removeEventListener("keydown", this.#onKeyDown, true);
+    window.removeEventListener("resize", this.#onMove);
+    window.removeEventListener("scroll", this.#onMove, { capture: true });
     bus.off(MSG.SYNC_REQUEST);
+    bus.off(MSG.PREVIEW);
     this.#unwatchStore?.();
+    popup.close();
     annotator.clear();
   }
 
@@ -118,9 +145,82 @@ export class ContentController {
     const state = site ? this.#annotate(site, url) : annotator.clear();
     const changed = !TabState.equals(state, this.#lastState);
     this.#lastState = state;
+    this.#refreshPopup();
     if (changed) bus.send({ type: MSG.STATE_CHANGED, url, ...state, reason });
     return state;
   }
+
+  /**
+   * Bring the pop-up in line with its annotation: the price it shows now, and
+   * the panel's unsaved values for this auction, else the saved ones. Closes
+   * it once its annotation is gone (the price element is no longer annotated)
+   * or the page is on no site any more.
+   */
+  #refreshPopup(): void {
+    const { window, sites, popup } = this.#deps;
+    const anchor = popup.anchor;
+    if (!anchor) return;
+    const url = window.location.href;
+    const site = findSite(sites, url);
+    if (!site || !anchor.isConnected) {
+      popup.close();
+      return;
+    }
+    const key: AuctionKey = { site: site.origin, ...identify(site, url) };
+    const preview =
+      this.#preview && AuctionKey.equals(key, this.#preview.key) ? this.#preview : null;
+    const saved = this.settingsFor(key);
+    const settings = preview?.settings ?? saved.settings;
+    const rates =
+      preview?.rates ?? this.#rates[settings.currency] ?? ExchangeRates.empty(settings.currency);
+    const buyer = preview?.buyer ?? this.#buyer;
+    const source = anchor.dataset.minervaSource ?? "";
+    popup.show({
+      source,
+      explanation: explainPrice(source, site, settings, rates, buyer),
+      preview: preview !== null,
+    });
+  }
+
+  /** Open the pop-up for `annotation`, or close it when it is open for that one already. */
+  #toggle(annotation: HTMLElement): void {
+    const { popup } = this.#deps;
+    if (popup.anchor === annotation) {
+      popup.close();
+      return;
+    }
+    popup.open(annotation);
+    this.#refreshPopup();
+  }
+
+  /** The annotation an event happened on, if any. */
+  #annotationAt(event: Event): HTMLElement | null {
+    const target = event.target as Element | null;
+    return (target?.closest?.(`.${ANNOTATION_CLASS}`) as HTMLElement | null) ?? null;
+  }
+
+  #onClick = (event: MouseEvent) => {
+    const annotation = this.#annotationAt(event);
+    if (!annotation) return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.#toggle(annotation);
+  };
+
+  #onKeyDown = (event: KeyboardEvent) => {
+    if (event.key === "Escape" && this.#deps.popup.anchor) {
+      this.#deps.popup.close();
+      return;
+    }
+    if (event.key !== "Enter" && event.key !== " ") return;
+    const annotation = this.#annotationAt(event);
+    if (!annotation) return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.#toggle(annotation);
+  };
+
+  #onMove = () => this.#deps.popup.place();
 
   /**
    * Annotate the page of `url` on `site` with the settings of its auction.
@@ -181,4 +281,15 @@ export class ContentController {
   #syncIfValid(reason: string): void {
     if (this.#deps.isValid()) this.sync(reason);
   }
+}
+
+/** The panel's unsaved values out of a PREVIEW message (validated like stored data). */
+function previewOf(preview: Preview) {
+  const settings = Settings.from(preview.settings);
+  return {
+    key: AuctionKey.from(preview.key),
+    settings,
+    buyer: BuyerCosts.from(preview.buyer),
+    rates: preview.rates ? ExchangeRates.fromStorage(preview.rates, settings.currency) : null,
+  };
 }

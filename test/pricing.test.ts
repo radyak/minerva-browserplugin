@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
+import { explainPrice } from "../src/core/pricing/explainPrice.ts";
 import { effectivePrice, priceBreakdown } from "../src/core/pricing/PriceCalculator.ts";
 import { convertPrice } from "../src/core/price.ts";
 import { ExchangeRates } from "../src/core/rates/ExchangeRates.ts";
 import { BuyerCosts } from "../src/core/settings/BuyerCosts.ts";
 import { Settings } from "../src/core/settings/Settings.ts";
+import { defineSite } from "../src/core/sites/sites.ts";
 
 const EUR_SETTINGS = new Settings({ auctionPremium: 0, shipment: 0, currency: "EUR" });
 // Into EUR; GBP deliberately has no rate.
@@ -113,4 +115,62 @@ test("breaks the price down part by part", () => {
     },
   });
   assert.equal(priceBreakdown(1000, "GBP", settings, INTO_EUR, BUYER), undefined);
+});
+
+const SITE = defineSite({ origin: "https://shop.test", paths: ["/*"], priceSelectors: [".p"] });
+const explain = (text: string, settings: Settings, buyer = BuyerCosts.DEFAULT, site = SITE) =>
+  explainPrice(text, site, settings, INTO_EUR, buyer);
+
+test("explains a price part by part, written like the page writes it", () => {
+  const settings = new Settings({
+    auctionPremium: 20,
+    shipment: 30,
+    lotsWon: 3,
+    hammerVat: 10,
+    currency: "EUR",
+  });
+  // The text around the price is left out, the notation (separators, currency position) kept.
+  assert.deepEqual(explain("Current bid: USD 1.000,00", settings, BUYER), {
+    rows: [
+      { label: "Hammer price", amount: "USD 1.000,00" },
+      { label: "+ Premium 20 %", amount: "USD 200,00" },
+      { label: "+ VAT 10 % on the hammer price", amount: "USD 100,00" },
+      { label: "+ Shipment 30 ÷ 3 lots", amount: "USD 10,00" },
+      { label: "= Invoice share", amount: "USD 1.310,00", total: true },
+      { label: "= In EUR (1 USD = 0,5 EUR)", amount: "EUR 655,00" },
+      { label: "+ Payment costs 3 %", amount: "EUR 19,65" },
+      { label: "+ Import VAT 7 %", amount: "EUR 45,85" },
+      { label: "+ Flat fees 20 ÷ 3 lots", amount: "EUR 6,67" },
+      { label: "= Effective price", amount: "EUR 727,17", total: true },
+    ],
+  });
+});
+
+test("leaves out parts that are 0 and the conversion when there is none", () => {
+  assert.deepEqual(explain("500 EUR", EUR_SETTINGS), {
+    rows: [
+      { label: "Hammer price", amount: "500 EUR" },
+      { label: "= Effective price", amount: "500 EUR", total: true },
+    ],
+  });
+});
+
+test("says why a price cannot be explained", () => {
+  assert.deepEqual(explain("sold", EUR_SETTINGS), { message: "No price could be read here." });
+  assert.deepEqual(explain("500", EUR_SETTINGS), {
+    message: "The currency of this price is not known.",
+  });
+  assert.deepEqual(explain("500 GBP", EUR_SETTINGS), {
+    message: "No exchange rate from GBP into EUR.",
+  });
+});
+
+test("only shows the result of a site's own calculator, whose parts are unknown", () => {
+  const site = defineSite({ ...SITE, calculator: (amount) => amount * 3 });
+  assert.deepEqual(explain("100 EUR", EUR_SETTINGS, undefined, site), {
+    rows: [
+      { label: "Hammer price", amount: "100 EUR" },
+      { label: "= Effective price", amount: "300 EUR", total: true },
+    ],
+  });
 });
