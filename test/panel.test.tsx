@@ -185,7 +185,7 @@ test("shows the saved settings, the rates and the status on open", async () => {
   assert.deepEqual(store.savedRates, []);
 });
 
-test("shows the form and the auction only while the tab is on an auction", async () => {
+test("shows the form and the IDs while the tab is on a site, with or without IDs", async () => {
   await openPanel();
   assert.ok(form());
   assert.equal(screen.queryByText(/No auction/), null);
@@ -196,11 +196,12 @@ test("shows the form and the auction only while the tab is on an auction", async
   assert.equal(document.querySelector("[aria-current]")!.textContent, "Site");
   cleanup();
 
-  // On a site, but neither house nor auction in the URL.
+  // On a site, but neither house nor auction in the URL: the form still shows.
   await openPanel({ state: { ...ON_USD_PAGE, house: null } });
-  assert.equal(form(), null);
-  assert.equal(screen.queryByText("Auction house"), null);
-  screen.getByText("No auction detected on this page");
+  assert.ok(form());
+  assert.equal(shownId("Auction house"), "unknown");
+  assert.equal(shownId("Auction"), "unknown");
+  assert.equal(screen.queryByText(/No auction/), null);
   assert.equal(status(), "3 prices annotated, 1 n/a");
   cleanup();
 

@@ -55,7 +55,7 @@ hand), linting is ESLint's recommended set plus `typescript-eslint`'s for `.ts`/
   Keep a JSDoc block comment on every exported function; say *why*, not what the name says.
 - **Plain data where there is only data.** `TabState`, `AuctionKey`, `SettingsScope` and
   `AuctionSite` are `type`s; their helpers live in a same-named `const` (`TabState.of/from/equals/
-  onAuction/forUrl`, `AuctionKey.from/equals`) or as functions (`findSite`, `identify`,
+  onSite/forUrl`, `AuctionKey.from/equals`) or as functions (`findSite`, `identify`,
   `scopeMatches`), and the object itself is the message/storage format — no `toJSON()` round trip.
   Classes are kept where they guard an invariant: `Settings`, `BuyerCosts` (ranges), `SettingsBook` (lookup),
   `ExchangeRates` (rate direction), `Currency`. Their plain shapes are exported next to them
@@ -113,7 +113,7 @@ hand), linting is ESLint's recommended set plus `typescript-eslint`'s for `.ts`/
   state (active tab, shown settings, picked currency) and the listeners - registered in an
   effect and removed in its clean-up, which `StrictMode` exercises in dev builds -
   `SettingsForm`, `AuctionHeader` and `StatusCard` render, `useRates` loads the rates. The form
-  and the IDs are only shown while `TabState.onAuction()` (active with a house or auction ID).
+  and the IDs are only shown while `TabState.onSite()` (active on a site; the IDs are optional).
   The markup lives in the components (Bootstrap classes; `index.html` is just the root); keep
   labels and roles meaningful, the test (`test/panel.test.tsx`, Testing Library in a jsdom
   environment) finds elements by them. React stays out of the content script: the page is
@@ -174,9 +174,10 @@ hand), linting is ESLint's recommended set plus `typescript-eslint`'s for `.ts`/
   annotated are removed on every run (`AnnotationView#removeAllBut()`), so a lost match shows
   as a missing annotation, never as a stale amount.
 - **`origin` is protocol + host only, `paths` are path globs only.** A URL is on a site
-  (`findSite()`) when its origin equals the site's `origin` and its *pathname* (query/hash
-  ignored) matches one of the paths via our tiny glob matcher (`globSource()` in
-  `src/core/regexp.ts`, `*` only, exact otherwise). `matchPatternFor()` derives the
+  (`findSite()`) when its origin equals the site's `origin` and its *pathname* (query ignored;
+  the hash too unless the glob contains a `#`, then path + hash is matched) matches one of the
+  paths via our tiny glob matcher (`globSource()` in `src/core/regexp.ts`, `*` only, exact
+  otherwise). `matchPatternFor()` derives the
   manifest match pattern `<protocol>//<host>/*` and drops any port, since match patterns cannot
   carry one; the origin check still enforces it.
 - **The tests run against their own site lists** (the controllers take an optional

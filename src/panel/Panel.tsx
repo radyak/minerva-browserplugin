@@ -135,10 +135,10 @@ export function Panel({ tabs, bus, store, sites = SITES, version = "0.0.0-dev" }
     await refresh();
   };
 
-  const onAuction = tab !== null && TabState.onAuction(tab);
+  const onSite = tab !== null && TabState.onSite(tab);
   return (
     <div className="d-flex flex-column gap-3 p-3 min-vh-100">
-      {onAuction && shown && (
+      {onSite && shown && (
         <>
           <AuctionHeader tab={tab} scope={shown.scope} />
           <SettingsForm
@@ -150,14 +150,14 @@ export function Panel({ tabs, bus, store, sites = SITES, version = "0.0.0-dev" }
           />
         </>
       )}
-      {tab && !onAuction && <NoAuction active={tab.active} />}
+      {tab && !onSite && <NoSite />}
       <StatusCard tab={tab} rates={rates} version={version} />
     </div>
   );
 }
 
-/** Minerva saying "?" instead of the form, while the active tab is on no auction. */
-function NoAuction({ active }: { active: boolean }) {
+/** Minerva saying "?" instead of the form, while the active tab is on no site. */
+function NoSite() {
   return (
     <section className="my-auto text-center text-body-secondary">
       <div className="minerva-idle">
@@ -166,9 +166,7 @@ function NoAuction({ active }: { active: boolean }) {
           ?
         </span>
       </div>
-      <p className="mt-3 mb-0">
-        {active ? "No auction detected on this page" : "No auction or site active"}
-      </p>
+      <p className="mt-3 mb-0">No auction or site active</p>
     </section>
   );
 }

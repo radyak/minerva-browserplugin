@@ -31,4 +31,15 @@ export const SITES: readonly AuctionSite[] = [
     // https://www.numisbids.com/sale/7123 and /sale/7123/lot/45; the house is not in the URL.
     ids: { auction: { path: "/sale/:id*" } },
   }),
+  defineSite({
+    origin: "https://l5.com",
+    // Routes in the hash: https://l5.com/#auction-live/7 (a path with "#" matches path + hash).
+    // Lot pages (https://l5.com/lot/12560/<slug>) carry no auction ID in the URL.
+    paths: ["/#auction-live/*", "/lot/*"],
+    priceSelectors: ["#fl-price", "#fl-quick", "#lot-price"],
+    ids: {
+      // house: { path: "/lot/*/:id*" },
+      auction: { path: "/#auction-live/:id" },
+    },
+  }),
 ];
