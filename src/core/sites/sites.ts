@@ -43,7 +43,8 @@ export function defineSite({
 
 /**
  * The first site whose origin equals the URL's and one of whose paths matches
- * its pathname (query and hash are ignored); null when there is none.
+ * its pathname (the query is ignored, the hash too unless the path names one,
+ * see `route()`); null when there is none.
  */
 export function findSite(
   sites: readonly AuctionSite[],
@@ -55,7 +56,7 @@ export function findSite(
     sites.find(
       (site) =>
         parsed.origin === parseUrl(site.origin)?.origin &&
-        site.paths.some((path) => new RegExp(`^${globSource(path)}$`).test(parsed.pathname)),
+        site.paths.some((path) => new RegExp(`^${globSource(path)}$`).test(route(path, parsed))),
     ) ?? null
   );
 }
@@ -84,13 +85,22 @@ export function matchPatterns(sites: readonly AuctionSite[]): string[] {
 
 function extractId(source: IdSource, url: URL): string | null {
   if ("query" in source) return url.searchParams.get(source.query) || null;
-  const value = idPattern(source.path).exec(url.pathname)?.[1];
+  const value = idPattern(source.path).exec(route(source.path, url))?.[1];
   if (value === undefined) return null;
   try {
     return decodeURIComponent(value);
   } catch {
     return value;
   }
+}
+
+/**
+ * The part of `url` a path glob is matched against: the pathname, plus the hash
+ * when the glob contains a "#" - for sites that route in the hash
+ * (`/#auction-live/*` on `https://l5.com/#auction-live/7`).
+ */
+function route(glob: string, url: URL): string {
+  return glob.includes("#") ? url.pathname + url.hash : url.pathname;
 }
 
 /** "/sale/:id*" -> /^\/sale\/([^/]+).*$/ */

@@ -81,10 +81,11 @@ export const TabState = {
   },
 
   /**
-   * Whether the tab is on an actual auction: active, and the URL names the
-   * auction house or the auction. Only then does the panel offer the settings.
+   * Whether the panel offers the settings: active on a site. House and auction
+   * IDs are optional - without them the settings resolve on the house or site
+   * scope and are saved under the key with the unknown IDs left null.
    */
-  onAuction(state: TabState): boolean {
-    return state.active && (state.house !== null || state.auction !== null);
+  onSite(state: TabState): boolean {
+    return state.active && state.site !== null;
   },
 };

@@ -11,7 +11,7 @@ import { SITES } from "../core/sites/sites.config.ts";
 import type { AuctionSite } from "../core/sites/sites.ts";
 import { TabState } from "../core/state/TabState.ts";
 import { AuctionHeader } from "./AuctionHeader.tsx";
-import { SettingsForm } from "./SettingsForm.tsx";
+import { SettingsForm, type ShownSettings } from "./SettingsForm.tsx";
 import { StatusCard } from "./StatusCard.tsx";
 import { useRates } from "./useRates.ts";
 
@@ -26,8 +26,8 @@ export type PanelProps = {
   version?: string;
 };
 
-/** The settings in the form and where they were found (null: the defaults). */
-type Shown = { settings: Settings; scope: SettingsScope | null };
+/** The values in the form and where the settings were found (null: the defaults). */
+type Shown = ShownSettings & { scope: SettingsScope | null };
 
 /**
  * Side panel (Chrome) / sidebar (Firefox): shows and saves the settings of the
@@ -84,7 +84,10 @@ export function Panel({ tabs, bus, store, sites = SITES, version = "0.0.0-dev" }
     };
   }, [tabs, bus, refresh]);
 
-  /** Save `settings` for the active tab's auction, with the matching rates; the tab recalculates. */
+  /**
+   * Save `settings` for the active tab's auction, with the matching rates; the
+   * tab recalculates.
+   */
   const save = async (settings: Settings) => {
     const saveKey = key.current;
     if (!saveKey?.site) return;
@@ -97,28 +100,28 @@ export function Panel({ tabs, bus, store, sites = SITES, version = "0.0.0-dev" }
     await refresh();
   };
 
-  const onAuction = tab !== null && TabState.onAuction(tab);
+  const onSite = tab !== null && TabState.onSite(tab);
   return (
     <div className="d-flex flex-column gap-3 p-3 min-vh-100">
-      {onAuction && shown && (
+      {onSite && shown && (
         <>
           <AuctionHeader tab={tab} scope={shown.scope} />
           <SettingsForm
             shown={shown}
-            shipmentCurrencies={tab.currencies}
+            pageCurrencies={tab.currencies}
             onCurrencyChange={setCurrency}
             onSave={save}
           />
         </>
       )}
-      {tab && !onAuction && <NoAuction active={tab.active} />}
+      {tab && !onSite && <NoSite />}
       <StatusCard tab={tab} rates={rates} version={version} />
     </div>
   );
 }
 
-/** Minerva saying "?" instead of the form, while the active tab is on no auction. */
-function NoAuction({ active }: { active: boolean }) {
+/** Minerva saying "?" instead of the form, while the active tab is on no site. */
+function NoSite() {
   return (
     <section className="my-auto text-center text-body-secondary">
       <div className="minerva-idle">
@@ -127,16 +130,14 @@ function NoAuction({ active }: { active: boolean }) {
           ?
         </span>
       </div>
-      <p className="mt-3 mb-0">
-        {active ? "No auction detected on this page" : "No auction or platform active"}
-      </p>
+      <p className="mt-3 mb-0">No auction or site active</p>
     </section>
   );
 }
 
 /**
- * The state of the active tab, freshly synced by its content script; judged
- * by the URL when it has none (yet).
+ * The active tab's state, freshly synced by its content script; the
+ * state is judged by the URL when it has none (yet).
  */
 async function activeTabState(
   tabs: PanelProps["tabs"],

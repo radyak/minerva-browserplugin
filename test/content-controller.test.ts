@@ -107,6 +107,16 @@ test("recalculates when the settings change", async () => {
   assert.equal(annotation(), "252.50 EUR"); // 505 USD
 });
 
+test("adds the import VAT, payment costs and flat fees of the auction's settings", async () => {
+  const { store, annotation } = await startOn("https://shop.test/lot/1");
+  const ZERO = new Settings({ auctionPremium: 0, shipment: 0, currency: "EUR" });
+  await store.change({ book: everywhere(ZERO) });
+  assert.equal(annotation(), "250 EUR");
+  const costs = { importVat: 7, paymentCosts: 3, flatFees: 5 };
+  await store.change({ book: everywhere(new Settings({ ...ZERO, ...costs })) });
+  assert.equal(annotation(), "280 EUR"); // 250 + 10 % + 5
+});
+
 test("shows n/a when the new currency has no rates yet", async () => {
   const { bus, store, annotation } = await startOn("https://shop.test/lot/1");
   await store.change({

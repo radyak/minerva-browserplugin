@@ -130,7 +130,6 @@ const shownId = (label: string) =>
   screen.getByRole("cell", { name: label }).nextElementSibling!.textContent;
 const saveButton = () => screen.getByRole("button", { name: "Save" });
 const savedNote = () => screen.getByText("Saved.");
-
 /** Where the form's values come from: the title of the highlighted pill. */
 const source = () => {
   const current = document.querySelectorAll("[aria-current]");
@@ -175,7 +174,7 @@ test("shows the saved settings, the rates and the status on open", async () => {
   assert.deepEqual(store.savedRates, []);
 });
 
-test("shows the form and the auction only while the tab is on an auction", async () => {
+test("shows the form and the IDs while the tab is on a site, with or without IDs", async () => {
   await openPanel();
   assert.ok(form());
   assert.equal(screen.queryByText(/No auction/), null);
@@ -186,11 +185,12 @@ test("shows the form and the auction only while the tab is on an auction", async
   assert.equal(document.querySelector("[aria-current]")!.textContent, "Site");
   cleanup();
 
-  // On a site, but neither house nor auction in the URL.
+  // On a site, but neither house nor auction in the URL: the form still shows.
   await openPanel({ state: { ...ON_USD_PAGE, house: null } });
-  assert.equal(form(), null);
-  assert.equal(screen.queryByText("Auction house"), null);
-  screen.getByText("No auction detected on this page");
+  assert.ok(form());
+  assert.equal(shownId("Auction house"), "unknown");
+  assert.equal(shownId("Auction"), "unknown");
+  assert.equal(screen.queryByText(/No auction/), null);
   assert.equal(status(), "3 prices annotated, 1 n/a");
   cleanup();
 
@@ -206,7 +206,7 @@ test("shows the form and the auction only while the tab is on an auction", async
   assert.equal(status(), "checking…");
   await flush();
   assert.equal(form(), null);
-  screen.getByText("No auction or platform active");
+  screen.getByText("No auction or site active");
   assert.equal(status(), "inactive");
   assert.equal(screen.queryByText("Auction house"), null);
 });
@@ -420,8 +420,9 @@ test("fills the form with the settings of the auction the active tab is on", asy
   await navigate({ site: "https://other.test", house: "leu", auction: "1" });
   assert.deepEqual(showing(), ["EUR", "0", "Nothing saved yet: defaults."]);
   assert.ok(form());
+  // On the site without IDs: the site's settings, still in the form.
   await navigate({ house: null, auction: null });
-  assert.equal(form(), null);
+  assert.ok(form());
 });
 
 test("saves for the auction of the active tab, from the defaults when nothing was saved", async () => {
@@ -445,8 +446,8 @@ test("saves for the auction of the active tab, from the defaults when nothing wa
   assert.equal(source(), "Saved for this auction.");
 });
 
-test("offers nothing to save while the active tab is on no auction", async () => {
-  for (const state of [{ active: false }, { ...ON_USD_PAGE, house: null, auction: null }]) {
+test("offers nothing to save while the active tab is on no site", async () => {
+  for (const state of [{ active: false }, { ...ON_USD_PAGE, active: false }]) {
     await openPanel({ state });
     assert.equal(form(), null);
     assert.equal(screen.queryByRole("button", { name: "Save" }), null);
@@ -471,4 +472,78 @@ test("shows the build version at the bottom of the panel", async () => {
 test("shows the development version when none is passed", async () => {
   await openPanel();
   screen.getByText("v0.0.0-dev");
+});
+
+const toggle = (label: string) => fireEvent.click(screen.getByRole("switch", { name: label }));
+const shown = (label: string) => screen.queryByLabelText(label) !== null;
+const invalidInput = (label: string) => input(label).classList.contains("is-invalid");
+test("shows the hammer VAT only while its switch is on, and requires a rate then", async () => {
+  const { store } = await openPanel();
+  assert.equal(shown("Hammer price VAT"), false);
+  toggle("VAT on the hammer price");
+  assert.equal(input("Hammer price VAT").value, "");
+  await submit();
+  assert.deepEqual(store.saved, []);
+  assert.equal(invalidInput("Hammer price VAT"), true);
+
+  type("Hammer price VAT", "19");
+  await submit();
+  assert.equal(store.saved.at(-1).settings.hammerVat, 19);
+  assert.equal(input("Hammer price VAT").value, "19");
+
+  // Switched off, it is saved as none.
+  toggle("VAT on the hammer price");
+  assert.equal(shown("Hammer price VAT"), false);
+  await submit();
+  assert.equal(store.saved.at(-1).settings.hammerVat, 0);
+});
+
+test("only accepts whole numbers of lots won, from 1", async () => {
+  const { store } = await openPanel();
+  assert.equal(input("Lots won").value, "1");
+  for (const lots of ["0", "1.5"]) {
+    type("Lots won", lots);
+    await submit();
+    assert.equal(invalidInput("Lots won"), true, lots);
+  }
+  assert.deepEqual(store.saved, []);
+  type("Lots won", "3");
+  await submit();
+  assert.equal(store.saved[0].settings.lotsWon, 3);
+});
+
+test("saves import VAT, payment costs and flat fees with the auction's settings", async () => {
+  const { store } = await openPanel();
+  assert.equal(screen.queryByRole("switch", { name: /import and payment/ }), null);
+  type("Import VAT", "7");
+  type("Payment costs", "2.5");
+  type("Flat fees", "15");
+  // The flat fees are in the picked currency.
+  assert.equal(input("Flat fees").nextElementSibling!.textContent, "GBP");
+  type("Payment costs", "101");
+  await submit();
+  assert.equal(invalidInput("Payment costs"), true);
+  assert.deepEqual(store.saved, []);
+
+  type("Payment costs", "2.5");
+  await submit();
+  assert.deepEqual(
+    store.saved[0].settings,
+    new Settings({ ...GBP, importVat: 7, paymentCosts: 2.5, flatFees: 15 }),
+  );
+});
+
+test("shows the import VAT, payment costs and flat fees of the auction the tab is on", async () => {
+  const costs = { importVat: 7, paymentCosts: 2, flatFees: 5 };
+  const book = bookOf(
+    [{ site: SHOP, house: "leu" }, GBP],
+    [{ site: SHOP, house: "cng" }, new Settings({ ...GBP, ...costs })],
+  );
+  const { navigate } = await openPanel({ book });
+  const showing = () => ["Import VAT", "Payment costs", "Flat fees"].map((l) => input(l).value);
+  assert.deepEqual(showing(), ["0", "0", "0"]);
+  await navigate({ house: "cng", auction: "1" });
+  assert.deepEqual(showing(), ["7", "2", "5"]);
+  await navigate({ site: "https://other.test", house: "cng", auction: "1" });
+  assert.deepEqual(showing(), ["0", "0", "0"]);
 });

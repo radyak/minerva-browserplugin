@@ -8,7 +8,11 @@
  * effective price. Avatar and tail are pseudo-elements: the content script
  * only ever writes the text, so the DOM stays a single element per price.
  * Kept to the one class so the page's own styles are never touched; the
- * typography is inherited from the price element.
+ * typography is inherited from the price element's container.
+ *
+ * The size is always the bubble's own (`fit-content`, no flex growth), even in
+ * containers that stretch their children - a bubble after a full-width button
+ * would otherwise become a full-width bar.
  */
 .minerva-effective-price {
   --minerva-avatar: 1.75em;
@@ -17,6 +21,12 @@
 
   position: relative !important;
   display: inline-block !important;
+  flex: 0 0 auto !important;
+  float: none !important;
+  width: fit-content !important;
+  min-width: 0 !important;
+  max-width: calc(100% - var(--minerva-avatar) - 0.6em) !important;
+  height: auto !important;
   margin: 0.25em 0 0.25em calc(var(--minerva-avatar) + 0.6em) !important;
   padding: 0.15em 0.65em !important;
   border: 1.5px solid var(--minerva-border) !important;
@@ -27,6 +37,33 @@
   line-height: 1.3 !important;
   vertical-align: middle;
   white-space: nowrap;
+  cursor: pointer !important;
+}
+
+.minerva-effective-price:focus-visible {
+  outline: 2px solid var(--minerva-border) !important;
+  outline-offset: 2px !important;
+}
+
+/*
+ * Below a price element that takes the whole width, aligned like its text
+ * (`data-minerva-align`, set by AnnotationView). Centred, the bubble moves
+ * right by half of Minerva's room so that Minerva and bubble together sit in
+ * the middle.
+ */
+.minerva-effective-price[data-minerva-align] {
+  display: block !important;
+}
+
+.minerva-effective-price[data-minerva-align="center"] {
+  left: calc((var(--minerva-avatar) + 0.6em) / 2);
+  margin-right: auto !important;
+  margin-left: auto !important;
+}
+
+.minerva-effective-price[data-minerva-align="right"] {
+  margin-right: 0 !important;
+  margin-left: auto !important;
 }
 
 /* Minerva, left of the bubble. */
@@ -63,4 +100,95 @@
   color: #6c757d !important;
   font-style: italic !important;
   font-weight: 400 !important;
+}
+
+/*
+ * The pop-up explaining one price (BreakdownPopup): floats above the page,
+ * next to the bubble it was opened for, in window coordinates (top/left set
+ * by the script). Everything is reset and set with !important, so neither
+ * does the page's styling leak in nor does the pop-up push anything around.
+ */
+.minerva-breakdown,
+.minerva-breakdown * {
+  all: initial !important;
+  box-sizing: border-box !important;
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    sans-serif !important;
+  font-size: 13px !important;
+  line-height: 1.4 !important;
+  color: #1f3b6e !important;
+}
+
+.minerva-breakdown div {
+  display: block !important;
+}
+
+.minerva-breakdown {
+  position: fixed !important;
+  z-index: 2147483647 !important;
+  display: block !important;
+  width: max-content !important;
+  min-width: 16em !important;
+  max-width: min(26em, calc(100vw - 16px)) !important;
+  padding: 0.6em 0.8em 0.7em !important;
+  border: 1.5px solid #1f3b6e !important;
+  border-radius: 0.4em !important;
+  background: #fffdf5 !important;
+  box-shadow:
+    0 6px 18px rgba(15, 30, 60, 0.25),
+    0 2px 4px rgba(15, 30, 60, 0.15) !important;
+}
+
+.minerva-breakdown .minerva-breakdown-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 1em !important;
+  margin-bottom: 0.4em !important;
+  padding-bottom: 0.3em !important;
+  border-bottom: 1px solid #d5dbe5 !important;
+}
+
+.minerva-breakdown .minerva-breakdown-title {
+  font-weight: 700 !important;
+}
+
+.minerva-breakdown .minerva-breakdown-close {
+  display: inline-block !important;
+  padding: 0 0.3em !important;
+  border-radius: 0.25em !important;
+  font-size: 18px !important;
+  line-height: 1 !important;
+  cursor: pointer !important;
+}
+
+.minerva-breakdown .minerva-breakdown-close:hover,
+.minerva-breakdown .minerva-breakdown-close:focus-visible {
+  background: #e8edf5 !important;
+}
+
+.minerva-breakdown .minerva-breakdown-row {
+  display: flex !important;
+  justify-content: space-between !important;
+  gap: 1.5em !important;
+  padding: 0.1em 0 !important;
+}
+
+.minerva-breakdown .minerva-breakdown-total .minerva-breakdown-label,
+.minerva-breakdown .minerva-breakdown-total .minerva-breakdown-amount {
+  font-weight: 700 !important;
+}
+
+.minerva-breakdown .minerva-breakdown-amount {
+  white-space: nowrap !important;
+  text-align: right !important;
+}
+
+.minerva-breakdown .minerva-breakdown-message {
+  color: #6c757d !important;
+  font-style: italic !important;
 }

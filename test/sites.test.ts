@@ -41,6 +41,17 @@ test("query and hash are ignored, a trailing slash in the origin too", () => {
   );
 });
 
+test("a path with a # is matched against path and hash, for sites routing in the hash", () => {
+  const paths = ["/#auction-live/*"];
+  assert.equal(onSite("https://l5.test/#auction-live/7", "https://l5.test", paths), true);
+  assert.equal(onSite("https://l5.test/?x=1#auction-live/7", "https://l5.test", paths), true);
+  assert.equal(onSite("https://l5.test/#lots", "https://l5.test", paths), false);
+  assert.equal(onSite("https://l5.test/", "https://l5.test", paths), false);
+  const l5 = site("https://l5.test", paths, { auction: { path: "/#auction-live/:id" } });
+  assert.deepEqual(identify(l5, "https://l5.test/#auction-live/7"), { house: null, auction: "7" });
+  assert.deepEqual(identify(l5, "https://l5.test/#other"), { house: null, auction: null });
+});
+
 test("treats regex characters in paths as literals", () => {
   assert.equal(onSite("https://x.test/a+b", "https://x.test", ["/a+b"]), true);
   assert.equal(onSite("https://x.test/aab", "https://x.test", ["/a+b"]), false);

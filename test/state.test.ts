@@ -101,10 +101,10 @@ test("judges a tab without content script by its URL", () => {
   assert.deepEqual(TabState.forUrl(sites, undefined), TabState.inactive());
 });
 
-test("is on an auction while active with a house or auction ID", () => {
-  const onAuction = (values) => TabState.onAuction(TabState.of(values));
-  assert.equal(onAuction({ active: true, house: "leu" }), true);
-  assert.equal(onAuction({ active: true, auction: "7" }), true);
-  assert.equal(onAuction({ active: true, site: "https://a.test" }), false);
-  assert.equal(onAuction({ house: "leu", auction: "7" }), false);
+test("is on a site while active with a site, the IDs are optional", () => {
+  const onSite = (values) => TabState.onSite(TabState.of(values));
+  assert.equal(onSite({ active: true, site: "https://a.test", house: "leu" }), true);
+  assert.equal(onSite({ active: true, site: "https://a.test" }), true);
+  assert.equal(onSite({ active: true }), false);
+  assert.equal(onSite({ site: "https://a.test", house: "leu", auction: "7" }), false);
 });

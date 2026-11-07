@@ -3,8 +3,9 @@
 Minerva — a cross-browser (Chrome + Firefox) MV3 WebExtension that reads the price out of a
 configured element on a configured auction site, calculates the effective price from the
 settings entered in the side panel and inserts the result as a sibling element next to it. The
-side panel shows status and exchange rates and holds the persisted auction premium, shipment
-(in the auction's currency) and currency inputs.
+side panel shows status and exchange rates and holds the persisted auction premium, shipment,
+lots won, hammer price VAT, import VAT, payment costs, flat fees (all per auction; the
+shipment in the auction's currency) and currency inputs.
 
 `README.md` is the entry point; the chapters live in `docs/` (`how-it-works.md`: user-facing
 behaviour and the price-format table, `architecture.md`: components, messages, storage and event
@@ -54,7 +55,7 @@ hand), linting is ESLint's recommended set plus `typescript-eslint`'s for `.ts`/
   Keep a JSDoc block comment on every exported function; say *why*, not what the name says.
 - **Plain data where there is only data.** `TabState`, `AuctionKey`, `SettingsScope` and
   `AuctionSite` are `type`s; their helpers live in a same-named `const` (`TabState.of/from/equals/
-  onAuction/forUrl`, `AuctionKey.from/equals`) or as functions (`findSite`, `identify`,
+  onSite/forUrl`, `AuctionKey.from/equals`) or as functions (`findSite`, `identify`,
   `scopeMatches`), and the object itself is the message/storage format — no `toJSON()` round trip.
   Classes are kept where they guard an invariant: `Settings` (ranges), `SettingsBook` (lookup),
   `ExchangeRates` (rate direction), `Currency`. Their plain shapes are exported next to them
@@ -107,16 +108,18 @@ hand), linting is ESLint's recommended set plus `typescript-eslint`'s for `.ts`/
   `content.ts` wires `ctx.onInvalidated(() => controller.stop())` and passes `() => ctx.isValid`
   as the controller's `isValid`; the controller never gets `ctx`. Anything `ContentController#start()`
   registers (listeners, observer, bus handler, storage subscription) must be undone in `stop()`,
-  which also removes the annotations — the old copy keeps running in open tabs after a reload.
+  which also removes the annotations and the pop-up — the old copy keeps running in open tabs after a reload.
 - **The side panel is React** (`@wxt-dev/module-react`, `src/panel/*.tsx`): `Panel` holds the
   state (active tab, shown settings, picked currency) and the listeners - registered in an
   effect and removed in its clean-up, which `StrictMode` exercises in dev builds -
   `SettingsForm`, `AuctionHeader` and `StatusCard` render, `useRates` loads the rates. The form
-  and the IDs are only shown while `TabState.onAuction()` (active with a house or auction ID).
+  and the IDs are only shown while `TabState.onSite()` (active on a site; the IDs are optional).
   The markup lives in the components (Bootstrap classes; `index.html` is just the root); keep
   labels and roles meaningful, the test (`test/panel.test.tsx`, Testing Library in a jsdom
   environment) finds elements by them. React stays out of the content script: the page is
-  written to only by `AnnotationView`. ESLint runs `eslint-plugin-react-hooks` on `src/panel/`.
+  written to only by `AnnotationView` and `BreakdownPopup`. The form reports its unsaved values
+  (`onDraft`), which `Panel` sends to the active tab as `PREVIEW` for the price pop-up. ESLint
+  runs `eslint-plugin-react-hooks` on `src/panel/`.
 - **WXT config (`wxt.config.ts`):** `imports: false` — no auto-imports, every module imports
   `defineBackground` etc. explicitly (`wxt/utils/define-background`), so every module says where
   its names come from; `manifestVersion: 3` for both browsers (WXT defaults Firefox to MV2). A new entry
@@ -138,12 +141,25 @@ hand), linting is ESLint's recommended set plus `typescript-eslint`'s for `.ts`/
 
 ## Things that bite
 
-- **The annotator must stay idempotent.** `AnnotationView` (`src/core/annotation/`) is the only
-  class that writes to the page, and it only writes when the text/dataset actually changes,
+- **The annotator must stay idempotent.** `AnnotationView` and `BreakdownPopup`
+  (`src/core/annotation/`) are the only classes that write to the page, and they only write when
+  the text/dataset/position actually changes,
   because the content script's `MutationObserver` watches `childList` **and** `characterData` on
   the whole document. An unconditional write turns into an infinite observer loop. Any new DOM
-  write belongs into `AnnotationView`, with the same "only on change" guard. `PriceAnnotator`
+  write belongs into one of them, with the same "only on change" guard. `PriceAnnotator`
   decides *what* to show (wrapper rule, pricing).
+- **The price pop-up** (`BreakdownPopup`, one per page) opens on a click on a bubble, caught by
+  `ContentController` on the document in the capture phase (a bubble may sit inside a link). It is
+  `position: fixed` on the body, placed next to its bubble, re-rendered on every sync and
+  `PREVIEW`, and closed when its bubble disappears. Its rows come from `explainPrice()`
+  (`src/core/pricing/`), which builds on `priceBreakdown()`. `content.css` resets it with
+  `all: initial !important`; `AnnotationView.query()` skips it (`POPUP_CLASS`) just like the
+  annotations. `stop()` closes it.
+- **The annotation's layout follows the price element without touching it:** controls are not
+  copied as the tag (a `span` instead), and `data-minerva-align` (`AnnotationView#alignment()`,
+  from the element's computed `text-align` and whether it fills its container) lets
+  `content.css` centre or right-align the bubble; `fit-content` keeps flex/grid containers from
+  stretching it. The alignment is read on every sync, so it is written only on change, too.
 - **Never annotate our own output** — `AnnotationView.query()` skips elements carrying
   `ANNOTATION_CLASS` (`minerva-effective-price`), which matters because `priceSelectors` are site
   selectors that may well match the sibling too.
@@ -158,9 +174,10 @@ hand), linting is ESLint's recommended set plus `typescript-eslint`'s for `.ts`/
   annotated are removed on every run (`AnnotationView#removeAllBut()`), so a lost match shows
   as a missing annotation, never as a stale amount.
 - **`origin` is protocol + host only, `paths` are path globs only.** A URL is on a site
-  (`findSite()`) when its origin equals the site's `origin` and its *pathname* (query/hash
-  ignored) matches one of the paths via our tiny glob matcher (`globSource()` in
-  `src/core/regexp.ts`, `*` only, exact otherwise). `matchPatternFor()` derives the
+  (`findSite()`) when its origin equals the site's `origin` and its *pathname* (query ignored;
+  the hash too unless the glob contains a `#`, then path + hash is matched) matches one of the
+  paths via our tiny glob matcher (`globSource()` in `src/core/regexp.ts`, `*` only, exact
+  otherwise). `matchPatternFor()` derives the
   manifest match pattern `<protocol>//<host>/*` and drops any port, since match patterns cannot
   carry one; the origin check still enforces it.
 - **The tests run against their own site lists** (the controllers take an optional
@@ -185,17 +202,18 @@ hand), linting is ESLint's recommended set plus `typescript-eslint`'s for `.ts`/
 - **All storage goes through `SettingsStore` (`src/browser/SettingsStore.ts`).** The layout is
   `{ auctionSettings: SettingsBook#toJSON(), exchangeRates: { [base]: ExchangeRates#toJSON() },
   storageVersion }`; `load()` reads them in one `storage.local.get` (`storage.getItems`) and
-  returns the `SettingsBook` and the rates per currency. `save(key, settings, rates)` writes all
-  three in **one** `storage.local.set` (`storage.setItems`), so there is one change event and
+  returns the `SettingsBook` and the rates per currency. `save(key, settings, rates)` writes them
+  all in **one** `storage.local.set` (`storage.setItems`), so there is one change event and
   nobody sees new settings without their rates. `saveRates()` (background) writes the rates only,
   so a refresh never undoes a concurrent save. `onChange()` watches the two data items
-  (`item.watch()`) and is therefore called once per changed key — twice after a save, each time
-  seeing both; the content script's re-sync is idempotent, so that is harmless. The items are
+  (`item.watch()`) and is therefore called once per changed key — up to twice after a
+  save, each time seeing all; the content script's re-sync is idempotent, so that is harmless. The items are
   defined in the constructor, never at module level: `defineItem()` reads storage right away, and
   entry points are imported in Node at build time.
 - **Changing the stored layout** means raising `SettingsStore.VERSION` and adding the conversion
   from the previous version to `SettingsStore.MIGRATIONS` (none yet; data without
-  `storageVersion` is version 1). `load()` converts older data in memory in every context,
+  `storageVersion` is version 1). *Adding* a value to `Settings` needs none:
+  `from()` reads a missing value as its default. `load()` converts older data in memory in every context,
   `save()` writes the current version, and the background's `migrate()` (on `runtime.onInstalled`)
   rewrites the stored data once and records the version even on a fresh install. This is our own
   runner over both keys, not WXT's per-item `version`/`migrations`: WXT's `storage.setItems()`
@@ -209,17 +227,23 @@ hand), linting is ESLint's recommended set plus `typescript-eslint`'s for `.ts`/
   `SETTINGS_SCOPES`; saving always stores the full key. The content script resolves on every
   `sync()` (so URL changes switch settings), the panel when the active tab's `AuctionKey` changes.
 - The panel shows the resolved settings and saves the full `Settings` under the active tab's key
-  when Save is clicked; an emptied input keeps the value shown. The input ranges live in
-  `Settings.RANGES` only; the panel sets its inputs' `min`/`max` from them. There is no message
+  when Save is clicked; an emptied input keeps the value shown. **Every cost factor is per
+  auction** - import VAT, payment costs and flat fees too, since sites, houses and the countries
+  lots ship from differ in them; there is no global "your costs" value. The input ranges live in
+  `Settings.RANGES` only (`integer` for lots won); the panel sets its
+  inputs' `min`/`max`/`step` from them and validates with the inputs' own `checkValidity()`. There is no message
   for settings — storage is the channel: after saving, the panel sends `SYNC_REQUEST` to the
   active tab, and the content script **re-reads the settings on every `SYNC_REQUEST`** before
   syncing. `SettingsStore.onChange()` additionally updates the other open tabs.
 - **The calculation is per site:** every `AuctionSite` has a `calculator`, a `PriceCalculator`
   function `(amount, currency, settings, rates)` (`src/core/pricing/`) that `PriceAnnotator`
-  uses for that site's prices. The default is `effectivePrice`:
-  `rates.convert(amount * (1 + auctionPremium / 100) + shipment, currency)`, in
-  `settings.currency`. The shipment is entered in the auction's currency (the price's, not
-  `settings.currency`), so it is converted together with the price; the panel shows the
+  uses for that site's prices. The default is `effectivePrice`, the total of `priceBreakdown()`:
+  `lot = amount × (1 + auctionPremium% + hammerVat%) + shipment / lotsWon`, converted, then
+  `× (1 + paymentCosts% + importVat%) + flatFees / lotsWon`, in `settings.currency`. The premium
+  is the *effective* one (its VAT and online surcharges added in by the user), so the hammer VAT
+  applies to the hammer price only. The page's price pop-up (`explainPrice()`) uses the same
+  function - keep one source for the formula. The shipment is entered in the auction's currency
+  (the price's, not `settings.currency`), so it is converted together with the price; the panel shows the
   `TabState#currencies` next to it. A site with different fees gets a function of its own,
   passed as `calculator` in `sites.config.ts`. `currency` is the input currency read from the price text,
   `rates` an `ExchangeRates` with `settings.currency` as base. A missing currency or rate returns
@@ -246,7 +270,7 @@ hand), linting is ESLint's recommended set plus `typescript-eslint`'s for `.ts`/
 
 ## Message flow
 
-Three types only, in `src/core/messages.ts`:
+Four types only, in `src/core/messages.ts`:
 
 - background → content: `SYNC_REQUEST` on `tabs.onUpdated` (fires for SPA `pushState` too, which
   is how in-page navigation is caught); content also self-syncs on load, `popstate`, `hashchange`
@@ -258,6 +282,10 @@ Three types only, in `src/core/messages.ts`:
   (`TabState.equals()`). Background turns it into the toolbar badge, the panel re-asks the tab.
 - panel → background: `GET_RATES` (`base`), answered with `{ rates }` (`ExchangeRates#toJSON()`)
   or `{ error }`.
+- panel → content (active tab): `PREVIEW` (`{ preview: { key, settings, rates } | null }`),
+  the form's unsaved values for the price pop-up only - the annotations keep the saved values.
+  Applied only while `key` is the page's `AuctionKey`; `null` when nothing is unsaved (after
+  Save, on a tab switch, when the panel closes).
 
 Listen with `MessageBus.on(type, handler)`, never `runtime.onMessage` directly: the handler
 returns its answer (or a promise of it, `undefined` for none) and the bus returns `true` to keep

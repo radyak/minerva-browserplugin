@@ -19,6 +19,7 @@ export const SITES: readonly AuctionSite[] = [
       ".current-bid",
       '.lot-price > div:nth-child(2) > span[class^="a-cb-"]',
       ".lot-price > div:nth-child(2)",
+      "#button-bid",
     ],
     // https://www.biddr.com/agorawien/auction?a=7522&l=9222559
     ids: { house: { path: "/:id/auction" }, auction: { query: "a" } },
@@ -29,5 +30,16 @@ export const SITES: readonly AuctionSite[] = [
     priceSelectors: [".rateclick"],
     // https://www.numisbids.com/sale/7123 and /sale/7123/lot/45; the house is not in the URL.
     ids: { auction: { path: "/sale/:id*" } },
+  }),
+  defineSite({
+    origin: "https://l5.com",
+    // Routes in the hash: https://l5.com/#auction-live/7 (a path with "#" matches path + hash).
+    // Lot pages (https://l5.com/lot/12560/<slug>) carry no auction ID in the URL.
+    paths: ["/#auction-live/*", "/lot/*"],
+    priceSelectors: ["#fl-price", "#fl-quick", "#lot-price"],
+    ids: {
+      // house: { path: "/lot/*/:id*" },
+      auction: { path: "/#auction-live/:id" },
+    },
   }),
 ];

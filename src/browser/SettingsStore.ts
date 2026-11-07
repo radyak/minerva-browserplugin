@@ -15,8 +15,8 @@ export type StoredLayout = { auctionSettings: unknown; exchangeRates: unknown };
 export type Migration = (stored: StoredLayout) => StoredLayout;
 
 /**
- * The settings saved per auction and the exchange rates to convert into their
- * currencies, in browser.storage.local. The panel writes, the content script
+ * The settings saved per auction and the exchange rates to convert into the settings' currencies, in
+ * browser.storage.local. The panel writes, the content script
  * reads; storage is the channel between them (see CLAUDE.md, "Settings and the
  * effective price").
  *
@@ -24,7 +24,8 @@ export type Migration = (stored: StoredLayout) => StoredLayout;
  * extension API when it is imported - the tests put WXT's `fakeBrowser` there.
  *
  * Layout: `{ auctionSettings: SettingsBook#toJSON(), exchangeRates: { [base]:
- * ExchangeRates#toJSON() }, storageVersion }`.
+ * ExchangeRates#toJSON() }, storageVersion }`. Settings read missing values as
+ * their defaults, so adding a value to them needs no new layout version.
  */
 export class SettingsStore {
   /** browser.storage.local keys. */
@@ -62,9 +63,8 @@ export class SettingsStore {
   }
 
   /**
-   * The saved settings and the saved rates per base currency, read together
-   * (one storage.local.get, so never settings of one write with rates of
-   * another) and converted to the current layout first if they are older.
+   * The saved settings and the saved rates per base currency, read together (one storage.local.get, so never settings of one write with
+   * rates of another) and converted to the current layout first if they are older.
    */
   async load(): Promise<{ book: SettingsBook; rates: RatesByCurrency }> {
     const { stored } = await this.#read();
@@ -76,8 +76,8 @@ export class SettingsStore {
 
   /**
    * Save `settings` for the auction of `key`, and the rates of their currency
-   * when given, in one write - so listeners get one change event and never see
-   * new settings without their rates.
+   * when given, in one write - so listeners get one change
+   * event and never see new settings without their rates.
    */
   async save(key: AuctionKey, settings: Settings, rates?: ExchangeRates): Promise<void> {
     const { book, rates: saved } = await this.load();
@@ -98,13 +98,13 @@ export class SettingsStore {
   }
 
   /**
-   * Call `listener` whenever settings or rates change, from any extension page:
-   * once per changed key, so a `save()` calls it twice - each call sees both
-   * new values, as they were written together.
+   * Call `listener` whenever settings or rates change, from any extension
+   * page: once per changed key, so a `save()` calls it up to twice - each call sees all new values, as they were written together.
    * @returns stops calling `listener`
    */
   onChange(listener: () => void): () => void {
-    const unwatch = [this.#settings, this.#rates].map((item) => item.watch(() => listener()));
+    const items = [this.#settings, this.#rates] as const;
+    const unwatch = items.map((item) => item.watch(() => listener()));
     return () => unwatch.forEach((stop) => stop());
   }
 
@@ -131,8 +131,14 @@ export class SettingsStore {
     return migrated;
   }
 
-  /** The stored values in the current layout, and the version they were stored in. */
-  async #read(): Promise<{ stored: StoredLayout; from: number; versioned: boolean }> {
+  /**
+   * The stored values in the current layout, and the version they were stored in.
+   */
+  async #read(): Promise<{
+    stored: StoredLayout;
+    from: number;
+    versioned: boolean;
+  }> {
     const [settings, rates, version] = await storage.getItems([
       this.#settings,
       this.#rates,

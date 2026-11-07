@@ -7,7 +7,7 @@ The auction sites the extension acts on live in
 | Field | Example (biddr.com) | Meaning |
 | --- | --- | --- |
 | `origin` | `https://www.biddr.com` | protocol + host (optionally a port), no path; `<protocol>//<host>/*` is baked into both manifests as the content script match pattern |
-| `paths` | `["/*"]` | path globs on that host, e.g. `/live/g-m-auction` or `/live/*`; the extension only acts while the page path matches one of them (`*` = any characters, otherwise exact; query and hash are ignored) |
+| `paths` | `["/*"]` | path globs on that host, e.g. `/live/g-m-auction` or `/live/*`; the extension only acts while the page path matches one of them (`*` = any characters, otherwise exact; the query is ignored, the hash too unless the path contains a `#`: `/#auction-live/*` is matched against path + hash, for sites that route in the hash) |
 | `priceSelectors` | `[".current-bid"]` | the elements whose text holds the price |
 | `ids` | `{ house: { path: "/:id/auction" }, auction: { query: "a" } }` | where the page URL names the auction house *(optional)* and the auction; shown at the top of the panel and part of the key the settings are saved under |
 | `calculator` | *(optional)* | a `PriceCalculator` function for sites whose fees differ; `effectivePrice` by default |

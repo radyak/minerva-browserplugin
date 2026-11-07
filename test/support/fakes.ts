@@ -49,7 +49,10 @@ export function fakeBus({ answers = {} }: { answers?: Record<string, Answer> } =
   };
 }
 
-/** A SettingsStore holding a SettingsBook and rates per currency in memory. */
+/**
+ * A SettingsStore holding a SettingsBook and rates per currency in memory.
+ * `saved` records the settings saves.
+ */
 export function fakeStore({
   book = new SettingsBook(),
   rates = [],

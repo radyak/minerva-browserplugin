@@ -171,7 +171,9 @@ test("migrates data of an older layout in one write and records the new version"
   assert.equal(await store.migrate(), true);
   assert.equal(writes.length, 1);
   assert.deepEqual(await data(), {
-    auctionSettings: [{ ...AUCTION, settings: GBP.toJSON() }],
+    auctionSettings: [
+      { ...AUCTION, settings: { auctionPremium: 20, shipment: 15, currency: "GBP" } },
+    ],
     exchangeRates: { GBP: GBP_RATES.toJSON() },
     storageVersion: 2,
   });

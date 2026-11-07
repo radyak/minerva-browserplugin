@@ -74,3 +74,10 @@ body {
   border-bottom: inherit;
   background: inherit;
 }
+
+/* The inputs a switch reveals, set off below it so they read as its part. */
+.switched-part {
+  margin-left: 0.5rem;
+  padding-left: 0.75rem;
+  border-left: 2px solid var(--bs-primary-border-subtle);
+}
