@@ -5,7 +5,6 @@ import { fakeBrowser } from "wxt/testing/fake-browser";
 import { SettingsStore, type Migration } from "../src/browser/SettingsStore.ts";
 import { ExchangeRates } from "../src/core/rates/ExchangeRates.ts";
 import { AuctionKey } from "../src/core/settings/AuctionKey.ts";
-import { BuyerCosts } from "../src/core/settings/BuyerCosts.ts";
 import { Settings } from "../src/core/settings/Settings.ts";
 
 // WxtVitest() (vitest.config.ts) puts WXT's in-memory fakeBrowser in place of
@@ -53,29 +52,6 @@ test("saves settings and their rates in one write and loads them back", async ()
   const { book, rates } = await store.load();
   assert.deepEqual(book.resolve(AUCTION)?.settings, GBP);
   assert.deepEqual(rates, { GBP: GBP_RATES });
-});
-
-test("saves the buyer costs with the settings, in the same write", async () => {
-  const { writes, data } = await storageWith();
-  const store = new SettingsStore();
-  assert.deepEqual((await store.load()).buyer, BuyerCosts.DEFAULT);
-  const buyer = new BuyerCosts({ enabled: true, importVat: 7, paymentCosts: 2, flatFees: 15 });
-  await store.save(AUCTION, GBP, GBP_RATES, buyer);
-  assert.equal(writes.length, 1);
-  assert.deepEqual((await data()).buyerCosts, buyer.toJSON());
-  assert.deepEqual((await store.load()).buyer, buyer);
-
-  // Saving without buyer costs keeps them.
-  await store.save(SITE, CHF);
-  assert.deepEqual((await store.load()).buyer, buyer);
-});
-
-test("reports changed buyer costs", async () => {
-  await storageWith();
-  let calls = 0;
-  new SettingsStore().onChange(() => (calls += 1));
-  await local.set({ buyerCosts: BuyerCosts.DEFAULT.toJSON() });
-  assert.equal(calls, 1);
 });
 
 test("keeps the settings of other auctions and the rates of other currencies", async () => {

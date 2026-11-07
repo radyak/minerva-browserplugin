@@ -1,5 +1,4 @@
 import type { ExchangeRates } from "../rates/ExchangeRates.ts";
-import { BuyerCosts } from "../settings/BuyerCosts.ts";
 import type { Settings } from "../settings/Settings.ts";
 
 /**
@@ -10,7 +9,6 @@ import type { Settings } from "../settings/Settings.ts";
  * @param currency currency `amount` is in, as read from the page
  * @param settings of the auction
  * @param rates with `settings.currency` as base
- * @param buyer the buyer's own costs; none when omitted
  * @returns the price in `settings.currency`; undefined when there is no result (shown as "n/a")
  */
 export type PriceCalculator = (
@@ -18,7 +16,6 @@ export type PriceCalculator = (
   currency: string | undefined,
   settings: Settings,
   rates: ExchangeRates | undefined,
-  buyer?: BuyerCosts,
 ) => number | undefined;
 
 /** How `effectivePrice` arrives at its result, part by part. */
@@ -66,7 +63,6 @@ export function priceBreakdown(
   currency: string | undefined,
   settings: Settings,
   rates: ExchangeRates | undefined,
-  buyer: BuyerCosts = BuyerCosts.DEFAULT,
 ): PriceBreakdown | undefined {
   const premium = (amount * settings.auctionPremium) / 100;
   const hammerVat = (amount * settings.hammerVat) / 100;
@@ -76,10 +72,9 @@ export function priceBreakdown(
   if (currency === undefined || converted === undefined || !Number.isFinite(converted)) {
     return undefined;
   }
-  const costs = buyer.applied;
-  const payment = (converted * costs.paymentCosts) / 100;
-  const importVat = (converted * costs.importVat) / 100;
-  const flatFees = costs.flatFees / settings.lotsWon;
+  const payment = (converted * settings.paymentCosts) / 100;
+  const importVat = (converted * settings.importVat) / 100;
+  const flatFees = settings.flatFees / settings.lotsWon;
   return {
     auction: { currency, hammer: amount, premium, hammerVat, shipment, lot },
     buyer: {
@@ -98,5 +93,5 @@ export function priceBreakdown(
  * `priceBreakdown`). The calculation of every site that does not configure
  * another one.
  */
-export const effectivePrice: PriceCalculator = (amount, currency, settings, rates, buyer) =>
-  priceBreakdown(amount, currency, settings, rates, buyer)?.buyer.total;
+export const effectivePrice: PriceCalculator = (amount, currency, settings, rates) =>
+  priceBreakdown(amount, currency, settings, rates)?.buyer.total;

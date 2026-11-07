@@ -108,7 +108,7 @@ flowchart TB
   BC -->|"SYNC_REQUEST on navigation"| CC
   UR -->|"GET_RATES → rates"| BC
 
-  Panel -->|"save settings + rates + buyer costs"| LOCAL
+  Panel -->|"save settings + rates"| LOCAL
   LOCAL -->|"load · onChange"| CC
   RS -->|"saveRates"| LOCAL
   BC -->|"migrate"| LOCAL
@@ -127,7 +127,7 @@ Besides their own files, all three contexts import the same shared code:
 | Shared files | Used for |
 | --- | --- |
 | `browser/MessageBus.ts`, `core/messages.ts` | sending and handling the three typed messages |
-| `browser/SettingsStore.ts` | reading and writing `storage.local` (settings, buyer costs, rates, layout version) |
+| `browser/SettingsStore.ts` | reading and writing `storage.local` (settings, rates, layout version) |
 | `core/sites/sites.config.ts`, `core/sites/sites.ts` | which sites are targeted; site, house and auction of a URL |
 | `core/state/TabState.ts`, `core/settings/*`, `core/rates/ExchangeRates.ts` | the tab's state, the saved settings and their lookup, exchange rates |
 | `core/price.ts`, `core/currency/*`, `core/pricing/PriceCalculator.ts` | reading a price, its currency, and the effective price (content script) |
@@ -139,8 +139,8 @@ src/
   core/        browser-agnostic logic
     config.ts      plugin-wide constants
     regexp.ts      RegExp escaping and the "*"-only glob used for paths and currency tokens
-    settings/      Settings (an auction's settings: ranges, validation), BuyerCosts (the
-                   buyer's own costs, for every auction), ranges.ts (range check),
+    settings/      Settings (an auction's settings, every cost factor: ranges, validation),
+                   ranges.ts (range check),
                    AuctionKey (site + house + auction), SettingsBook (settings saved per
                    key, lookup), SettingsScope + SETTINGS_SCOPES (the lookup order)
     pricing/       PriceCalculator (the function type, per site), priceBreakdown (the parts),
@@ -179,9 +179,9 @@ test/          *.test.ts: core units, browser layer and controllers (jsdom docum
 
 | Controller | Constructor dependencies | Responsibilities |
 | --- | --- | --- |
-| `ContentController` | `window`, `bus`, `store`, `sites` (default `SITES`), `annotator` (default `PriceAnnotator`), `isValid` | Load settings, buyer costs and rates, annotate the page with the settings resolved for its `AuctionKey` (on every sync), re-sync on navigation/DOM/settings changes, answer `SYNC_REQUEST`, report `STATE_CHANGED` |
+| `ContentController` | `window`, `bus`, `store`, `sites` (default `SITES`), `annotator` (default `PriceAnnotator`), `isValid` | Load settings and rates, annotate the page with the settings resolved for its `AuctionKey` (on every sync), re-sync on navigation/DOM/settings changes, answer `SYNC_REQUEST`, report `STATE_CHANGED` |
 | `BackgroundController` | `ext`, `bus`, `store`, `rates` (`RatesService`), `sites` | Toolbar badge, `SYNC_REQUEST` to a tab on navigation, answer `GET_RATES`, storage migration, rates refresh schedule |
-| `Panel` (props) | `tabs`, `bus`, `store`, `sites`, `version` | Ask the active tab for its state (`SYNC_REQUEST`, by URL without a content script), show the settings resolved for its auction (reloaded when its `AuctionKey` changes) and the buyer costs, save them (the settings under that key), show rates of the selected currency, show the active tab's status |
+| `Panel` (props) | `tabs`, `bus`, `store`, `sites`, `version` | Ask the active tab for its state (`SYNC_REQUEST`, by URL without a content script), show the settings resolved for its auction (reloaded when its `AuctionKey` changes), save them (the settings under that key), show rates of the selected currency, show the active tab's status |
 
 | Helper | Owned by | Purpose |
 | --- | --- | --- |
@@ -190,7 +190,7 @@ test/          *.test.ts: core units, browser layer and controllers (jsdom docum
 | `PriceAnnotator` / `AnnotationView` | Content | *What* to show (wrapper rule, pricing) / writes the annotations, only on change |
 | `BreakdownPopup` | Content | the one pop-up explaining a price (`position: fixed`, appended to the body, next to its bubble); the only other class writing to the page, only on change |
 | `MessageBus` | all | `on(type, handler)` dispatch; returns `true` for async answers so the channel stays open |
-| `SettingsStore` | all | `load()` → `{ book, rates, buyer }` in one read, `save(key, settings, rates, buyer)` in one write, `saveRates()`, `onChange()` (once per changed key) → unsubscribe, `migrate()`; WXT storage items `local:auctionSettings`, `local:exchangeRates`, `local:buyerCosts`, `local:storageVersion` |
+| `SettingsStore` | all | `load()` → `{ book, rates }` in one read, `save(key, settings, rates)` in one write, `saveRates()`, `onChange()` (once per changed key) → unsubscribe, `migrate()`; WXT storage items `local:auctionSettings`, `local:exchangeRates`, `local:storageVersion` |
 
 ## HTML components
 
@@ -202,7 +202,7 @@ test/          *.test.ts: core units, browser layer and controllers (jsdom docum
 | --- | --- | --- |
 | `Panel` | everything below; the form and the header only while the active tab is on a site (`TabState.onSite()`: active with a site; the IDs are optional), otherwise Minerva saying "?" with "No auction or site active" - neither until the tab's state is known | the active tab's `TabState`, the shown settings and their scope, the picked currency; asks the tab on open, on `STATE_CHANGED`, `tabs.onActivated`, `tabs.onUpdated`; `save()` |
 | `AuctionHeader` | house and auction ID from the URL ("unknown" when not found); "Values from" pills, one per `SETTINGS_SCOPES` entry plus *Defaults*, the one the form's values come from highlighted (`aria-current`, tooltip "Saved for this auction house.") | – |
-| `SettingsForm` | section *This auction*: currency (options from `Currency.CODES`), effective auction premium (%), shipment with the currencies of the page's prices next to it ("–" for none), lots won, the switch *VAT on the hammer price* revealing the hammer price VAT (%, required while on); section *Your costs · all auctions*: the switch *Add import and payment costs* revealing import VAT (%), payment costs (%) and flat fees (in the picked currency); `min`/`max`/`step` from `Settings.RANGES` / `BuyerCosts.RANGES`; a "?" toggle per input for its hint; *Save*, filled while the form differs from the shown values; "Saved." for 2 s | the inputs' text and the switches (an emptied input keeps the shown value), reset when values are shown anew; currency `change` → `onCurrencyChange`, `submit` → validate the rendered inputs → `onSave(settings, buyer)`; the entered values (as JSON) → `onDraft` whenever they change, `null` while they equal the shown ones or once unmounted |
+| `SettingsForm` | one section, all saved per auction: currency (options from `Currency.CODES`), effective auction premium (%), shipment with the currencies of the page's prices next to it ("–" for none), lots won, the switch *VAT on the hammer price* revealing the hammer price VAT (%, required while on), import VAT (%), payment costs (%) and flat fees (in the picked currency); `min`/`max`/`step` from `Settings.RANGES`; a "?" toggle per input for its hint; *Save*, filled while the form differs from the shown values; "Saved." for 2 s | the inputs' text and the switches (an emptied input keeps the shown value), reset when values are shown anew; currency `change` → `onCurrencyChange`, `submit` → validate the rendered inputs → `onSave(settings)`; the entered values (as JSON) → `onDraft` whenever they change, `null` while they equal the shown ones or once unmounted |
 | `StatusCard` | status badge ("3 prices annotated, 1 n/a" / "inactive" / "checking…"), the rates the page needs ("1 GBP = 1.16 EUR"), their date / "Loading…" / "Exchange rates unavailable.", the disclaimer, the build version at the very bottom ("v1.2.3+abc1234", `__VERSION__` from the environment variable `VERSION` at build time, "v0.0.0-dev" without) | – |
 | `useRates` (hook) | – | loads the picked currency's rates (`GET_RATES`); a superseded request is dropped, `ratesFor()` waits for the latest for Save |
 
@@ -242,7 +242,7 @@ A click on a bubble (or Enter / Space on a focused one) - caught by `ContentCont
 </div>
 ```
 
-- **Content:** `explainPrice(source, site, settings, rates, buyer)` (`src/core/pricing/`) of the bubble's `data-minerva-source` - the parts of `priceBreakdown()`, amounts formatted with the page's notation, or a message (no price, unknown currency, no rate). A site with its own `calculator` only gets hammer and effective price. Settings, rates and buyer costs are the panel's unsaved values (`PREVIEW`) when they are for the page's `AuctionKey`, the saved ones otherwise; the note shows which.
+- **Content:** `explainPrice(source, site, settings, rates)` (`src/core/pricing/`) of the bubble's `data-minerva-source` - the parts of `priceBreakdown()`, amounts formatted with the page's notation, or a message (no price, unknown currency, no rate). A site with its own `calculator` only gets hammer and effective price. Settings and rates are the panel's unsaved values (`PREVIEW`) when they are for the page's `AuctionKey`, the saved ones otherwise; the note shows which.
 - **Updates:** re-rendered on every sync (DOM changes, settings saved, `SYNC_REQUEST`) and every `PREVIEW`, but written only when its content changed. Placed in window coordinates below the bubble (above it when there is no room below), re-placed on `scroll` and `resize`.
 - **Closes** on its `×`, Escape, a second click on its bubble, when its bubble is removed (the price element is no longer annotated), when the URL leaves the site and on `stop()`. Clicking another bubble moves it there.
 - **Isolation:** `content.css` resets the pop-up and its parts (`all: initial !important`) and styles them with `!important`, so the page's styles do not leak in; `AnnotationView.query()` skips `.minerva-breakdown` (`POPUP_CLASS`), so a broad price selector never annotates it.
@@ -268,18 +268,17 @@ Four message types, defined in `src/core/messages.ts` and sent through `MessageB
 | `SYNC_REQUEST` | background or panel → content (`tabs.sendMessage`) | – | `{ url, active, annotated, unparsable, currencies, site, house, auction }` after re-reading the settings and syncing | a tab navigates (`tabs.onUpdated`, background); the panel opens, saves, or sees a tab switch, navigation or `STATE_CHANGED` (to the active tab) |
 | `STATE_CHANGED` | content → background + panel | `{ url, active, annotated, unparsable, currencies, site, house, auction, reason }` | – | a sync changed the tab's `TabState` |
 | `GET_RATES` | panel → background | `{ base }` | `{ rates }` (`ExchangeRates#toJSON()`) or `{ error }` | panel opens, a currency is picked |
-| `PREVIEW` | panel → content (active tab) | `{ preview: { key, settings, buyer, rates } \| null }` (`SettingsJSON`, `BuyerCostsJSON`, `ExchangeRatesJSON` or `null` while loading); `null`: nothing unsaved | – | the form's values change while they differ from the shown ones; `null` once they equal them again, after Save, on a tab switch and when the panel closes |
+| `PREVIEW` | panel → content (active tab) | `{ preview: { key, settings, rates } \| null }` (`SettingsJSON`, `ExchangeRatesJSON` or `null` while loading); `null`: nothing unsaved | – | the form's values change while they differ from the shown ones; `null` once they equal them again, after Save, on a tab switch and when the panel closes |
 
-Messages are structured-cloned, so they carry plain data: a `TabState` is plain data already and is sent as it is, rates as `ExchangeRates#toJSON()`. Receivers validate what arrives with `TabState.from()` / `ExchangeRates.fromJSON()` / `Settings.from()`, `BuyerCosts.from()`, `AuctionKey.from()` and `ExchangeRates.fromStorage()` (`PREVIEW`).
+Messages are structured-cloned, so they carry plain data: a `TabState` is plain data already and is sent as it is, rates as `ExchangeRates#toJSON()`. Receivers validate what arrives with `TabState.from()` / `ExchangeRates.fromJSON()` / `Settings.from()`, `AuctionKey.from()` and `ExchangeRates.fromStorage()` (`PREVIEW`).
 
 ## Storage
 
-Everything is stored in `storage.local` through `SettingsStore`, which defines one WXT storage item per key (`storage.defineItem("local:…")`); there is no message for settings, storage is the channel. A read is one `storage.local.get` (`storage.getItems`), a save one `storage.local.set` (`storage.setItems`) of settings, rates, buyer costs and layout version.
+Everything is stored in `storage.local` through `SettingsStore`, which defines one WXT storage item per key (`storage.defineItem("local:…")`); there is no message for settings, storage is the channel. A read is one `storage.local.get` (`storage.getItems`), a save one `storage.local.set` (`storage.setItems`) of settings, rates and layout version.
 
 | Key | Value | Written by | Read by |
 | --- | --- | --- | --- |
-| `auctionSettings` | `[{ site, house, auction, settings: { auctionPremium, shipment, lotsWon, hammerVat, currency } }]` (`SettingsBook#toJSON()`), oldest first, one entry per key; a missing value reads as its default | panel on Save | content script, panel, background (currencies to refresh) |
-| `buyerCosts` | `{ enabled, importVat, paymentCosts, flatFees }` (`BuyerCosts#toJSON()`), one for all auctions; missing = switched off | panel on Save (with the settings, one write) | content script, panel |
+| `auctionSettings` | `[{ site, house, auction, settings: { auctionPremium, shipment, lotsWon, hammerVat, importVat, paymentCosts, flatFees, currency } }]` (`SettingsBook#toJSON()`), oldest first, one entry per key; a missing value reads as its default | panel on Save | content script, panel, background (currencies to refresh) |
 | `exchangeRates` | `{ [base]: { base, date, rates } }` (`ExchangeRates#toJSON()` per currency; `1 base = rates[code] code`) | panel on Save (with the settings, one write), background on refresh | content script |
 | `storageVersion` | layout version of `auctionSettings` and `exchangeRates` (`SettingsStore.VERSION`, currently 1; missing = 1) | panel on Save, background on install/update (`migrate()`) | every `load()` |
 
@@ -296,7 +295,7 @@ A layout change raises `SettingsStore.VERSION` and adds a function to `SettingsS
 | Content | script injected (`document_idle`) | `start()`: load settings/rates, register listeners, `sync("load")`, observe the DOM |
 | Content | `MutationObserver` (`childList`, `characterData`, whole document) | one `sync("mutation")` per animation frame |
 | Content | `popstate`, `hashchange` | `sync("popstate")` / `sync("hashchange")` |
-| Content | `storage.local.onChanged` of `auctionSettings`, `exchangeRates` or `buyerCosts` (WXT `item.watch()`, once per changed key) | reload settings/rates/buyer costs, `sync("settings")` |
+| Content | `storage.local.onChanged` of `auctionSettings` or `exchangeRates` (WXT `item.watch()`, once per changed key) | reload settings/rates, `sync("settings")` |
 | Content | `SYNC_REQUEST` | reload settings/rates, `sync("request")`, answer the state |
 | Content | `PREVIEW` | keep (or drop) the panel's unsaved values, refresh the pop-up |
 | Content | `click` / `keydown` (Enter, Space, Escape) on the document, capture phase | on a bubble: open the pop-up for it (close it on its own bubble); Escape: close it |

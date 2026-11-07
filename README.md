@@ -50,8 +50,9 @@ Load `dist/chrome` via *Load unpacked* in `chrome://extensions`, or `dist/firefo
 ### Factors of the effective price
 
 Besides auction premium and shipment, the panel now covers VAT on the hammer price,
-lots won (shipment and flat fees are charged per invoice and split over them) and,
-saved once for all auctions, import VAT, payment costs and flat fees. Related
+lots won (shipment and flat fees are charged per invoice and split over them),
+import VAT, payment costs and flat fees - all saved per auction, as sites, houses
+and the countries lots ship from differ in every one of them. Related
 factors are added up into one input rather than getting their own: the premium is
 entered *including* its VAT and online surcharges, payment costs combine the
 exchange rate markup and card surcharges, flat fees combine customs clearance and

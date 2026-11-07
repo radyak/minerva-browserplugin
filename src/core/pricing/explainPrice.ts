@@ -1,6 +1,5 @@
 import { formatPrice, parsePrice, type ParsedPrice } from "../price.ts";
 import type { ExchangeRates } from "../rates/ExchangeRates.ts";
-import type { BuyerCosts } from "../settings/BuyerCosts.ts";
 import type { Settings } from "../settings/Settings.ts";
 import type { AuctionSite } from "../sites/sites.ts";
 import { effectivePrice, priceBreakdown } from "./PriceCalculator.ts";
@@ -30,7 +29,6 @@ export function explainPrice(
   site: AuctionSite,
   settings: Settings,
   rates: ExchangeRates,
-  buyer: BuyerCosts,
 ): Explanation {
   const parsed = parsePrice(text);
   if (parsed === null) return { message: "No price could be read here." };
@@ -45,7 +43,7 @@ export function explainPrice(
   const noRate = { message: `No exchange rate from ${code} into ${settings.currency}.` };
 
   if (site.calculator !== effectivePrice) {
-    const total = site.calculator(price.amount, code, settings, rates, buyer);
+    const total = site.calculator(price.amount, code, settings, rates);
     if (total === undefined || !Number.isFinite(total)) return noRate;
     return {
       rows: [
@@ -55,7 +53,7 @@ export function explainPrice(
     };
   }
 
-  const parts = priceBreakdown(price.amount, code, settings, rates, buyer);
+  const parts = priceBreakdown(price.amount, code, settings, rates);
   if (!parts) return noRate;
   const { auction: a, buyer: b } = parts;
   const lots = settings.lotsWon === 1 ? "" : ` ÷ ${settings.lotsWon} lots`;
@@ -74,10 +72,9 @@ export function explainPrice(
       amount: money(b.lot, b.currency),
     });
   }
-  const applied = buyer.applied;
-  add(`Payment costs ${number(applied.paymentCosts)} %`, b.payment, b.currency);
-  add(`Import VAT ${number(applied.importVat)} %`, b.importVat, b.currency);
-  add(`Flat fees ${number(applied.flatFees)}${lots}`, b.flatFees, b.currency);
+  add(`Payment costs ${number(settings.paymentCosts)} %`, b.payment, b.currency);
+  add(`Import VAT ${number(settings.importVat)} %`, b.importVat, b.currency);
+  add(`Flat fees ${number(settings.flatFees)}${lots}`, b.flatFees, b.currency);
   rows.push({ label: "= Effective price", amount: money(b.total, b.currency), total: true });
   return { rows };
 }

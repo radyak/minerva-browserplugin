@@ -1,6 +1,5 @@
 import type { ExchangeRates } from "../../src/core/rates/ExchangeRates.ts";
 import { AuctionKey } from "../../src/core/settings/AuctionKey.ts";
-import { BuyerCosts } from "../../src/core/settings/BuyerCosts.ts";
 import type { Settings } from "../../src/core/settings/Settings.ts";
 import { SettingsBook } from "../../src/core/settings/SettingsBook.ts";
 
@@ -51,15 +50,13 @@ export function fakeBus({ answers = {} }: { answers?: Record<string, Answer> } =
 }
 
 /**
- * A SettingsStore holding a SettingsBook, rates per currency and the buyer
- * costs in memory. `saved` records the settings saves, `buyer` holds the
- * buyer costs as last saved.
+ * A SettingsStore holding a SettingsBook and rates per currency in memory.
+ * `saved` records the settings saves.
  */
 export function fakeStore({
   book = new SettingsBook(),
   rates = [],
-  buyer = BuyerCosts.DEFAULT,
-}: { book?: SettingsBook; rates?: ExchangeRates[]; buyer?: BuyerCosts } = {}): any {
+}: { book?: SettingsBook; rates?: ExchangeRates[] } = {}): any {
   const listeners: Array<() => unknown> = [];
   const byBase = (list: ExchangeRates[]) =>
     Object.fromEntries(list.map((value) => [value.base, value]));
@@ -67,18 +64,11 @@ export function fakeStore({
   return {
     saved: [] as Array<{ key: AuctionKey; settings: Settings; rates?: ExchangeRates }>,
     savedRates: [] as ExchangeRates[],
-    buyer,
     async load() {
-      return { book, rates: saved, buyer: this.buyer };
+      return { book, rates: saved };
     },
-    async save(
-      key: AuctionKey,
-      settings: Settings,
-      newRates?: ExchangeRates,
-      newBuyer?: BuyerCosts,
-    ) {
+    async save(key: AuctionKey, settings: Settings, newRates?: ExchangeRates) {
       this.saved.push({ key, settings, rates: newRates });
-      if (newBuyer) this.buyer = newBuyer;
       book = book.with(key, settings);
       if (newRates) saved = { ...saved, [newRates.base]: newRates };
     },
@@ -94,11 +84,9 @@ export function fakeStore({
     async change({
       book: newBook = book,
       rates: newRates = Object.values(saved),
-      buyer: newBuyer = this.buyer,
-    }: { book?: SettingsBook; rates?: ExchangeRates[]; buyer?: BuyerCosts } = {}) {
+    }: { book?: SettingsBook; rates?: ExchangeRates[] } = {}) {
       book = newBook;
       saved = byBase(newRates);
-      this.buyer = newBuyer;
       await Promise.all(listeners.map((listener) => listener()));
     },
   };

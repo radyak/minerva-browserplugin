@@ -5,7 +5,6 @@ import type { MessageBus } from "../browser/MessageBus.ts";
 import type { SettingsStore } from "../browser/SettingsStore.ts";
 import { MSG } from "../core/messages.ts";
 import { AuctionKey } from "../core/settings/AuctionKey.ts";
-import type { BuyerCosts } from "../core/settings/BuyerCosts.ts";
 import { Settings } from "../core/settings/Settings.ts";
 import type { SettingsScope } from "../core/settings/SettingsScope.ts";
 import { SITES } from "../core/sites/sites.config.ts";
@@ -56,11 +55,11 @@ export function Panel({ tabs, bus, store, sites = SITES, version = "0.0.0-dev" }
     const next = AuctionKey.from(state);
     if (AuctionKey.equals(next, key.current)) return;
     key.current = next;
-    const { book, buyer } = await store.load();
+    const { book } = await store.load();
     if (!AuctionKey.equals(next, key.current)) return; // the tab moved on in the meantime
     const found = book.resolve(next);
     const settings = found?.settings ?? Settings.DEFAULT;
-    setShown({ settings, buyer, scope: found?.scope ?? null });
+    setShown({ settings, scope: found?.scope ?? null });
     setCurrency(settings.currency);
   }, [tabs, bus, store, sites]);
 
@@ -86,17 +85,17 @@ export function Panel({ tabs, bus, store, sites = SITES, version = "0.0.0-dev" }
   }, [tabs, bus, refresh]);
 
   /**
-   * Save `settings` for the active tab's auction, with the matching rates, and
-   * the buyer costs (for every auction); the tab recalculates.
+   * Save `settings` for the active tab's auction, with the matching rates; the
+   * tab recalculates.
    */
-  const save = async (settings: Settings, buyer: BuyerCosts) => {
+  const save = async (settings: Settings) => {
     const saveKey = key.current;
     if (!saveKey?.site) return;
     // Settings and matching rates in one write: open tabs never see one without the other.
     // Without matching rates the page shows n/a until the background has fetched them.
-    await store.save(saveKey, settings, (await ratesFor(settings.currency)) ?? undefined, buyer);
+    await store.save(saveKey, settings, (await ratesFor(settings.currency)) ?? undefined);
     const found = (await store.load()).book.resolve(saveKey);
-    setShown({ settings, buyer, scope: found?.scope ?? null });
+    setShown({ settings, scope: found?.scope ?? null });
     // Asking the tab for its state makes it re-read the settings and recalculate.
     await refresh();
   };

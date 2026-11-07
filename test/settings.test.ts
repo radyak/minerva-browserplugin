@@ -61,6 +61,9 @@ test("turns settings back into plain data", () => {
     shipment: 7,
     lotsWon: 1,
     hammerVat: 0,
+    importVat: 0,
+    paymentCosts: 0,
+    flatFees: 0,
     currency: "CHF",
   });
   assert.deepEqual(Settings.from(structuredClone(settings.toJSON())), settings);
@@ -70,6 +73,15 @@ test("reads data saved before lots won and hammer VAT existed with their default
   const settings = Settings.from({ auctionPremium: 20, shipment: 15, currency: "GBP" });
   assert.equal(settings.lotsWon, 1);
   assert.equal(settings.hammerVat, 0);
+});
+
+test("takes import VAT and payment costs up to 100 % and any flat fees from 0", () => {
+  const base = { auctionPremium: 0, shipment: 0, currency: "EUR" };
+  const costs = { importVat: 7, paymentCosts: 2.5, flatFees: 15 };
+  assert.deepEqual(Settings.from({ ...base, ...costs }), new Settings({ ...base, ...costs }));
+  const invalid = Settings.from({ ...base, importVat: 101, paymentCosts: "x", flatFees: -1 });
+  assert.deepEqual([invalid.importVat, invalid.paymentCosts, invalid.flatFees], [0, 0, 0]);
+  assert.equal(Settings.from({ ...base, flatFees: 1e6 }).flatFees, 1e6);
 });
 
 test("accepts whole numbers of lots from 1 and a hammer VAT up to 100 %", () => {

@@ -60,4 +60,4 @@ house in numisbids URLs, for example). Without any match the page uses the defau
 add or drop scopes in that list to change the lookup - saving always stores the
 full key, so the stored data does not depend on it.
 
-To give a site its own calculation (other fees), write a `PriceCalculator` function (`(amount, currency, settings, rates, buyer) => number | undefined`, see `src/core/pricing/PriceCalculator.ts`) and pass it as `calculator` - see [Architecture](architecture.md#controllers-and-their-dependencies).
+To give a site its own calculation (other fees), write a `PriceCalculator` function (`(amount, currency, settings, rates) => number | undefined`, see `src/core/pricing/PriceCalculator.ts`) and pass it as `calculator` - see [Architecture](architecture.md#controllers-and-their-dependencies).

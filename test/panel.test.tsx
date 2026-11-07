@@ -6,7 +6,6 @@ import { afterEach, test } from "vitest";
 import { MSG } from "../src/core/messages.ts";
 import { ExchangeRates } from "../src/core/rates/ExchangeRates.ts";
 import { AuctionKey } from "../src/core/settings/AuctionKey.ts";
-import { BuyerCosts } from "../src/core/settings/BuyerCosts.ts";
 import { Settings } from "../src/core/settings/Settings.ts";
 import { defineSite } from "../src/core/sites/sites.ts";
 import { Panel } from "../src/panel/Panel.tsx";
@@ -90,7 +89,6 @@ async function openPanel({
   tab = { id: 1, url: `${SHOP}/lot/1` } as object | null,
   settled = true,
   version = undefined as string | undefined,
-  buyer = BuyerCosts.DEFAULT,
 } = {}) {
   let current = state;
   const tabs = fakeTabs(tab);
@@ -108,7 +106,7 @@ async function openPanel({
       },
     },
   });
-  const store = fakeStore({ book, buyer });
+  const store = fakeStore({ book });
   const view = render(
     <Panel tabs={tabs as any} bus={bus} store={store} sites={SITES} version={version} />,
   );
@@ -422,8 +420,9 @@ test("fills the form with the settings of the auction the active tab is on", asy
   await navigate({ site: "https://other.test", house: "leu", auction: "1" });
   assert.deepEqual(showing(), ["EUR", "0", "Nothing saved yet: defaults."]);
   assert.ok(form());
+  // On the site without IDs: the site's settings, still in the form.
   await navigate({ house: null, auction: null });
-  assert.equal(form(), null);
+  assert.ok(form());
 });
 
 test("saves for the auction of the active tab, from the defaults when nothing was saved", async () => {
@@ -447,8 +446,8 @@ test("saves for the auction of the active tab, from the defaults when nothing wa
   assert.equal(source(), "Saved for this auction.");
 });
 
-test("offers nothing to save while the active tab is on no auction", async () => {
-  for (const state of [{ active: false }, { ...ON_USD_PAGE, house: null, auction: null }]) {
+test("offers nothing to save while the active tab is on no site", async () => {
+  for (const state of [{ active: false }, { ...ON_USD_PAGE, active: false }]) {
     await openPanel({ state });
     assert.equal(form(), null);
     assert.equal(screen.queryByRole("button", { name: "Save" }), null);
@@ -513,10 +512,9 @@ test("only accepts whole numbers of lots won, from 1", async () => {
   assert.equal(store.saved[0].settings.lotsWon, 3);
 });
 
-test("saves the buyer costs for every auction, keeping them while switched off", async () => {
+test("saves import VAT, payment costs and flat fees with the auction's settings", async () => {
   const { store } = await openPanel();
-  assert.equal(shown("Import VAT"), false);
-  toggle("Add import and payment costs");
+  assert.equal(screen.queryByRole("switch", { name: /import and payment/ }), null);
   type("Import VAT", "7");
   type("Payment costs", "2.5");
   type("Flat fees", "15");
@@ -529,25 +527,23 @@ test("saves the buyer costs for every auction, keeping them while switched off",
 
   type("Payment costs", "2.5");
   await submit();
-  const costs = new BuyerCosts({ enabled: true, importVat: 7, paymentCosts: 2.5, flatFees: 15 });
-  assert.deepEqual(store.buyer, costs);
-
-  toggle("Add import and payment costs");
-  assert.equal(shown("Import VAT"), false);
-  await submit();
-  assert.deepEqual(store.buyer, BuyerCosts.from({ ...costs.toJSON(), enabled: false }));
-  toggle("Add import and payment costs");
-  assert.equal(input("Import VAT").value, "7");
+  assert.deepEqual(
+    store.saved[0].settings,
+    new Settings({ ...GBP, importVat: 7, paymentCosts: 2.5, flatFees: 15 }),
+  );
 });
 
-test("shows the saved buyer costs on every auction", async () => {
-  const buyer = new BuyerCosts({ enabled: true, importVat: 7, paymentCosts: 0, flatFees: 0 });
-  const { navigate } = await openPanel({ buyer });
-  assert.equal(
-    screen.getByRole<HTMLInputElement>("switch", { name: /import and payment/ }).checked,
-    true,
+test("shows the import VAT, payment costs and flat fees of the auction the tab is on", async () => {
+  const costs = { importVat: 7, paymentCosts: 2, flatFees: 5 };
+  const book = bookOf(
+    [{ site: SHOP, house: "leu" }, GBP],
+    [{ site: SHOP, house: "cng" }, new Settings({ ...GBP, ...costs })],
   );
-  assert.equal(input("Import VAT").value, "7");
-  await navigate({ site: "https://other.test", house: "x", auction: "1" });
-  assert.equal(input("Import VAT").value, "7");
+  const { navigate } = await openPanel({ book });
+  const showing = () => ["Import VAT", "Payment costs", "Flat fees"].map((l) => input(l).value);
+  assert.deepEqual(showing(), ["0", "0", "0"]);
+  await navigate({ house: "cng", auction: "1" });
+  assert.deepEqual(showing(), ["7", "2", "5"]);
+  await navigate({ site: "https://other.test", house: "cng", auction: "1" });
+  assert.deepEqual(showing(), ["0", "0", "0"]);
 });
