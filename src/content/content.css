@@ -188,13 +188,7 @@
   text-align: right !important;
 }
 
-.minerva-breakdown .minerva-breakdown-message,
-.minerva-breakdown .minerva-breakdown-note {
+.minerva-breakdown .minerva-breakdown-message {
   color: #6c757d !important;
   font-style: italic !important;
-}
-
-.minerva-breakdown .minerva-breakdown-note {
-  margin-top: 0.4em !important;
-  font-size: 12px !important;
 }

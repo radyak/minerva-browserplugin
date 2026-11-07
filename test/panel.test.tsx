@@ -132,15 +132,6 @@ const shownId = (label: string) =>
   screen.getByRole("cell", { name: label }).nextElementSibling!.textContent;
 const saveButton = () => screen.getByRole("button", { name: "Save" });
 const savedNote = () => screen.getByText("Saved.");
-/** What the panel sent the tabs, besides the unsaved values for the pop-up. */
-const syncRequests = (bus: any) =>
-  bus.sentToTabs.filter(([, message]: [number, any]) => message.type !== MSG.PREVIEW);
-/** The unsaved values the panel sent the tabs, as [tab ID, preview]. */
-const previews = (bus: any) =>
-  bus.sentToTabs
-    .filter(([, message]: [number, any]) => message.type === MSG.PREVIEW)
-    .map(([id, message]: [number, any]) => [id, message.preview]);
-
 /** Where the form's values come from: the title of the highlighted pill. */
 const source = () => {
   const current = document.querySelectorAll("[aria-current]");
@@ -291,7 +282,7 @@ test("saves the entered settings with the matching rates in one go", async () =>
   assert.equal(source(), "Saved for this auction house.");
   assert.equal(savedNote().hidden, false);
   // Asked the tab on open and after saving: it re-reads the settings and recalculates.
-  assert.deepEqual(syncRequests(bus), [
+  assert.deepEqual(bus.sentToTabs, [
     [1, { type: MSG.SYNC_REQUEST }],
     [1, { type: MSG.SYNC_REQUEST }],
   ]);
@@ -559,44 +550,4 @@ test("shows the saved buyer costs on every auction", async () => {
   assert.equal(input("Import VAT").value, "7");
   await navigate({ site: "https://other.test", house: "x", auction: "1" });
   assert.equal(input("Import VAT").value, "7");
-});
-
-test("sends the unsaved values to the tab for its price pop-up, until saved", async () => {
-  const { bus } = await openPanel();
-  assert.deepEqual(previews(bus), []); // nothing entered yet
-
-  type("Auction premium", "25");
-  await flush();
-  const key = AuctionKey.from({ site: SHOP, house: "leu" });
-  const entered = new Settings({ auctionPremium: 25, shipment: 7, currency: "GBP" });
-  assert.deepEqual(previews(bus), [
-    [
-      1,
-      {
-        key,
-        settings: entered.toJSON(),
-        buyer: BuyerCosts.DEFAULT.toJSON(),
-        rates: ratesOf("GBP").toJSON(),
-      },
-    ],
-  ]);
-
-  // Back at the shown values: nothing unsaved.
-  type("Auction premium", "20");
-  await flush();
-  assert.equal(previews(bus).at(-1)[1], null);
-
-  type("Auction premium", "30");
-  await flush();
-  assert.equal(previews(bus).at(-1)[1].settings.auctionPremium, 30);
-  await submit();
-  assert.equal(previews(bus).at(-1)[1], null);
-});
-
-test("tells the tab to drop the unsaved values when the panel closes", async () => {
-  const { bus, unmount } = await openPanel();
-  type("Shipment", "9");
-  await flush();
-  unmount();
-  assert.deepEqual(previews(bus).at(-1), [1, null]);
 });

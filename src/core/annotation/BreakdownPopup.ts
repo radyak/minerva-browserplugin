@@ -6,8 +6,6 @@ export type PopupContent = {
   /** the price as read from the page */
   readonly source: string;
   readonly explanation: Explanation;
-  /** whether unsaved values from the side panel were used */
-  readonly preview: boolean;
 };
 
 /** Room between the annotation and the pop-up, and to the edges of the window, in px. */
@@ -96,7 +94,7 @@ export class BreakdownPopup {
     return element;
   }
 
-  #render(element: HTMLElement, { source, explanation, preview }: PopupContent): void {
+  #render(element: HTMLElement, { source, explanation }: PopupContent): void {
     const doc = this.doc;
     const part = (className: string, text = "") => {
       const div = doc.createElement("div");
@@ -137,9 +135,7 @@ export class BreakdownPopup {
       body.append(part("message", explanation.message));
     }
 
-    const parts = [header, body];
-    if (preview) parts.push(part("note", "With the unsaved values from the side panel."));
-    element.replaceChildren(...parts);
+    element.replaceChildren(header, body);
   }
 }
 

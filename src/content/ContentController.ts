@@ -3,7 +3,7 @@ import type { RatesByCurrency, SettingsStore } from "../browser/SettingsStore.ts
 import { BreakdownPopup } from "../core/annotation/BreakdownPopup.ts";
 import { PriceAnnotator } from "../core/annotation/PriceAnnotator.ts";
 import { ANNOTATION_CLASS } from "../core/config.ts";
-import { MSG, type Preview } from "../core/messages.ts";
+import { MSG } from "../core/messages.ts";
 import { explainPrice } from "../core/pricing/explainPrice.ts";
 import { ExchangeRates } from "../core/rates/ExchangeRates.ts";
 import { AuctionKey } from "../core/settings/AuctionKey.ts";
@@ -42,13 +42,6 @@ export class ContentController {
   #book = new SettingsBook();
   #rates: RatesByCurrency = {};
   #buyer = BuyerCosts.DEFAULT;
-  /** the panel's unsaved values, for the pop-up only; null when there are none */
-  #preview: {
-    key: AuctionKey;
-    settings: Settings;
-    buyer: BuyerCosts;
-    rates: ExchangeRates | null;
-  } | null = null;
   #stopped = false;
   #observer: MutationObserver | null = null;
   /** the pending animation frame of a DOM change */
@@ -79,10 +72,6 @@ export class ContentController {
       // must not depend on storage.onChanged having arrived first.
       await this.#loadSettings();
       return { url: window.location.href, ...this.sync("request") };
-    });
-    bus.on(MSG.PREVIEW, ({ preview }) => {
-      this.#preview = preview ? previewOf(preview) : null;
-      this.#refreshPopup();
     });
 
     // Single page apps swap the URL without reloading; the background script
@@ -125,7 +114,6 @@ export class ContentController {
     window.removeEventListener("resize", this.#onMove);
     window.removeEventListener("scroll", this.#onMove, { capture: true });
     bus.off(MSG.SYNC_REQUEST);
-    bus.off(MSG.PREVIEW);
     this.#unwatchStore?.();
     popup.close();
     annotator.clear();
@@ -151,8 +139,8 @@ export class ContentController {
   }
 
   /**
-   * Bring the pop-up in line with its annotation: the price it shows now, and
-   * the panel's unsaved values for this auction, else the saved ones. Closes
+   * Bring the pop-up in line with its annotation: the price it shows now, with
+   * the saved settings of this auction. Closes
    * it once its annotation is gone (the price element is no longer annotated)
    * or the page is on no site any more.
    */
@@ -167,19 +155,9 @@ export class ContentController {
       return;
     }
     const key: AuctionKey = { site: site.origin, ...identify(site, url) };
-    const preview =
-      this.#preview && AuctionKey.equals(key, this.#preview.key) ? this.#preview : null;
-    const saved = this.settingsFor(key);
-    const settings = preview?.settings ?? saved.settings;
-    const rates =
-      preview?.rates ?? this.#rates[settings.currency] ?? ExchangeRates.empty(settings.currency);
-    const buyer = preview?.buyer ?? this.#buyer;
+    const { settings, rates } = this.settingsFor(key);
     const source = anchor.dataset.minervaSource ?? "";
-    popup.show({
-      source,
-      explanation: explainPrice(source, site, settings, rates, buyer),
-      preview: preview !== null,
-    });
+    popup.show({ source, explanation: explainPrice(source, site, settings, rates, this.#buyer) });
   }
 
   /** Open the pop-up for `annotation`, or close it when it is open for that one already. */
@@ -281,15 +259,4 @@ export class ContentController {
   #syncIfValid(reason: string): void {
     if (this.#deps.isValid()) this.sync(reason);
   }
-}
-
-/** The panel's unsaved values out of a PREVIEW message (validated like stored data). */
-function previewOf(preview: Preview) {
-  const settings = Settings.from(preview.settings);
-  return {
-    key: AuctionKey.from(preview.key),
-    settings,
-    buyer: BuyerCosts.from(preview.buyer),
-    rates: preview.rates ? ExchangeRates.fromStorage(preview.rates, settings.currency) : null,
-  };
 }

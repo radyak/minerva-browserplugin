@@ -12,7 +12,7 @@ import { SITES } from "../core/sites/sites.config.ts";
 import type { AuctionSite } from "../core/sites/sites.ts";
 import { TabState } from "../core/state/TabState.ts";
 import { AuctionHeader } from "./AuctionHeader.tsx";
-import { SettingsForm, type DraftValues, type ShownSettings } from "./SettingsForm.tsx";
+import { SettingsForm, type ShownSettings } from "./SettingsForm.tsx";
 import { StatusCard } from "./StatusCard.tsx";
 import { useRates } from "./useRates.ts";
 
@@ -42,14 +42,8 @@ export function Panel({ tabs, bus, store, sites = SITES, version = "0.0.0-dev" }
   const [shown, setShown] = useState<Shown | null>(null);
   const [currency, setCurrency] = useState<string | null>(null);
   const { rates, ratesFor } = useRates(bus, currency);
-  /** the active tab's ID; undefined while unknown */
-  const [tabId, setTabId] = useState<number | undefined>(undefined);
-  /** the form's unsaved values; null when there are none */
-  const [draft, setDraft] = useState<DraftValues | null>(null);
   /** the auction whose settings are shown; read by callbacks that outlive a render */
   const key = useRef<AuctionKey | null>(null);
-  /** the tab last sent unsaved values, which it shows until told otherwise */
-  const previewed = useRef<number | undefined>(undefined);
 
   /**
    * Ask the active tab what it is doing (its content script re-reads the
@@ -57,9 +51,8 @@ export function Panel({ tabs, bus, store, sites = SITES, version = "0.0.0-dev" }
    * on another auction than before, fill the form with that auction's settings.
    */
   const refresh = useCallback(async () => {
-    const { id, state } = await activeTabState(tabs, bus, sites);
+    const state = await activeTabState(tabs, bus, sites);
     setTab(state);
-    setTabId(id);
     const next = AuctionKey.from(state);
     if (AuctionKey.equals(next, key.current)) return;
     key.current = next;
@@ -92,33 +85,6 @@ export function Panel({ tabs, bus, store, sites = SITES, version = "0.0.0-dev" }
     };
   }, [tabs, bus, refresh]);
 
-  // The page's price pop-up shows the unsaved values while there are any, with
-  // the rates into their currency once loaded; the saved values once there are none.
-  useEffect(() => {
-    if (tabId === undefined) return;
-    const forKey = key.current;
-    if (draft && forKey) {
-      const matching = rates?.base === draft.settings.currency ? rates.toJSON() : null;
-      previewed.current = tabId;
-      bus.sendToTab(tabId, {
-        type: MSG.PREVIEW,
-        preview: { key: forKey, ...draft, rates: matching },
-      });
-    } else if (previewed.current === tabId) {
-      previewed.current = undefined;
-      bus.sendToTab(tabId, { type: MSG.PREVIEW, preview: null });
-    }
-  }, [bus, tabId, draft, rates]);
-  // Another tab now, or the panel is closed: the last one goes back to the saved values.
-  useEffect(
-    () => () => {
-      if (tabId === undefined || previewed.current !== tabId) return;
-      previewed.current = undefined;
-      bus.sendToTab(tabId, { type: MSG.PREVIEW, preview: null });
-    },
-    [bus, tabId],
-  );
-
   /**
    * Save `settings` for the active tab's auction, with the matching rates, and
    * the buyer costs (for every auction); the tab recalculates.
@@ -146,7 +112,6 @@ export function Panel({ tabs, bus, store, sites = SITES, version = "0.0.0-dev" }
             pageCurrencies={tab.currencies}
             onCurrencyChange={setCurrency}
             onSave={save}
-            onDraft={setDraft}
           />
         </>
       )}
@@ -172,22 +137,19 @@ function NoSite() {
 }
 
 /**
- * The active tab's ID and state, freshly synced by its content script; the
+ * The active tab's state, freshly synced by its content script; the
  * state is judged by the URL when it has none (yet).
  */
 async function activeTabState(
   tabs: PanelProps["tabs"],
   bus: PanelProps["bus"],
   sites: readonly AuctionSite[],
-): Promise<{ id: number | undefined; state: TabState }> {
+): Promise<TabState> {
   const [active] = await tabs.query({ active: true, currentWindow: true });
-  if (!active) return { id: undefined, state: TabState.inactive() };
+  if (!active) return TabState.inactive();
   const answer =
     active.id === undefined
       ? undefined
       : await bus.sendToTab(active.id, { type: MSG.SYNC_REQUEST });
-  return {
-    id: active.id,
-    state: answer ? TabState.from(answer) : TabState.forUrl(sites, active.url),
-  };
+  return answer ? TabState.from(answer) : TabState.forUrl(sites, active.url);
 }

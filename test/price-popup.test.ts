@@ -4,9 +4,7 @@ import { JSDOM } from "jsdom";
 
 import { ContentController } from "../src/content/ContentController.ts";
 import { ANNOTATION_CLASS, POPUP_CLASS } from "../src/core/config.ts";
-import { MSG } from "../src/core/messages.ts";
 import { ExchangeRates } from "../src/core/rates/ExchangeRates.ts";
-import { BuyerCosts } from "../src/core/settings/BuyerCosts.ts";
 import { Settings } from "../src/core/settings/Settings.ts";
 import { defineSite } from "../src/core/sites/sites.ts";
 import { bookOf, fakeBus, fakeStore, settle } from "./support/fakes.ts";
@@ -23,7 +21,6 @@ const SITES = [
 ];
 const EUR = new Settings({ auctionPremium: 20, shipment: 10, currency: "EUR" });
 const INTO_EUR = new ExchangeRates("EUR", "", { USD: 2 });
-const KEY = { site: SHOP, house: null, auction: "1" };
 
 /** A page with two prices, one of them inside a link, and a controller on it. */
 async function startOn(url = `${SHOP}/lot/1`) {
@@ -47,11 +44,10 @@ async function startOn(url = `${SHOP}/lot/1`) {
       ? rows.map((row) => [...row.children].map((cell) => cell.textContent).join(" | "))
       : popup.querySelector(`.${POPUP_CLASS}-message`)!.textContent;
   };
-  const note = () => doc.querySelector(`.${POPUP_CLASS}-note`)?.textContent ?? null;
   /** Click `element` the way a user would; returns whether the page's default went ahead. */
   const click = (element: Element) =>
     element.dispatchEvent(new window.MouseEvent("click", { bubbles: true, cancelable: true }));
-  return { window, doc, bus, store, controller, annotations, popups, shown, note, click };
+  return { window, doc, bus, store, controller, annotations, popups, shown, click };
 }
 
 test("opens a pop-up explaining the price of the clicked annotation", async () => {
@@ -114,42 +110,6 @@ test("closes with its close button and with Escape, opens with Enter", async () 
   assert.equal(popups().length, 1);
   key(doc.body, "Escape");
   assert.equal(popups().length, 0);
-});
-
-test("shows the panel's unsaved values for this auction, without touching the prices", async () => {
-  const { bus, annotations, shown, note, click } = await startOn();
-  click(annotations()[0]!);
-  const preview = (settings: Settings, key: object = KEY) =>
-    bus.deliver({
-      type: MSG.PREVIEW,
-      preview: {
-        key,
-        settings: settings.toJSON(),
-        buyer: new BuyerCosts({ enabled: true, importVat: 10, paymentCosts: 0, flatFees: 0 }),
-        rates: null,
-      },
-    });
-
-  preview(new Settings({ auctionPremium: 0, shipment: 0, currency: "EUR" }));
-  assert.deepEqual(shown(), [
-    "Hammer price | 500 USD",
-    "= Invoice share | 500 USD",
-    "= In EUR (1 USD = 0.5 EUR) | 250 EUR",
-    "+ Import VAT 10 % | 25 EUR",
-    "= Effective price | 275 EUR",
-  ]);
-  assert.equal(note(), "With the unsaved values from the side panel.");
-  assert.equal(annotations()[0]!.textContent, "305 EUR"); // still the saved values
-
-  // Nothing unsaved any more: the saved values again.
-  bus.deliver({ type: MSG.PREVIEW, preview: null });
-  assert.equal((shown() as string[]).at(-1), "= Effective price | 305 EUR");
-  assert.equal(note(), null);
-
-  // Values entered for another auction do not apply here.
-  preview(EUR, { ...KEY, auction: "2" });
-  assert.equal((shown() as string[]).at(-1), "= Effective price | 305 EUR");
-  assert.equal(note(), null);
 });
 
 test("follows saved settings and closes once its annotation is gone", async () => {
