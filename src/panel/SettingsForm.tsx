@@ -179,8 +179,8 @@ export function SettingsForm({
       <div className="d-flex flex-column gap-3">
         <Field
           id="currency"
-          label="Currency"
-          help="Currency you pay in; the exchange rate for the current page is shown below."
+          label="Your Currency"
+          help="The currency you pay in; the exchange rate for the current page is shown below (see 'Plugin Status')."
         >
           <select
             className="form-select"
@@ -203,7 +203,7 @@ export function SettingsForm({
         <Field
           id="auction-premium"
           label="Auction premium"
-          help="Everything the auction house charges as a percentage of the hammer price, added up into one effective premium: the buyer's premium including its VAT (20 % + 19 % VAT = 23.8 %) and any online or live bidding surcharge (e.g. + 3 %)."
+          help="Everything the auction house charges as a percentage of the hammer price, added up into one effective auction premium: the buyer's premium including a potential VAT and any online or live bidding surcharge."
         >
           {percent("auctionPremium", "auction-premium")}
         </Field>
@@ -241,14 +241,14 @@ export function SettingsForm({
         <Field
           id="payment-costs"
           label="Payment costs"
-          help="Add up what paying this auction costs you as a percentage: your bank's or card's markup on the exchange rate (often 1-3 %) and any surcharge for the payment method (e.g. 3 % by card)."
+          help="Everything the auction house charges as a percentage for paying the auction costs: your bank's or card's markup on the exchange rate (often 1-3 %) and any surcharge for the payment method (e.g. 3 % by card)."
         >
           {percent("paymentCosts", "payment-costs")}
         </Field>
         <Switch
           id="advanced"
-          label="Advanced settings"
-          hint="VAT on the hammer price, import VAT and flat fees. Switched off, they count as 0."
+          label="Advanced cost settings"
+          hint="VAT on the hammer price, import VAT and flat fees. When switched off, all advanced cost settings count as 0."
           checked={draft.advanced}
           onChange={(advanced) => setDraft({ ...draft, advanced })}
         />
@@ -257,7 +257,7 @@ export function SettingsForm({
             <Field
               id="hammer-vat"
               label="Hammer price VAT"
-              help="The VAT rate on the hammer price, e.g. 19 %. Enter the premium above including its VAT; this rate only applies to the hammer price."
+              help="The VAT rate on the hammer price. The auction premium above only includes its own VAT - this rate only applies to the hammer price."
             >
               {percent("hammerVat", "hammer-vat")}
             </Field>
@@ -271,7 +271,7 @@ export function SettingsForm({
             <Field
               id="flat-fees"
               label="Flat fees"
-              help="Add up the fixed amounts per invoice, in your currency: customs clearance by the post or courier, bank transfer fees. Split over the lots you expect to win."
+              help="Fixed, summarized amounts per invoice, in your currency: customs clearance by the post or courier, bank transfer fees. Split over the lots you expect to win."
             >
               {numberInput("flatFees", "flat-fees", {
                 step: "0.01",
