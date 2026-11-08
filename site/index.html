@@ -1,0 +1,99 @@
+<!doctype html>
+<!-- GitHub Page of a release; {{VERSION}} is filled in by .github/workflows/ci.yml. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Minerva</title>
+    <meta
+      name="description"
+      content="Browser extension that shows the effective price of online auction lots: converted, with premium, VAT, shipping and payment costs."
+    />
+    <link rel="icon" href="icon.png" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="hero">
+      <div class="wrap hero-inner">
+        <div class="logo">
+          <img src="icon.png" alt="" width="112" height="112" />
+          <span class="bubble" aria-hidden="true">€</span>
+        </div>
+        <div>
+          <h1>Minerva</h1>
+          <p class="lead">
+            The effective price of an auction lot, right next to the hammer price: converted into
+            your currency, with the buyer's premium, VAT, shipping and payment costs included.
+          </p>
+          <p class="version">Version {{VERSION}}</p>
+        </div>
+      </div>
+    </header>
+
+    <main class="wrap">
+      <section aria-labelledby="download">
+        <h2 id="download">Download</h2>
+        <div class="downloads">
+          <a class="card" href="downloads/minerva-{{VERSION}}-chrome.zip">
+            <strong>Chrome / Edge</strong>
+            <span>minerva-{{VERSION}}-chrome.zip</span>
+          </a>
+          <a class="card" href="downloads/minerva-{{VERSION}}-firefox.zip">
+            <strong>Firefox</strong>
+            <span>minerva-{{VERSION}}-firefox.zip</span>
+          </a>
+        </div>
+      </section>
+
+      <section aria-labelledby="what">
+        <h2 id="what">What it does</h2>
+        <p>
+          On a supported auction site, Minerva reads each price and its currency, converts it into
+          the currency you pay in, adds the costs you entered in its side panel - auction premium,
+          VAT on the hammer price, shipping split over the lots you expect to win, import VAT,
+          payment costs and flat fees - and shows the result right after the original price. It
+          stays up to date while the bids change.
+        </p>
+        <p>
+          The costs are saved per auction, so every auction house and site keeps its own. A click on
+          a result shows how the price adds up, part by part. The panel also shows the exchange rate
+          the page needs.
+        </p>
+        <p>Supported sites: <b>biddr.com</b>, <b>numisbids.com</b> and <b>l5.com</b>.</p>
+      </section>
+
+      <section aria-labelledby="install">
+        <h2 id="install">Install</h2>
+        <div class="steps">
+          <div>
+            <h3>Chrome / Edge</h3>
+            <ol>
+              <li>Download and unzip the Chrome package.</li>
+              <li>Open <code>chrome://extensions</code> and enable <em>Developer mode</em>.</li>
+              <li><em>Load unpacked</em> and select the unzipped folder.</li>
+              <li>Click the toolbar icon to open the side panel.</li>
+            </ol>
+          </div>
+          <div>
+            <h3>Firefox</h3>
+            <ol>
+              <li>Download the Firefox package.</li>
+              <li>Open <code>about:debugging#/runtime/this-firefox</code>.</li>
+              <li><em>Load Temporary Add-on…</em> and select the zip.</li>
+              <li>Click the toolbar icon to toggle the sidebar.</li>
+            </ol>
+            <p class="note">Temporary add-ons are removed when Firefox restarts.</p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="wrap footer">
+      <p>
+        Minerva is a bidding aid only. No responsibility is taken for the correctness of the
+        effective prices. Source, bug reports and feature requests on
+        <a href="https://github.com/radyak/minerva-browserplugin">GitHub</a>.
+      </p>
+    </footer>
+  </body>
+</html>

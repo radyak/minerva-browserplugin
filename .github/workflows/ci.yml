@@ -69,3 +69,36 @@ jobs:
           name: minerva-extensions
           path: dist/*.zip
           if-no-files-found: error
+
+      # Release tags only: the release page - site/ with {{VERSION}} filled in, the icon the
+      # build generated from src/assets/icon.png and the zips under stable, version-named
+      # download links (the zips themselves carry package.json's version).
+      - name: Assemble release page
+        if: github.ref_type == 'tag'
+        run: |
+          mkdir -p public/downloads
+          cp -r site/. public/
+          cp dist/chrome/icons/128.png public/icon.png
+          cp dist/*-chrome.zip "public/downloads/minerva-$VERSION-chrome.zip"
+          cp dist/*-firefox.zip "public/downloads/minerva-$VERSION-firefox.zip"
+          sed -i "s|{{VERSION}}|$VERSION|g" public/index.html
+
+      - uses: actions/upload-pages-artifact@v3
+        if: github.ref_type == 'tag'
+        with:
+          path: public
+
+  # Publishes the release page of a tag build as the repository's GitHub Page.
+  pages:
+    if: github.ref_type == 'tag'
+    needs: ci
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

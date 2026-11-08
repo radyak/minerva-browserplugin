@@ -67,12 +67,13 @@ What the extension does on a page and in the panel, from the user's point of vie
   the currency of the active tab's prices ("–" while none was found, all of them
   when the page mixes several), and it is converted together with the price.
 - The form holds every cost factor, all saved per auction (as above): currency,
-  auction premium, shipment, lots won, behind the switch *VAT on the hammer
-  price* the hammer price VAT, then import VAT, payment costs and flat fees -
-  payment costs differ between sites and houses, import VAT with the country an
-  auction ships from. A switched off hammer VAT is saved as none. Invalid values
-  (outside the ranges, a fraction of a lot, a switched on hammer VAT without a
-  rate) are marked and nothing is saved.
+  auction premium, shipment, lots won and payment costs, then behind the switch
+  *Advanced settings* the hammer price VAT, import VAT and flat fees - payment
+  costs differ between sites and houses, import VAT with the country an auction
+  ships from. The switch starts on when one of the advanced values of the shown
+  settings is not 0, off otherwise; while it is off, they count (and are saved)
+  as 0. Invalid values (outside the ranges, a fraction of a lot) are marked and
+  nothing is saved.
 - Clicking a Minerva bubble on the page (Minerva or the speech bubble; Enter or
   Space when it has the focus) opens *How this price adds up* next to it: that
   lot's hammer price, part by part, up to the effective price, written like the
@@ -123,10 +124,10 @@ same way to be added up into one:
 | Auction premium (%) | per auction | the buyer's premium *including its VAT* (20 % + 19 % VAT = 23.8 %), online or live bidding surcharges (CNG: 21 % live instead of 19 %); a different premium for buyers outside the EU is just another value |
 | Shipment, in the auction's currency | per auction | shipping and insurance per invoice |
 | Lots won | per auction | how many lots you expect to win; shipment and flat fees are split over them, as they are charged once per invoice |
-| Hammer price VAT (%), behind a switch | per auction | VAT on the hammer price for regularly taxed lots or lots the house imported; only on the hammer price, as the premium already carries its VAT |
-| Import VAT (%) | per auction | VAT your customs charge on lots shipped in (e.g. 7 % for collector coins in Germany) |
+| Hammer price VAT (%), under *Advanced settings* | per auction | VAT on the hammer price for regularly taxed lots or lots the house imported; only on the hammer price, as the premium already carries its VAT |
+| Import VAT (%), under *Advanced settings* | per auction | VAT your customs charge on lots shipped in (e.g. 7 % for collector coins in Germany) |
 | Payment costs (%) | per auction | your bank's or card's exchange rate markup (we convert at the ECB mid rate) plus any card or payment surcharge |
-| Flat fees, in your currency | per auction | customs clearance by post or courier, bank transfer fees |
+| Flat fees, in your currency, under *Advanced settings* | per auction | customs clearance by post or courier, bank transfer fees |
 
 Payment costs and import VAT are both charged on the converted lot, but
 separately, so they are added rather than multiplied. Not modelled: minimum

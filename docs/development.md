@@ -36,6 +36,8 @@ GitHub Actions (`.github/workflows/ci.yml`) runs on every push to `main`, every 
 
 Every run sets `VERSION` for its later steps: on a tag build the tag without its `v` (`1.2.3`), otherwise the latest release tag reachable from the commit plus the short commit hash (`1.2.3+abc1234`). As long as no release tag exists, the version from `package.json` stands in for the tag. The build picks it up from the environment, so the panel shows it.
 
+On a release tag the workflow also publishes the release page as the repository's GitHub Page (`https://radyak.github.io/minerva-browserplugin/`): the `ci` job assembles `site/` (a static page, `{{VERSION}}` replaced with the version), the generated `icons/128.png` and the zips as `downloads/minerva-<VERSION>-<browser>.zip` into `public/` and uploads it as the Pages artifact, the `pages` job deploys it (`actions/deploy-pages`, environment `github-pages`). This needs *Settings → Pages → Source: GitHub Actions* in the repository; a release candidate tag (`v1.2.3-rc.1`) replaces the page as well.
+
 ## Install the development build
 
 **Chrome / Edge**

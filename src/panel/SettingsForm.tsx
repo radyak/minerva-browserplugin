@@ -7,13 +7,19 @@ import { Settings, type NumericSetting } from "../core/settings/Settings.ts";
 type NumberField = NumericSetting;
 
 /**
+ * The values behind the "Advanced settings" switch: needed only for some
+ * auctions, so the form starts without them unless one is set.
+ */
+const ADVANCED: readonly NumberField[] = ["hammerVat", "importVat", "flatFees"];
+
+/**
  * What the form holds: the inputs' text, so an emptied input stays empty while
  * typing, and the switch.
  */
 type Draft = {
   currency: string;
-  /** the "VAT on the hammer price" switch */
-  taxed: boolean;
+  /** the "Advanced settings" switch; while off, its values count as 0 */
+  advanced: boolean;
 } & Record<NumberField, string>;
 
 /** The settings of the auction, as shown when the form was filled. */
@@ -26,12 +32,11 @@ const RANGES = Settings.RANGES;
 
 const toDraft = ({ settings }: ShownSettings): Draft => ({
   currency: settings.currency,
-  taxed: settings.hammerVat > 0,
+  advanced: ADVANCED.some((name) => settings[name] !== Settings.DEFAULT[name]),
   auctionPremium: String(settings.auctionPremium),
   shipment: String(settings.shipment),
   lotsWon: String(settings.lotsWon),
-  // Empty rather than "0" when switched on: the rate has to be entered.
-  hammerVat: settings.hammerVat > 0 ? String(settings.hammerVat) : "",
+  hammerVat: String(settings.hammerVat),
   importVat: String(settings.importVat),
   paymentCosts: String(settings.paymentCosts),
   flatFees: String(settings.flatFees),
@@ -39,8 +44,10 @@ const toDraft = ({ settings }: ShownSettings): Draft => ({
 
 /**
  * The settings form for the auction: currency, effective premium, shipment
- * split over the lots won, the VAT on the hammer price (behind a switch),
- * import VAT, payment costs and flat fees. Every value is saved per auction -
+ * split over the lots won and payment costs, and behind the "Advanced
+ * settings" switch the VAT on the hammer price, import VAT and flat fees -
+ * switched on from the start when one of them is set, and saved as 0 while
+ * switched off, so the form shows what is calculated. Every value is saved per auction -
  * sites and houses differ in all of them, down to the country lots ship from.
  * @param props.shown the values to show; a new object (another auction, after
  *   saving) replaces whatever was typed, even when the values are the same
@@ -78,7 +85,7 @@ export function SettingsForm({
   const shownValue = (name: NumberField) => shown.settings[name];
   /** A value of the form, as a number; an emptied input keeps the shown value. */
   const value = (name: NumberField) => {
-    if (name === "hammerVat" && !draft.taxed) return 0;
+    if (!draft.advanced && ADVANCED.includes(name)) return Settings.DEFAULT[name];
     return draft[name] === "" ? shownValue(name) : Number(draft[name]);
   };
   /** The entered values; anything invalid as its default, as when stored. */
@@ -101,7 +108,7 @@ export function SettingsForm({
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    // The inputs' own validation (min, max, step, required from RANGES and the markup).
+    // The inputs' own validation (min, max and step from RANGES).
     const flags = Object.fromEntries(
       [...inputs.current].map(([name, input]) => [name, !input.checkValidity()]),
     );
@@ -125,13 +132,11 @@ export function SettingsForm({
       placeholder,
       unit,
       feedback,
-      required = false,
     }: {
       step: string;
       placeholder: string;
       unit?: ReactNode;
       feedback: string;
-      required?: boolean;
     },
   ) => {
     const { min, max } = RANGES[name];
@@ -148,7 +153,6 @@ export function SettingsForm({
           min={min}
           max={Number.isFinite(max) ? max : undefined}
           step={step}
-          required={required}
           inputMode={step === "1" ? "numeric" : "decimal"}
           placeholder={placeholder}
           autoComplete="off"
@@ -161,13 +165,12 @@ export function SettingsForm({
       </div>
     );
   };
-  const percent = (name: NumberField, id: string, placeholder = "0", required = false) =>
+  const percent = (name: NumberField, id: string) =>
     numberInput(name, id, {
       step: "0.1",
-      placeholder,
+      placeholder: "0",
       unit: "%",
       feedback: "Enter a percentage between 0 and 100.",
-      required,
     });
   const shipmentUnit = pageCurrencies.length ? pageCurrencies.join(" / ") : "–";
 
@@ -235,32 +238,6 @@ export function SettingsForm({
           </div>
         </div>
 
-        <Switch
-          id="taxed"
-          label="VAT on the hammer price"
-          hint="For regularly taxed lots and lots imported by the auction house."
-          checked={draft.taxed}
-          onChange={(taxed) => setDraft({ ...draft, taxed })}
-        />
-        {draft.taxed && (
-          <div className="switched-part">
-            <Field
-              id="hammer-vat"
-              label="Hammer price VAT"
-              help="The VAT rate on the hammer price, e.g. 19 %. Enter the premium above including its VAT; this rate only applies to the hammer price."
-            >
-              {percent("hammerVat", "hammer-vat", "19", true)}
-            </Field>
-          </div>
-        )}
-
-        <Field
-          id="import-vat"
-          label="Import VAT"
-          help="Charged when this auction ships lots in from outside your customs area, e.g. 7 % for collector coins in Germany. Leave at 0 for lots that already carry VAT or ship from within it."
-        >
-          {percent("importVat", "import-vat")}
-        </Field>
         <Field
           id="payment-costs"
           label="Payment costs"
@@ -268,18 +245,43 @@ export function SettingsForm({
         >
           {percent("paymentCosts", "payment-costs")}
         </Field>
-        <Field
-          id="flat-fees"
-          label="Flat fees"
-          help="Add up the fixed amounts per invoice, in your currency: customs clearance by the post or courier, bank transfer fees. Split over the lots you expect to win."
-        >
-          {numberInput("flatFees", "flat-fees", {
-            step: "0.01",
-            placeholder: "0.00",
-            unit: draft.currency,
-            feedback: "Enter an amount of 0 or more.",
-          })}
-        </Field>
+        <Switch
+          id="advanced"
+          label="Advanced settings"
+          hint="VAT on the hammer price, import VAT and flat fees. Switched off, they count as 0."
+          checked={draft.advanced}
+          onChange={(advanced) => setDraft({ ...draft, advanced })}
+        />
+        {draft.advanced && (
+          <div className="switched-part d-flex flex-column gap-3">
+            <Field
+              id="hammer-vat"
+              label="Hammer price VAT"
+              help="The VAT rate on the hammer price, e.g. 19 %. Enter the premium above including its VAT; this rate only applies to the hammer price."
+            >
+              {percent("hammerVat", "hammer-vat")}
+            </Field>
+            <Field
+              id="import-vat"
+              label="Import VAT"
+              help="Charged when this auction ships lots in from outside your customs area, e.g. 7 % for collector coins in Germany. Leave at 0 for lots that already carry VAT or ship from within it."
+            >
+              {percent("importVat", "import-vat")}
+            </Field>
+            <Field
+              id="flat-fees"
+              label="Flat fees"
+              help="Add up the fixed amounts per invoice, in your currency: customs clearance by the post or courier, bank transfer fees. Split over the lots you expect to win."
+            >
+              {numberInput("flatFees", "flat-fees", {
+                step: "0.01",
+                placeholder: "0.00",
+                unit: draft.currency,
+                feedback: "Enter an amount of 0 or more.",
+              })}
+            </Field>
+          </div>
+        )}
 
         <div className="d-flex align-items-center gap-2">
           {/* Filled while there are unsaved changes, outlined otherwise. */}

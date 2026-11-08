@@ -65,7 +65,7 @@ conditions of e.g. Künker, Sincona, CNG and Heritage:
 | Factor | Typical values | In the panel |
 | --- | --- | --- |
 | VAT on the premium | Margin scheme: premium incl. VAT (Künker 25 %, Sincona 23 % incl. 8.1 %); regular taxation: 20 % + VAT | added into the auction premium |
-| VAT on the hammer price | Regularly taxed lots and, since 2025, lots imported into the EU; Swiss houses: 8.1 % on everything but investment gold | *VAT on the hammer price* switch |
+| VAT on the hammer price | Regularly taxed lots and, since 2025, lots imported into the EU; Swiss houses: 8.1 % on everything but investment gold | *Hammer price VAT* under *Advanced settings* |
 | Buyer's residence | Künker: 20 % without VAT outside the EU, refunded against proof of export | a different auction premium |
 | Online/live bidding surcharge | CNG 21 % live internet vs. 19 % on its own site; UK houses +3.5-6 % + VAT | added into the auction premium |
 | Import VAT on the customs value | DE 7 % for collector coins (precious metal coins only above 250 % of the metal value, BMF 2024-12-02); UK reportedly 5 % for heading 9705 (unverified, carriers charge 20 %); US no VAT, but state sales tax | *Import VAT* |

@@ -1,0 +1,166 @@
+/* Colours of the price annotation and the panel's speech bubble (content.css, panel.css). */
+:root {
+  --navy: #1f3b6e;
+  --cream: #fffdf5;
+  --bg: #f6f7fb;
+  --surface: #ffffff;
+  --text: #1c2230;
+  --muted: #5b6475;
+  --border: #dde1ea;
+  --accent: var(--navy);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #12161f;
+    --surface: #1b2130;
+    --text: #e6e9f0;
+    --muted: #9aa3b5;
+    --border: #2c3446;
+    --accent: #8fb0ea;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font:
+    16px/1.6 system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
+}
+
+a {
+  color: var(--accent);
+}
+
+.wrap {
+  max-width: 52rem;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+.hero {
+  background: var(--navy);
+  color: var(--cream);
+  padding: 3rem 0;
+}
+
+.hero-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1.5rem 3.5rem;
+}
+
+.hero h1 {
+  margin: 0;
+  font-size: 2.5rem;
+  letter-spacing: 0.02em;
+}
+
+.lead {
+  max-width: 32rem;
+  margin: 0.5rem 0;
+  font-size: 1.15rem;
+}
+
+.version {
+  margin: 0;
+  opacity: 0.75;
+  font-size: 0.9rem;
+}
+
+/* Minerva with a speech bubble, as in the panel. */
+.logo {
+  position: relative;
+  flex: none;
+}
+
+.logo img {
+  display: block;
+  border-radius: 50%;
+  background: var(--cream);
+}
+
+.bubble {
+  position: absolute;
+  top: 0.5rem;
+  left: calc(100% + 0.5rem);
+  padding: 0.4rem 0.9rem;
+  border: 1.5px solid var(--navy);
+  border-radius: 0.6rem;
+  background: var(--cream);
+  color: var(--navy);
+  font-weight: 700;
+}
+
+main section {
+  margin: 2.5rem 0;
+}
+
+h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.4rem;
+}
+
+h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1.05rem;
+}
+
+.downloads,
+.steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 1rem;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--surface);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.card:hover {
+  border-color: var(--accent);
+}
+
+.card span {
+  color: var(--muted);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+ol {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+code {
+  font-size: 0.9em;
+  overflow-wrap: anywhere;
+}
+
+.note,
+.footer {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.footer {
+  padding-top: 1rem;
+  padding-bottom: 2rem;
+  border-top: 1px solid var(--border);
+}

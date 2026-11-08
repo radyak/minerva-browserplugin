@@ -477,25 +477,44 @@ test("shows the development version when none is passed", async () => {
 const toggle = (label: string) => fireEvent.click(screen.getByRole("switch", { name: label }));
 const shown = (label: string) => screen.queryByLabelText(label) !== null;
 const invalidInput = (label: string) => input(label).classList.contains("is-invalid");
-test("shows the hammer VAT only while its switch is on, and requires a rate then", async () => {
+test("hides the advanced settings until switched on, and saves them as 0 while off", async () => {
   const { store } = await openPanel();
-  assert.equal(shown("Hammer price VAT"), false);
-  toggle("VAT on the hammer price");
-  assert.equal(input("Hammer price VAT").value, "");
-  await submit();
-  assert.deepEqual(store.saved, []);
-  assert.equal(invalidInput("Hammer price VAT"), true);
-
+  for (const label of ["Hammer price VAT", "Import VAT", "Flat fees"]) {
+    assert.equal(shown(label), false, label);
+  }
+  assert.equal(screen.queryByRole("switch", { name: /hammer price/ }), null);
+  toggle("Advanced settings");
+  assert.equal(input("Hammer price VAT").value, "0");
   type("Hammer price VAT", "19");
+  type("Flat fees", "5");
   await submit();
-  assert.equal(store.saved.at(-1).settings.hammerVat, 19);
-  assert.equal(input("Hammer price VAT").value, "19");
+  assert.deepEqual(
+    store.saved.at(-1).settings,
+    new Settings({ ...GBP, hammerVat: 19, flatFees: 5 }),
+  );
 
-  // Switched off, it is saved as none.
-  toggle("VAT on the hammer price");
+  // Switched off, they count as none - an invalid one is not checked then.
+  type("Import VAT", "101");
+  toggle("Advanced settings");
   assert.equal(shown("Hammer price VAT"), false);
   await submit();
-  assert.equal(store.saved.at(-1).settings.hammerVat, 0);
+  assert.deepEqual(store.saved.at(-1).settings, GBP);
+});
+
+test("switches the advanced settings on when the auction has one set", async () => {
+  const book = bookOf(
+    [{ site: SHOP, house: "leu" }, GBP],
+    [{ site: SHOP, house: "cng" }, new Settings({ ...GBP, importVat: 7 })],
+  );
+  const { navigate } = await openPanel({ book });
+  const advanced = () =>
+    screen.getByRole<HTMLInputElement>("switch", { name: "Advanced settings" });
+  assert.equal(advanced().checked, false);
+  await navigate({ house: "cng", auction: "1" });
+  assert.equal(advanced().checked, true);
+  assert.equal(input("Import VAT").value, "7");
+  await navigate({ house: "leu", auction: "1" });
+  assert.equal(advanced().checked, false);
 });
 
 test("only accepts whole numbers of lots won, from 1", async () => {
@@ -514,7 +533,7 @@ test("only accepts whole numbers of lots won, from 1", async () => {
 
 test("saves import VAT, payment costs and flat fees with the auction's settings", async () => {
   const { store } = await openPanel();
-  assert.equal(screen.queryByRole("switch", { name: /import and payment/ }), null);
+  toggle("Advanced settings");
   type("Import VAT", "7");
   type("Payment costs", "2.5");
   type("Flat fees", "15");
@@ -540,10 +559,12 @@ test("shows the import VAT, payment costs and flat fees of the auction the tab i
     [{ site: SHOP, house: "cng" }, new Settings({ ...GBP, ...costs })],
   );
   const { navigate } = await openPanel({ book });
-  const showing = () => ["Import VAT", "Payment costs", "Flat fees"].map((l) => input(l).value);
-  assert.deepEqual(showing(), ["0", "0", "0"]);
+  // Hidden (null) while the advanced settings are off.
+  const showing = () =>
+    ["Import VAT", "Payment costs", "Flat fees"].map((l) => (shown(l) ? input(l).value : null));
+  assert.deepEqual(showing(), [null, "0", null]);
   await navigate({ house: "cng", auction: "1" });
   assert.deepEqual(showing(), ["7", "2", "5"]);
   await navigate({ site: "https://other.test", house: "cng", auction: "1" });
-  assert.deepEqual(showing(), ["0", "0", "0"]);
+  assert.deepEqual(showing(), [null, "0", null]);
 });
