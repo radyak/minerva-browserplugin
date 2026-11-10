@@ -466,12 +466,19 @@ test("the Saved. note disappears after two seconds", async () => {
 
 test("shows the build version at the bottom of the panel", async () => {
   await openPanel({ version: "1.2.3+abc1234" });
-  screen.getByText("v1.2.3+abc1234");
+  screen.getByText(/^v1\.2\.3\+abc1234\b/);
 });
 
 test("shows the development version when none is passed", async () => {
   await openPanel();
-  screen.getByText("v0.0.0-dev");
+  screen.getByText(/^v0\.0\.0-dev\b/);
+});
+
+test("links the homepage next to the version, opened in a new tab", async () => {
+  await openPanel();
+  const link = screen.getByRole("link", { name: "Homepage" });
+  assert.equal(link.getAttribute("href"), "https://radyak.github.io/minerva-browserplugin/");
+  assert.equal(link.getAttribute("target"), "_blank");
 });
 
 const toggle = (label: string) => fireEvent.click(screen.getByRole("switch", { name: label }));

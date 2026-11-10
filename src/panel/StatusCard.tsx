@@ -49,7 +49,16 @@ export function StatusCard({
         </p>
       </div>
 
-      <p className="form-text small text-center mt-2 mb-0">v{version}</p>
+      <p className="form-text small text-center mt-2 mb-0">
+        v{version} ·{" "}
+        <a
+          href="https://radyak.github.io/minerva-browserplugin/"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Homepage
+        </a>
+      </p>
     </footer>
   );
 }
