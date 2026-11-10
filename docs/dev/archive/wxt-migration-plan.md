@@ -81,7 +81,7 @@ Recommended order. R0 is required before merging phase 1; R1 is a cheap clean-up
 
 With the **built** extension (`npm run build`, load `dist/chrome` unpacked and `dist/firefox/manifest.json` temporarily), in both Chrome and Firefox:
 
-1. Toolbar icon opens the side panel (Chrome) / toggles the sidebar (Firefox); the Firefox sidebar is titled "Minerva - Online Auction Assistant".
+1. Toolbar icon opens the side panel (Chrome) / toggles the sidebar (Firefox); the Firefox sidebar is titled "Minerva - Your auction patron".
 2. On a configured site the badge shows `ON`, prices get a `minerva-effective-price` sibling with the Minerva avatar (the inlined icon), `n/a` for unparsable text, no DOM churn once settled. On biddr check a running and a finished auction (e.g. `https://www.biddr.com/namnumismatic/auction?a=7619`).
 3. SPA navigation (`pushState`) out of and back into a site path removes and restores the annotations.
 4. Saving settings in the panel updates the open tab and other open tabs; the exchange rates table loads; the panel's Bootstrap styling is intact.

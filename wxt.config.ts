@@ -3,7 +3,7 @@ import { defineConfig } from "wxt";
 import { SITES } from "./src/core/sites/sites.config.ts";
 import { matchPatterns } from "./src/core/sites/sites.ts";
 
-const TITLE = "Minerva - Online Auction Assistant";
+const TITLE = "Minerva - Your auction patron";
 
 /**
  * Build configuration for both browsers (`wxt build -b chrome|firefox`).
