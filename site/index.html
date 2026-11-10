@@ -16,83 +16,272 @@
     <header class="hero">
       <div class="wrap hero-inner">
         <div class="logo">
-          <img src="icon.png" alt="" width="112" height="112" />
-          <span class="bubble" aria-hidden="true">€</span>
+          <img src="icon.png" alt="Minerva" width="128" height="128" />
         </div>
-        <div>
+        <div class="hero-text">
           <h1>Minerva</h1>
-          <p class="lead">
-            The effective price of an auction lot, right next to the hammer price: converted into
-            your currency, with the buyer's premium, VAT, shipping and payment costs included.
-          </p>
-          <p class="version">Version {{VERSION}}</p>
+          <p class="lead">[mɪˈnɛru̯ä] - Your auction patron!</p>
+          <!-- TODO: replace the placeholder store links once the listings are live. -->
+          <div class="stores">
+            <a class="store" href="#TODO-firefox-add-ons">
+              <small>Get it for</small><strong>Firefox</strong>
+            </a>
+            <a class="store" href="#TODO-chrome-web-store">
+              <small>Get it for</small><strong>Chrome / Edge</strong>
+            </a>
+          </div>
+          <p class="version">Version {{VERSION}} · free and open source</p>
         </div>
       </div>
     </header>
 
+    <nav class="wrap toc" aria-label="Contents">
+      <a href="#why">What is Minerva?</a>
+      <a href="#features">Features</a>
+      <a href="#usage">How to use it</a>
+      <a href="#feedback">Bugs &amp; ideas</a>
+      <a href="#about">About me</a>
+      <a href="#disclaimer">Disclaimer</a>
+    </nav>
+
     <main class="wrap">
-      <section aria-labelledby="download">
-        <h2 id="download">Download</h2>
-        <div class="downloads">
-          <a class="card" href="downloads/minerva-{{VERSION}}-chrome.zip">
-            <strong>Chrome / Edge</strong>
-            <span>minerva-{{VERSION}}-chrome.zip</span>
+      <section id="why" aria-labelledby="why-title">
+        <h2 id="why-title">What is <i>Minerva</i>?</h2>
+        <p>
+          Know what a lot really costs - before you bid.
+        </p>
+        <p>
+          A hammer price of 500 is never 500. Add the buyer's premium, VAT, shipping, import VAT,
+          the bank's cut on the exchange rate - and the lot you were about to bid on costs a third
+          more, in a currency you don't pay in.
+        </p>
+        <p>
+          Minerva does that arithmetic for you, right on the auction page. Next to every price it
+          shows what you would actually pay, in your own currency, updated live while the bids come
+          in. Enter an auction's costs once, and every lot of that auction - and of that house -
+          speaks your numbers. No spreadsheets, no calculator in a second tab, no surprise when the
+          invoice arrives.
+        </p>
+        <div class="screenshots">
+          <a href="./img/example-1.jpg" target="_blank" style="--ratio: 1919 / 934">
+            <img
+              src="./img/example-1.jpg"
+              alt="Screenshot of Minerva in action on auction preview"
+              width="1919"
+              height="934"
+            />
           </a>
-          <a class="card" href="downloads/minerva-{{VERSION}}-firefox.zip">
-            <strong>Firefox</strong>
-            <span>minerva-{{VERSION}}-firefox.zip</span>
+          <a href="./img/example-3.jpg" target="_blank" style="--ratio: 954 / 887">
+            <img
+              src="./img/example-3.jpg"
+              alt="Screenshot of Minerva in action during auction"
+              width="954"
+              height="887"
+            />
           </a>
         </div>
       </section>
 
-      <section aria-labelledby="what">
-        <h2 id="what">What it does</h2>
-        <p>
-          On a supported auction site, Minerva reads each price and its currency, converts it into
-          the currency you pay in, adds the costs you entered in its side panel - auction premium,
-          VAT on the hammer price, shipping split over the lots you expect to win, import VAT,
-          payment costs and flat fees - and shows the result right after the original price. It
-          stays up to date while the bids change.
-        </p>
-        <p>
-          The costs are saved per auction, so every auction house and site keeps its own. A click on
-          a result shows how the price adds up, part by part. The panel also shows the exchange rate
-          the page needs.
-        </p>
-        <p>Supported sites: <b>biddr.com</b>, <b>numisbids.com</b> and <b>l5.com</b>.</p>
-      </section>
+      <section id="features" aria-labelledby="features-title">
+        <h2 id="features-title">Features</h2>
+        <div class="columns">
+          <ul class="facts">
+            <li>Effective price inserted next to each price on the page</li>
+            <li>Live updates while bids change, also on in-page navigation</li>
+            <li>Conversion into several currencies (ECB reference rates)</li>
+            <li>Auction premium, shipment split over lots won, payment costs</li>
+            <li>Advanced: VAT on the hammer price, import VAT, flat fees</li>
+            <li>Settings saved per auction, auction house or site</li>
+            <li>Price breakdown pop-up on click</li>
+            <li>Output in the page's own price notation</li>
+            <li>Side panel (Chrome) / sidebar (Firefox)</li>
+            <li>All data stored locally in the browser; no account, no tracking</li>
+          </ul>
+          <div>
+            <h3>Supported sites</h3>
+            <ul class="facts">
+              <li>biddr.com</li>
+              <li>numisbids.com</li>
+              <li>l5.com</li>
+            </ul>
 
-      <section aria-labelledby="install">
-        <h2 id="install">Install</h2>
-        <div class="steps">
-          <div>
-            <h3>Chrome / Edge</h3>
-            <ol>
-              <li>Download and unzip the Chrome package.</li>
-              <li>Open <code>chrome://extensions</code> and enable <em>Developer mode</em>.</li>
-              <li><em>Load unpacked</em> and select the unzipped folder.</li>
-              <li>Click the toolbar icon to open the side panel.</li>
-            </ol>
-          </div>
-          <div>
-            <h3>Firefox</h3>
-            <ol>
-              <li>Download the Firefox package.</li>
-              <li>Open <code>about:debugging#/runtime/this-firefox</code>.</li>
-              <li><em>Load Temporary Add-on…</em> and select the zip.</li>
-              <li>Click the toolbar icon to toggle the sidebar.</li>
-            </ol>
-            <p class="note">Temporary add-ons are removed when Firefox restarts.</p>
+            <h3>Supported currencies</h3>
+            <ul class="facts">
+              <li>EUR</li>
+              <li>USD</li>
+              <li>GBP</li>
+              <li>CHF</li>
+            </ul>
+            
+            <p class="note">
+              More sites and currencies to come in the future. If you want have suggestions, please <a href="##feedback">let me know</a>!
+            </p>
           </div>
         </div>
+      </section>
+
+      <section id="usage" aria-labelledby="usage-title">
+        <h2 id="usage-title">How to use it</h2>
+
+        <h3>1. Open an auction and the panel</h3>
+        <p>
+          Install Minerva and open a lot or auction on a supported site. The toolbar icon shows
+          <b>ON</b> while Minerva is active on the page. Click it to open the side panel (Chrome) or
+          sidebar (Firefox). At the top the panel shows the auction house and auction it has
+          recognised, below them the settings form, and further down the <em>Plugin status</em>: how
+          many prices were found and the exchange rate the page needs.
+        </p>
+
+        <h3>2. Enter the auction's costs</h3>
+        <dl class="fields">
+          <dt>Your currency</dt>
+          <dd>The currency you pay in. All effective prices are shown in it.</dd>
+          <dt>Auction premium</dt>
+          <dd>
+            Everything charged as a percentage of the hammer price, added up into one number: the
+            buyer's premium including its VAT (e.g. 20 % premium + 19 % VAT = 23.8 % auction premium) plus any online or live
+            bidding surcharge.
+          </dd>
+          <dt>Shipment</dt>
+          <dd>
+            Shipping and insurance per invoice, in the <em>auction's</em> currency (shown next to
+            the input).
+          </dd>
+          <dt>Lots won</dt>
+          <dd>
+            How many lots you expect to win. Shipment and flat fees are charged once per invoice, so
+            each lot carries its share.
+          </dd>
+          <dt>Payment costs</dt>
+          <dd>
+            Your bank's or card's markup on the exchange rate (often 1-3 %) plus any surcharge for
+            the payment method.
+          </dd>
+          <dt>Advanced cost settings</dt>
+          <dd>
+            A switch revealing <em>hammer price VAT</em> (regularly taxed or imported lots),
+            <em>import VAT</em> (lots shipped in from outside your customs area, e.g. 7 % for
+            collector coins in Germany) and <em>flat fees</em> (customs clearance, transfer fees, in
+            your currency). It is switched on automatically when one of them is set for the auction.
+            While it is off, these costs count as 0.
+          </dd>
+        </dl>
+        <p>
+          Every input has a <b>?</b> next to its label that shows a short explanation. The
+          <em>Save</em> button turns solid while there are unsaved changes; invalid values are
+          marked and nothing is saved. An emptied input keeps the value that was shown. After
+          saving, the page recalculates immediately, and so do other open tabs of the same auction.
+        </p>
+
+        <h3>3. How settings are saved and found again</h3>
+        <p>
+          Minerva tries to read the site, the auction house and the auction from the page address and saves
+          your settings under all three. When you open a page, it uses the most specific settings it
+          has:
+        </p>
+        <ol class="scopes">
+          <li><b>Auction</b> - settings saved for this very auction,</li>
+          <li><b>House</b> - otherwise the latest saved for the same auction house,</li>
+          <li><b>Site</b> - otherwise the latest saved on the same site,</li>
+          <li><b>Defaults</b> - otherwise no costs at all, in EUR.</li>
+        </ol>
+        <p>
+          The panel highlights which of these the values come from. So the premium you entered for
+          one auction of a house is a good starting point for its next one - adjust and save, and
+          the new auction has its own. Where the address does not name the house (numisbids.com) or
+          the auction (lot pages on l5.com), that level is skipped. Unrecognised IDs are shown as
+          "unknown".
+        </p>
+
+        <h3>4. Read the prices</h3>
+        <p>
+          Each price on the page gets a Minerva bubble right next to it with the effective price:
+        </p>
+        <pre class="formula">
+lot   = hammer × (1 + premium% + hammer VAT%) + shipment ÷ lots won
+total = lot in your currency × (1 + payment costs% + import VAT%) + flat fees ÷ lots won</pre>
+        <ul>
+          <li>
+            Click a bubble to see <em>how this price adds up</em>, part by part. While the panel
+            holds unsaved values for this auction, the pop-up already uses them - handy for trying
+            out a premium before saving. The bubbles keep the saved values until you save.
+          </li>
+          <li>
+            Prices are written the way the page writes them - currency position, decimal and
+            grouping separators: <code>1.234,56 EUR</code> comes out like <code>1.334,56 EUR</code>,
+            <code>$49.99</code> like <code>€75.00</code>.
+          </li>
+          <li>
+            A bubble shows <b>n/a</b> when the text holds no price, or its currency is unknown or
+            has no exchange rate yet. Minerva never guesses.
+          </li>
+          <li>
+            Exchange rates are the ECB reference rates from Frankfurter, saved with your settings
+            and refreshed daily. They are mid-market rates - that is what <em>payment costs</em> is
+            for.
+          </li>
+        </ul>
+
+        <h3>Privacy</h3>
+        <p>
+          Settings and rates stay in your browser's extension storage. The only request Minerva
+          makes is for exchange rates, to the Frankfurter API; it does not read anything but the
+          prices on supported sites.
+        </p>
+      </section>
+
+      <section id="feedback" aria-labelledby="feedback-title">
+        <h2 id="feedback-title">Bugs &amp; feature requests</h2>
+        <p>
+          Found a wrong price, a page Minerva does not pick up, or a site it should support? Please
+          open an issue on GitHub - with the page address, what you expected and what Minerva
+          showed. Feature requests are welcome there, too.
+        </p>
+        <div class="links">
+          <a class="button" href="https://github.com/radyak/minerva-browserplugin/issues/new"
+            >Open an issue on GitHub</a
+          >
+          <a class="button secondary" href="mailto:bgock@proton.me?subject=Minerva%20Request"
+            >Send an email</a
+          >
+        </div>
+      </section>
+
+      <section id="about" aria-labelledby="about-title">
+        <h2 id="about-title">About me</h2>
+        <!-- TODO: put this into your own words. -->
+        <p>
+          I collect coins and bid on auctions across Europe, the UK and the US. Every house charges
+          differently, every site shows a different currency, and working out what a lot would
+          really cost me meant a spreadsheet next to every catalogue. Minerva is the tool I wanted
+          to have: the true price, where the bidding happens.
+        </p>
+        <p>
+          Minerva is free, open source and built in my spare time. If it saves you money or time,
+          you can support its development:
+        </p>
+        <!-- TODO: replace the placeholder support links. -->
+        <div class="links">
+          <a class="button" href="https://paypal.me/TODO">PayPal.me</a>
+          <a class="button" href="https://github.com/sponsors/TODO">GitHub Sponsors</a>
+        </div>
+      </section>
+
+      <section id="disclaimer" aria-labelledby="disclaimer-title" class="disclaimer">
+        <h2 id="disclaimer-title">Disclaimer</h2>
+        <p>
+          Minerva is a bidding aid only. The effective prices are estimates based on the values you
+          enter and on mid-market exchange rates; the auction house's invoice is what counts. No
+          responsibility is taken for the correctness of the prices shown or for bids made on their
+          basis. Minerva is not affiliated with any of the supported auction sites.
+        </p>
       </section>
     </main>
 
     <footer class="wrap footer">
       <p>
-        Minerva is a bidding aid only. No responsibility is taken for the correctness of the
-        effective prices. Source, bug reports and feature requests on
-        <a href="https://github.com/radyak/minerva-browserplugin">GitHub</a>.
+        Minerva {{VERSION}} ·
+        <a href="https://github.com/radyak/minerva-browserplugin">Source on GitHub</a>
       </p>
     </footer>
   </body>

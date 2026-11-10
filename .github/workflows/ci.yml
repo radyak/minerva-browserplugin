@@ -70,17 +70,13 @@ jobs:
           path: dist/*.zip
           if-no-files-found: error
 
-      # Release tags only: the release page - site/ with {{VERSION}} filled in, the icon the
-      # build generated from src/assets/icon.png and the zips under stable, version-named
-      # download links (the zips themselves carry package.json's version).
+      # Release tags only: the release page - site/ with {{VERSION}} filled in. The page links
+      # to the browsers' extension stores, so the zips are not part of it.
       - name: Assemble release page
         if: github.ref_type == 'tag'
         run: |
-          mkdir -p public/downloads
+          mkdir -p public
           cp -r site/. public/
-          cp dist/chrome/icons/128.png public/icon.png
-          cp dist/*-chrome.zip "public/downloads/minerva-$VERSION-chrome.zip"
-          cp dist/*-firefox.zip "public/downloads/minerva-$VERSION-firefox.zip"
           sed -i "s|{{VERSION}}|$VERSION|g" public/index.html
 
       - uses: actions/upload-pages-artifact@v3
