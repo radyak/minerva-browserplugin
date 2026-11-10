@@ -7,7 +7,7 @@ import { Settings, type NumericSetting } from "../core/settings/Settings.ts";
 type NumberField = NumericSetting;
 
 /**
- * The values behind the "Advanced settings" switch: needed only for some
+ * The values behind the "Advanced cost settings" switch: needed only for some
  * auctions, so the form starts without them unless one is set.
  */
 const ADVANCED: readonly NumberField[] = ["hammerVat", "importVat", "flatFees"];
@@ -18,7 +18,7 @@ const ADVANCED: readonly NumberField[] = ["hammerVat", "importVat", "flatFees"];
  */
 type Draft = {
   currency: string;
-  /** the "Advanced settings" switch; while off, its values count as 0 */
+  /** the "Advanced cost settings" switch; while off, its values count as 0 */
   advanced: boolean;
 } & Record<NumberField, string>;
 
@@ -44,7 +44,7 @@ const toDraft = ({ settings }: ShownSettings): Draft => ({
 
 /**
  * The settings form for the auction: currency, effective premium, shipment
- * split over the lots won and payment costs, and behind the "Advanced
+ * split over the lots won and payment costs, and behind the "Advanced cost
  * settings" switch the VAT on the hammer price, import VAT and flat fees -
  * switched on from the start when one of them is set, and saved as 0 while
  * switched off, so the form shows what is calculated. Every value is saved per auction -

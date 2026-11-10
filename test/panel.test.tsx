@@ -153,10 +153,10 @@ const submit = async () => {
 test("shows the saved settings, the rates and the status on open", async () => {
   const { store } = await openPanel();
   assert.deepEqual(
-    [...(input("Currency") as unknown as HTMLSelectElement).options].map((o) => o.value),
+    [...(input("Your Currency") as unknown as HTMLSelectElement).options].map((o) => o.value),
     ["EUR", "USD", "GBP", "CHF"],
   );
-  assert.equal(input("Currency").value, "GBP");
+  assert.equal(input("Your Currency").value, "GBP");
   assert.equal(input("Auction premium").value, "20");
   assert.equal(input("Shipment").value, "7");
   // Entered in the currency of the page's prices, not the selected one.
@@ -310,7 +310,7 @@ test("fills the Save button only while the form differs from the saved settings"
   assert.equal(filled(), false);
   type("Shipment", ""); // emptied keeps the saved value
   assert.equal(filled(), false);
-  fireEvent.change(input("Currency"), { target: { value: "EUR" } });
+  fireEvent.change(input("Your Currency"), { target: { value: "EUR" } });
   assert.equal(filled(), true);
 
   await submit();
@@ -324,8 +324,8 @@ test("only shows the rates of the currency picked last", async () => {
   await act(async () => client.answer()); // GBP, on open
   await flush();
 
-  fireEvent.change(input("Currency"), { target: { value: "USD" } });
-  fireEvent.change(input("Currency"), { target: { value: "CHF" } });
+  fireEvent.change(input("Your Currency"), { target: { value: "USD" } });
+  fireEvent.change(input("Your Currency"), { target: { value: "CHF" } });
   await flush();
   assert.equal(ratesInfo().textContent, "Loading…");
 
@@ -342,7 +342,7 @@ test("saves the rates of the picked currency once they have arrived", async () =
   const client = manualClient();
   const { store } = await openPanel({ client });
   await act(async () => client.answer()); // GBP
-  fireEvent.change(input("Currency"), { target: { value: "CHF" } });
+  fireEvent.change(input("Your Currency"), { target: { value: "CHF" } });
   await flush();
   fireEvent.submit(form()!); // while the CHF rates are still loading
   await act(async () => client.answer());
@@ -403,7 +403,7 @@ test("fills the form with the settings of the auction the active tab is on", asy
     [{ site: SHOP, house: "leu", auction: "1" }, CHF],
   );
   const { navigate } = await openPanel({ book, state: { ...ON_USD_PAGE, auction: "1" } });
-  const showing = () => [input("Currency").value, input("Auction premium").value, source()];
+  const showing = () => [input("Your Currency").value, input("Auction premium").value, source()];
   assert.deepEqual(showing(), ["CHF", "10", "Saved for this auction."]);
 
   // Same auction: what is being typed stays.
@@ -483,7 +483,7 @@ test("hides the advanced settings until switched on, and saves them as 0 while o
     assert.equal(shown(label), false, label);
   }
   assert.equal(screen.queryByRole("switch", { name: /hammer price/ }), null);
-  toggle("Advanced settings");
+  toggle("Advanced cost settings");
   assert.equal(input("Hammer price VAT").value, "0");
   type("Hammer price VAT", "19");
   type("Flat fees", "5");
@@ -495,7 +495,7 @@ test("hides the advanced settings until switched on, and saves them as 0 while o
 
   // Switched off, they count as none - an invalid one is not checked then.
   type("Import VAT", "101");
-  toggle("Advanced settings");
+  toggle("Advanced cost settings");
   assert.equal(shown("Hammer price VAT"), false);
   await submit();
   assert.deepEqual(store.saved.at(-1).settings, GBP);
@@ -508,7 +508,7 @@ test("switches the advanced settings on when the auction has one set", async () 
   );
   const { navigate } = await openPanel({ book });
   const advanced = () =>
-    screen.getByRole<HTMLInputElement>("switch", { name: "Advanced settings" });
+    screen.getByRole<HTMLInputElement>("switch", { name: "Advanced cost settings" });
   assert.equal(advanced().checked, false);
   await navigate({ house: "cng", auction: "1" });
   assert.equal(advanced().checked, true);
@@ -533,7 +533,7 @@ test("only accepts whole numbers of lots won, from 1", async () => {
 
 test("saves import VAT, payment costs and flat fees with the auction's settings", async () => {
   const { store } = await openPanel();
-  toggle("Advanced settings");
+  toggle("Advanced cost settings");
   type("Import VAT", "7");
   type("Payment costs", "2.5");
   type("Flat fees", "15");
