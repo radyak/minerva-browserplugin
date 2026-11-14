@@ -55,6 +55,8 @@ The job runs in the GitHub environment `stores` (*Settings → Environments*), w
 | `FIREFOX_JWT_ISSUER` | secret | *JWT issuer* of an AMO API key ([Developer Hub → Manage API Keys](https://addons.mozilla.org/developers/addon/api/key/)) |
 | `FIREFOX_JWT_SECRET` | secret | its *JWT secret* |
 
+The two Chrome IDs are not confidential and are read as variables, but secrets of the same name work as well.
+
 A manual run of the workflow (*Actions → CI → Run workflow*) with *store_dry_run* checks the credentials against both stores without uploading anything.
 
 ## Install the development build
