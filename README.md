@@ -39,6 +39,7 @@ Load `dist/chrome` via *Load unpacked* in `chrome://extensions`, or `dist/firefo
 | [Development](docs/development.md) | Build, test, packaging, installing the development build |
 | [Framework and simplification review](docs/dev/framework-and-simplification-review.md) | Review of 2026-11-01: simplifications, Vitest, the React panel - and what was done |
 | [Archive](docs/dev/archive/) | Finished plans: the architecture review of 2026-09-27, the WXT migration |
+| [Contributing](CONTRIBUTING.md) | How to report bugs, suggest sites and send pull requests |
 
 ## Plans & Next Steps
 * Backend: Auction database
@@ -78,3 +79,23 @@ Not modelled on purpose: late payment interest, export licences, resale right
 (not for coins). Most figures come from individual houses' terms and forum posts,
 not from official tax sources; check the UK import VAT against HMRC before relying
 on it.
+
+## License
+
+Copyright (C) 2026 radyak
+
+Minerva is free software: you can redistribute it and/or modify it under the terms of the
+[GNU General Public License](LICENSE) as published by the Free Software Foundation, either
+version 3 of the License, or (at your option) any later version. It is distributed in the hope
+that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+Improvements are welcome as contributions to this repository rather than as separate forks -
+see [Contributing](CONTRIBUTING.md). Anyone who distributes a modified version must publish its
+complete source code under the GPL as well.
+
+**Name and icon:** the GPL covers the code, not the name *Minerva* (as the name of this
+extension) or its icon (`src/assets/icon.png`, `src/assets/minerva-64.png`). Both are reserved
+and may only be used for the official builds published from this repository. A modified
+version distributed by someone else must use a different name and icon, so users can tell
+it from the original.

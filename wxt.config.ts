@@ -1,3 +1,5 @@
+import { resolve } from "node:path";
+
 import { defineConfig } from "wxt";
 
 import { SITES } from "./src/core/sites/sites.config.ts";
@@ -63,6 +65,12 @@ export default defineConfig({
       assetsInlineLimit: (file) => (file.endsWith(".png") ? true : undefined),
     },
   }),
+  hooks: {
+    // The GPL wants its text to travel with every copy: ship LICENSE in the package.
+    "build:publicAssets": (wxt, files) => {
+      files.push({ absoluteSrc: resolve(wxt.config.root, "LICENSE"), relativeDest: "LICENSE.txt" });
+    },
+  },
   zip: {
     artifactTemplate: "{{name}}-{{packageVersion}}-{{browser}}.zip",
     sourcesTemplate: "{{name}}-{{packageVersion}}-sources.zip",

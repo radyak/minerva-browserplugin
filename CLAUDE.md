@@ -124,7 +124,8 @@ hand), linting is ESLint's recommended set plus `typescript-eslint`'s for `.ts`/
   `defineBackground` etc. explicitly (`wxt/utils/define-background`), so every module says where
   its names come from; `manifestVersion: 3` for both browsers (WXT defaults Firefox to MV2). A new entry
   point is a new file in `src/entrypoints/` following WXT's naming; files that go into the build
-  as they are belong in `public/` (empty at the moment). The icons are generated at build time
+  as they are belong in `public/` (empty at the moment); the root `LICENSE` (GPL-3.0-or-later) is
+  copied into every package as `LICENSE.txt` by the `build:publicAssets` hook. The icons are generated at build time
   by `@wxt-dev/auto-icons` from `src/assets/icon.png` into `icons/<size>.png` (greyscale in dev
   builds); `action.default_icon`, the sidebar's `manifest.default_icon` meta tag and the panel's
   `<img>` point at those generated paths. Content script and background are bundled as IIFE

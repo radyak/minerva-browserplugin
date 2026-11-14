@@ -2,6 +2,8 @@
   "name": "minerva",
   "version": "0.1.0",
   "private": true,
+  "license": "GPL-3.0-or-later",
+  "author": "radyak",
   "description": "Cross-browser WebExtension that assists with online auctions by making effective prices transparent.",
   "type": "module",
   "scripts": {
