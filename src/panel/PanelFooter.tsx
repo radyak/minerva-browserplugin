@@ -23,7 +23,6 @@ export function PanelFooter({ version }: { version: string }) {
       </div>
 
       <p className="form-text small text-center mt-2 mb-0">
-        v{version} ·{" "}
         <a
           href="https://radyak.github.io/minerva-browserplugin/"
           target="_blank"
@@ -31,6 +30,19 @@ export function PanelFooter({ version }: { version: string }) {
         >
           Homepage
         </a>
+        · {" "}
+        <a
+          href="https://paypal.me/radiculousYak"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Send me a coffee
+        </a>
+         ☕
+      </p>
+
+      <p className="form-text small text-center mt-2 mb-0">
+        v{version}
       </p>
     </footer>
   );
