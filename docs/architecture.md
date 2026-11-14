@@ -421,13 +421,13 @@ sequenceDiagram
 
 ## Build time
 
-WXT generates the manifest of each browser from `wxt.config.ts` and the entry points: the version comes from `package.json`, the content script's `matches` and the `host_permissions` from `matchPatterns(SITES)` (read at build time), so the configured sites decide where the content script is injected. Background, content script and side panel keys follow from the files in `src/entrypoints/` - Chrome gets `side_panel` + the `sidePanel` permission and a service worker, Firefox `sidebar_action` and an event page (`background.scripts`). `import.meta.env.BROWSER` is replaced per build, so `side-panel.ts` keeps only its own branch. `manifest.icons` and the `icons/<size>.png` files come from `@wxt-dev/auto-icons`, which scales `src/assets/icon.png` after bundling.
+WXT generates the manifest of each browser from `wxt.config.ts` and the entry points: the version from the environment variable `VERSION` (CI: the release tag, suffix stripped by WXT, Chrome gets the full one as `version_name`) or else from `package.json`, the content script's `matches` and the `host_permissions` from `matchPatterns(SITES)` (read at build time), so the configured sites decide where the content script is injected. Background, content script and side panel keys follow from the files in `src/entrypoints/` - Chrome gets `side_panel` + the `sidePanel` permission and a service worker, Firefox `sidebar_action` and an event page (`background.scripts`). `import.meta.env.BROWSER` is replaced per build, so `side-panel.ts` keeps only its own branch. `manifest.icons` and the `icons/<size>.png` files come from `@wxt-dev/auto-icons`, which scales `src/assets/icon.png` after bundling.
 
 ```mermaid
 flowchart LR
   sites["src/core/sites/sites.config.ts"] -->|matchPatterns| build["WXT / Vite<br/>(wxt build -b #lt;browser#gt;)"]
-  pkg["package.json<br/>version"] --> build
-  env["env VERSION<br/>(panel's __VERSION__)"] --> build
+  pkg["package.json<br/>version (without VERSION)"] --> build
+  env["env VERSION<br/>(manifest version, panel's __VERSION__)"] --> build
   cfg["wxt.config.ts<br/>manifest"] --> build
   entry["src/entrypoints/**"] --> build
   icon["src/assets/icon.png"] -->|"@wxt-dev/auto-icons"| build

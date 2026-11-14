@@ -16,9 +16,12 @@ const TITLE = "Minerva - Your auction patron";
  * difference is confined to src/browser/side-panel.ts.
  *
  * The environment variable `VERSION` (e.g. `VERSION=1.2.3 npm run build`; CI
- * sets it) is the build version shown in the panel (`__VERSION__`, default
- * "0.0.0-dev"). The manifest keeps package.json's version: browsers only accept
- * dot-separated numbers there.
+ * sets it from the release tag) is the build version: shown in the panel
+ * (`__VERSION__`, default "0.0.0-dev") and the manifest's version - browsers only
+ * accept dot-separated numbers there, so WXT strips any suffix ("1.2.3+abc1234"
+ * -> "1.2.3") and Chrome gets the full one as `version_name`. Without `VERSION`
+ * the manifest takes package.json's version. The stores take each version only
+ * once, so the release tag is what numbers a published version.
  */
 export default defineConfig({
   srcDir: "src",
@@ -39,6 +42,7 @@ export default defineConfig({
   autoIcons: { sizes: [128, 64, 48, 32, 16] },
   manifest: ({ browser }) => ({
     name: TITLE,
+    ...(process.env.VERSION && { version_name: process.env.VERSION }),
     description: "Assists with online auctions by making effective prices transparent",
     permissions: ["tabs", "storage", "alarms"],
     host_permissions: matchPatterns(SITES),
@@ -49,8 +53,9 @@ export default defineConfig({
     ...(browser === "firefox" && {
       browser_specific_settings: {
         gecko: {
-          // Changing the ID breaks updates of existing installs.
-          id: "element-marker@example.com",
+          // The add-on's identity on AMO and in Firefox (its storage is keyed by it): AMO
+          // rejects a version with another ID, so changing it means a new AMO listing.
+          id: "minerva-auction-patron@radyak.github.io",
           strict_min_version: "142.0",
           data_collection_permissions: { required: ["none"] },
         },
@@ -72,8 +77,8 @@ export default defineConfig({
     },
   },
   zip: {
-    artifactTemplate: "{{name}}-{{packageVersion}}-{{browser}}.zip",
-    sourcesTemplate: "{{name}}-{{packageVersion}}-sources.zip",
+    artifactTemplate: "{{name}}-{{version}}-{{browser}}.zip",
+    sourcesTemplate: "{{name}}-{{version}}-sources.zip",
     // Dotfiles (.poc/, .private, .wxt/) are left out of the AMO sources zip by
     // default; src/assets/icon.png must stay in, the build generates the icons from it.
   },

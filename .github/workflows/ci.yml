@@ -6,6 +6,11 @@ on:
     tags: ["v[0-9]+.[0-9]+.[0-9]+*"]
   pull_request:
   workflow_dispatch:
+    inputs:
+      store_dry_run:
+        description: "Check the store credentials (publish job with --dry-run, uploads nothing)"
+        type: boolean
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -98,3 +103,70 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+
+  # Release tags without a suffix (v1.2.3, not v1.2.3-rc.1) only: uploads the packages of the
+  # ci job to the Chrome Web Store and to addons.mozilla.org and submits them for review
+  # (`wxt submit`, i.e. publish-browser-extension). Each store takes a version only once - the
+  # manifest's version is the tag's (wxt.config.ts). Credentials come from the `stores`
+  # environment (docs/development.md); a manual run with `store_dry_run` only checks them.
+  publish:
+    if: >-
+      (github.ref_type == 'tag' && !contains(github.ref_name, '-')) ||
+      (github.event_name == 'workflow_dispatch' && inputs.store_dry_run)
+    needs: ci
+    runs-on: ubuntu-latest
+    environment: stores
+    concurrency:
+      group: publish # one store submission at a time, never cancelled halfway
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: minerva-extensions
+          path: dist
+
+      # The Firefox add-on ID is the one in the built manifest, so it cannot drift from it. AMO
+      # reviewers rebuild the bundled code from the sources zip; the notes tell them how.
+      - name: Locate packages
+        run: |
+          pkg() { ls dist/*-"$1".zip; }
+          {
+            echo "CHROME_ZIP=$(pkg chrome)"
+            echo "FIREFOX_ZIP=$(pkg firefox)"
+            echo "FIREFOX_SOURCES_ZIP=$(pkg sources)"
+            echo "FIREFOX_EXTENSION_ID=$(unzip -p "$(pkg firefox)" manifest.json | jq -r .browser_specific_settings.gecko.id)"
+            echo "VERSION=$(unzip -p "$(pkg firefox)" manifest.json | jq -r .version)"
+          } >> "$GITHUB_ENV"
+          cat "$GITHUB_ENV"
+
+      - name: Write AMO reviewer notes
+        run: |
+          jq -n --arg v "$VERSION" '{ version: { approval_notes: (
+            "Build from the sources zip (Node.js 24, npm, Linux/macOS):\n" +
+            "  npm ci\n" +
+            "  VERSION=\($v) npm run build:firefox\n" +
+            "The extension is in dist/firefox. See docs/development.md for details.") } }' \
+            > "$RUNNER_TEMP/amo-metadata.json"
+          echo "FIREFOX_AMO_METADATA_FILE=$RUNNER_TEMP/amo-metadata.json" >> "$GITHUB_ENV"
+
+      - name: Submit to the stores
+        env:
+          CHROME_API_VERSION: v2
+          CHROME_EXTENSION_ID: ${{ vars.CHROME_EXTENSION_ID }}
+          CHROME_PUBLISHER_ID: ${{ vars.CHROME_PUBLISHER_ID }}
+          CHROME_SERVICE_ACCOUNT_CLIENT_EMAIL: ${{ secrets.CHROME_SERVICE_ACCOUNT_CLIENT_EMAIL }}
+          CHROME_SERVICE_ACCOUNT_PRIVATE_KEY: ${{ secrets.CHROME_SERVICE_ACCOUNT_PRIVATE_KEY }}
+          FIREFOX_JWT_ISSUER: ${{ secrets.FIREFOX_JWT_ISSUER }}
+          FIREFOX_JWT_SECRET: ${{ secrets.FIREFOX_JWT_SECRET }}
+          FIREFOX_CHANNEL: listed
+          DRY_RUN: ${{ inputs.store_dry_run && '--dry-run' || '' }}
+        run: npx wxt submit $DRY_RUN

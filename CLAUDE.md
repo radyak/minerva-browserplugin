@@ -25,7 +25,8 @@ npm run lint             # ESLint + Prettier check
 npm run format           # Prettier + ESLint --fix
 npm run typecheck        # tsc: src/ strict (tsconfig.json), tests non-strict (test/tsconfig.json)
 npm run build            # wxt build -> dist/chrome and dist/firefox (VERSION=1.2.3 sets the
-                         # version shown in the panel, default 0.0.0-dev; CI sets it)
+                         # manifest version and the one shown in the panel, default
+                         # package.json / 0.0.0-dev; CI sets it from the release tag)
 npm run build:chrome     # or :firefox
 npm run dev              # WXT dev mode, Chrome: dist/chrome-dev, auto-reload, throwaway profile
 npm run dev:firefox      # the same for Firefox (dist/firefox-dev)
@@ -82,7 +83,8 @@ hand), linting is ESLint's recommended set plus `typescript-eslint`'s for `.ts`/
   a list of `AuctionSite`s made with `defineSite()` (`origin`, `paths`, `priceSelectors`, `ids`
   for the house and auction ID in the URL: `{ query: "a" }` or `{ path: "/:id/auction" }`); the
   matching lives in `src/core/sites/sites.ts`, plugin-wide constants in `src/core/config.ts`.
-  WXT takes the version from `package.json`; the content script's `matches`
+  The manifest version is `VERSION` (CI: the release tag; WXT strips any suffix), else
+  `package.json`'s; the content script's `matches`
   (`src/entrypoints/content.ts`) and the `host_permissions` (`wxt.config.ts`) both come from
   `matchPatterns(SITES)`, read at build time. Changing what the extension targets
   should mean editing only `sites.config.ts`.
@@ -307,6 +309,10 @@ validate what arrives with `TabState.from()`.
 
 ## Conventions
 
+- **Releases are tags:** a pushed `v1.2.3` builds with that version and the `publish` job of
+  `ci.yml` submits it to the Chrome Web Store and AMO (`wxt submit`, credentials in the GitHub
+  environment `stores`); tags with a suffix (`v1.2.3-rc.1`) are not published. The stores take
+  each version once, so a release tag must be higher than the last published one.
 - Conventional-commit subjects (`feat:`, `fix:`). Commits authored by AI are marked in the
   subject, e.g. `feat: [by AI] Convert price live on page` — keep that marker.
 - Verifying a change usually means `npm test` plus, for anything touching the content or

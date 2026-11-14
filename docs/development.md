@@ -16,7 +16,7 @@ npm run package          # dist/<name>-<version>-<browser>.zip, plus the sources
 
 The build is [WXT](https://wxt.dev) (Vite underneath), configured in `wxt.config.ts`.
 It finds the entry points in `src/entrypoints/` (`background.ts`, `content.ts`,
-`sidepanel/`), generates the manifest for each browser - version from `package.json`,
+`sidepanel/`), generates the manifest for each browser - version from `VERSION` (see below) or `package.json`,
 content script `matches` and `host_permissions` from `matchPatterns(SITES)`, `side_panel`
 for Chrome and `sidebar_action` for Firefox - bundles content script and background as
 IIFE, scales `src/assets/icon.png` into `icons/<size>.png` (`@wxt-dev/auto-icons`, sharp;
@@ -30,13 +30,32 @@ strictly (`test/tsconfig.json`); `npm run typecheck` runs both.
 
 Tests run on [Vitest](https://vitest.dev) (`vitest.config.ts`, `npm run test:unit`, `npm run test:watch`) with WXT's `WxtVitest()` plugin, which applies `wxt.config.ts` and replaces the extension API with WXT's in-memory `fakeBrowser`. Core modules are tested directly against jsdom documents, the browser layer and the two controllers with fakes (`test/support/fakes.ts`), the React panel with Testing Library in a jsdom environment (`test/panel.test.tsx`). `CLAUDE.md` lists the conventions and invariants to keep when changing the code.
 
-The environment variable `VERSION` (e.g. `VERSION=1.2.3 npm run build`) sets the build version shown at the bottom of the panel, `0.0.0-dev` by default. The manifest keeps the `package.json` version, since browsers only accept dot-separated numbers there.
+The environment variable `VERSION` (e.g. `VERSION=1.2.3 npm run build`) sets the build version: the one shown at the bottom of the panel (`0.0.0-dev` by default) and the manifest's. Browsers only accept dot-separated numbers in the manifest, so WXT strips any suffix there (`1.2.3+abc1234` → `1.2.3`; Chrome gets the full one as `version_name`). Without `VERSION` the manifest takes the `package.json` version. The zips are named after the manifest version.
 
 GitHub Actions (`.github/workflows/ci.yml`) runs on every push to `main`, every pull request and every pushed release tag (`v1.2.3`, also with a suffix such as `v1.2.3-rc.1`): lint, typecheck, unit tests, the build of both targets, the AMO linter on the Firefox build and `npm run package`. The zips are attached to the run as the `minerva-extensions` artifact.
 
 Every run sets `VERSION` for its later steps: on a tag build the tag without its `v` (`1.2.3`), otherwise the latest release tag reachable from the commit plus the short commit hash (`1.2.3+abc1234`). As long as no release tag exists, the version from `package.json` stands in for the tag. The build picks it up from the environment, so the panel shows it.
 
 On a release tag the workflow also publishes the release page as the repository's GitHub Page (`https://radyak.github.io/minerva-browserplugin/`): the `ci` job copies `site/` (a static page linking to the extension stores, `{{VERSION}}` replaced with the version; `site/icon.png` is a 256 px copy of `src/assets/icon.png`, so the page also shows it when opened locally) into `public/` and uploads it as the Pages artifact, the `pages` job deploys it (`actions/deploy-pages`, environment `github-pages`). This needs *Settings → Pages → Source: GitHub Actions* in the repository; a release candidate tag (`v1.2.3-rc.1`) replaces the page as well.
+
+### Publishing to the stores
+
+On a release tag without a suffix (`v1.2.3`; `v1.2.3-rc.1` is built but not published) the `publish` job submits the zips of the `ci` job to the [Chrome Web Store](https://chrome.google.com/webstore/devconsole) and to [addons.mozilla.org](https://addons.mozilla.org/developers/) with `wxt submit` ([publish-browser-extension](https://github.com/aklinker1/publish-browser-extension)): the Chrome zip through the Chrome Web Store API v2, the Firefox zip plus the sources zip (AMO reviews the bundled code against it) to the listed channel, with reviewer notes on how to rebuild it (`npm ci`, `VERSION=1.2.3 npm run build:firefox` - reproduces `dist/firefox` byte for byte). Both stores then review the version and publish it when approved. The Firefox add-on ID is read from the built manifest.
+
+Each store takes a version only once, and the manifest version is the tag's: a release tag must be higher than the version last published. A failed submission is retried by re-running the `publish` job; a store that already took the version rejects it again, which is harmless.
+
+The job runs in the GitHub environment `stores` (*Settings → Environments*), which holds the credentials - limit it to *Selected branches and tags*: the tag pattern `v*` (releases) and the branch `main` (dry runs) and, if wanted, a required reviewer to approve every submission:
+
+| Name | Kind | Value |
+| --- | --- | --- |
+| `CHROME_EXTENSION_ID` | variable | the extension's ID (Developer Dashboard, URL of the item) |
+| `CHROME_PUBLISHER_ID` | variable | the publisher ID (Developer Dashboard → *Account*) |
+| `CHROME_SERVICE_ACCOUNT_CLIENT_EMAIL` | secret | `client_email` of a Google Cloud service account with the Chrome Web Store API enabled, added in the Developer Dashboard (*Account → Service accounts*) |
+| `CHROME_SERVICE_ACCOUNT_PRIVATE_KEY` | secret | `private_key` from that account's JSON key, the whole PEM block with real line breaks |
+| `FIREFOX_JWT_ISSUER` | secret | *JWT issuer* of an AMO API key ([Developer Hub → Manage API Keys](https://addons.mozilla.org/developers/addon/api/key/)) |
+| `FIREFOX_JWT_SECRET` | secret | its *JWT secret* |
+
+A manual run of the workflow (*Actions → CI → Run workflow*) with *store_dry_run* checks the credentials against both stores without uploading anything.
 
 ## Install the development build
 
