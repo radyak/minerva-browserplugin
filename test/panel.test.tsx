@@ -122,8 +122,8 @@ async function openPanel({
 
 const input = (label: string) => screen.getByLabelText(label) as HTMLInputElement;
 const form = () => document.querySelector("form");
-const status = () => document.querySelector(".card-body .badge")!.textContent;
-const ratesInfo = () => document.querySelector(".card-body .form-text")!;
+const ratesSection = () => screen.getByRole("region", { name: "Exchange rates" });
+const ratesInfo = () => ratesSection().querySelector(".form-text")!;
 const shipmentCurrency = () => input("Shipment").nextElementSibling!.textContent;
 /** The ID shown next to `label` ("Auction house", "Auction") at the top. */
 const shownId = (label: string) =>
@@ -139,7 +139,7 @@ const source = () => {
 
 /** The rate rows as text; the decimal comma of some locales read as a point. */
 const rateRows = () =>
-  [...document.querySelectorAll(".card-body tbody tr")].map((row) =>
+  [...ratesSection().querySelectorAll("tbody tr")].map((row) =>
     row.textContent.replace(/\s+/g, " ").replace(/(\d),(\d)/g, "$1.$2"),
   );
 
@@ -150,7 +150,7 @@ const submit = async () => {
   await flush();
 };
 
-test("shows the saved settings, the rates and the status on open", async () => {
+test("shows the saved settings and the rates on open", async () => {
   const { store } = await openPanel();
   assert.deepEqual(
     [...(input("Your Currency") as unknown as HTMLSelectElement).options].map((o) => o.value),
@@ -167,7 +167,6 @@ test("shows the saved settings, the rates and the status on open", async () => {
   // Only the rate the page needs: 1 GBP = 1.2 USD.
   assert.deepEqual(rateRows(), ["1 USD =0.8333 GBP"]);
   assert.match(ratesInfo().textContent, /2026-09-25/);
-  assert.equal(status(), "3 prices annotated, 1 n/a");
   assert.equal(shownId("Auction house"), "leu");
   assert.equal(shownId("Auction"), "unknown");
   // Keeping the saved rates fresh is the background's job.
@@ -191,7 +190,6 @@ test("shows the form and the IDs while the tab is on a site, with or without IDs
   assert.equal(shownId("Auction house"), "unknown");
   assert.equal(shownId("Auction"), "unknown");
   assert.equal(screen.queryByText(/No auction/), null);
-  assert.equal(status(), "3 prices annotated, 1 n/a");
   cleanup();
 
   // The auction alone is enough.
@@ -203,17 +201,16 @@ test("shows the form and the IDs while the tab is on a site, with or without IDs
 
   await openPanel({ state: { active: false }, settled: false });
   assert.equal(form(), null); // until the state is known
-  assert.equal(status(), "checking…");
+  assert.equal(screen.queryByText(/No auction/), null);
   await flush();
   assert.equal(form(), null);
   screen.getByText("No auction or site active");
-  assert.equal(status(), "inactive");
+  assert.equal(screen.queryByRole("region", { name: "Exchange rates" }), null);
   assert.equal(screen.queryByText("Auction house"), null);
 });
 
 test("judges the active tab by its URL when it has no content script", async () => {
   await openPanel({ state: null, tab: { id: 1, url: `${SHOP}/lot/7?h=leu` } });
-  assert.equal(status(), "0 prices annotated");
   assert.equal(shownId("Auction house"), "leu");
   assert.equal(shownId("Auction"), "7");
   assert.ok(form());
@@ -221,7 +218,7 @@ test("judges the active tab by its URL when it has no content script", async () 
 
 test("is inactive without an active tab", async () => {
   const { bus } = await openPanel({ tab: null });
-  assert.equal(status(), "inactive");
+  screen.getByText("No auction or site active");
   assert.equal(form(), null);
   assert.deepEqual(bus.sentToTabs, []);
 });
@@ -232,7 +229,7 @@ test("shows no rate when the page needs none", async () => {
   assert.equal(ratesInfo().textContent, "Prices on this page are in GBP.");
   cleanup();
 
-  await openPanel({ state: { active: false } });
+  await openPanel({ state: { ...ON_USD_PAGE, currencies: [] } });
   assert.deepEqual(rateRows(), []);
   assert.equal(ratesInfo().textContent, "No prices on this page.");
 });
@@ -364,7 +361,7 @@ test("saves settings without rates when they could not be loaded", async () => {
   assert.equal(store.saved[0].rates, undefined);
 });
 
-test("refreshes the status on state changes, tab switches and navigation", async () => {
+test("re-asks the active tab on state changes, tab switches and navigation", async () => {
   const { tabs, bus } = await openPanel();
   const before = bus.sentToTabs.length;
   await act(async () => {

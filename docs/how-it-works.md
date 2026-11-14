@@ -87,7 +87,7 @@ What the extension does on a page and in the panel, from the user's point of vie
   effective price.
 - Selecting a currency (EUR, USD, GBP, CHF; default EUR) immediately loads the
   rates against the other three from the Frankfurter API (through the background script) and saves them with the
-  settings. The *Plugin status* card only shows the rates the active tab needs:
+  settings. Under the currency select the panel shows only the rates the active tab needs:
   from the currencies of its prices into the selected one (e.g. `1 USD = 0.8333 GBP`).
   The background refreshes the saved rates of every currency in use (and of the
   default currency) on install/update, on browser start and once a day. Until
@@ -98,9 +98,8 @@ What the extension does on a page and in the panel, from the user's point of vie
   [Configuration](configuration.md)) are shown at the top of the panel, above the
   form ("unknown" for one not found); they are optional - without them the
   settings saved for the house or the site apply. Off a site the panel shows
-  Minerva with a `?` speech bubble and "No auction or site active" instead; the
-  *Plugin status* card stays visible either way.
-- Below the *Plugin status* card the panel shows a disclaimer (bidding aid only, no
+  Minerva with a `?` speech bubble and "No auction or site active" instead.
+- At the bottom the panel shows a disclaimer (bidding aid only, no
   responsibility for the prices shown), links for bug reports and feature
   requests (email, GitHub repository) and, at the very bottom, the build version
   (e.g. `v1.2.3+abc1234`; `v0.0.0-dev` for local builds, see

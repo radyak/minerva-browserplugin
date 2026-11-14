@@ -3,7 +3,7 @@
 Minerva — a cross-browser (Chrome + Firefox) MV3 WebExtension that reads the price out of a
 configured element on a configured auction site, calculates the effective price from the
 settings entered in the side panel and inserts the result as a sibling element next to it. The
-side panel shows status and exchange rates and holds the persisted auction premium, shipment,
+side panel shows the exchange rates and holds the persisted auction premium, shipment,
 lots won, hammer price VAT, import VAT, payment costs, flat fees (all per auction; the
 shipment in the auction's currency) and currency inputs.
 
@@ -112,7 +112,7 @@ hand), linting is ESLint's recommended set plus `typescript-eslint`'s for `.ts`/
 - **The side panel is React** (`@wxt-dev/module-react`, `src/panel/*.tsx`): `Panel` holds the
   state (active tab, shown settings, picked currency) and the listeners - registered in an
   effect and removed in its clean-up, which `StrictMode` exercises in dev builds -
-  `SettingsForm`, `AuctionHeader` and `StatusCard` render, `useRates` loads the rates. The form
+  `SettingsForm` (with `Rates` under the currency select), `AuctionHeader` and `PanelFooter` render, `useRates` loads the rates. The form
   and the IDs are only shown while `TabState.onSite()` (active on a site; the IDs are optional).
   The markup lives in the components (Bootstrap classes; `index.html` is just the root); keep
   labels and roles meaningful, the test (`test/panel.test.tsx`, Testing Library in a jsdom

@@ -22,7 +22,7 @@ flowchart TB
   subgraph controllers["Controllers / panel components"]
     CC["ContentController"]
     BC["BackgroundController<br/>+ RatesService"]
-    PC["Panel (React)<br/>+ SettingsForm · AuctionHeader · StatusCard · useRates"]
+    PC["Panel (React)<br/>+ SettingsForm · Rates · AuctionHeader · PanelFooter · useRates"]
   end
   subgraph browser["src/browser/ (extension API)"]
     ext["ext.ts<br/>wxt/browser"]
@@ -76,7 +76,7 @@ flowchart TB
     direction TB
     main["entrypoints/sidepanel/main.tsx<br/>+ index.html"]
     Panel["panel/Panel.tsx"]
-    views["panel/SettingsForm.tsx<br/>panel/AuctionHeader.tsx<br/>panel/StatusCard.tsx"]
+    views["panel/SettingsForm.tsx<br/>panel/Rates.tsx<br/>panel/AuctionHeader.tsx<br/>panel/PanelFooter.tsx"]
     UR["panel/useRates.ts"]
     main --> Panel --> views
     Panel --> UR
@@ -165,7 +165,7 @@ src/
   background/  background script / service worker (BackgroundController, RatesService)
   content/     content script (ContentController) + the annotation stylesheet
   panel/       side panel UI (React + Bootstrap CSS): Panel, SettingsForm,
-               AuctionHeader, StatusCard, useRates, panel.css
+               Rates, AuctionHeader, PanelFooter, useRates, panel.css
   globals.d.ts __VERSION__, the build version (set by Vite's define in wxt.config.ts)
   assets/      icon.png (source of the generated icons/<size>.png), minerva-64.png
                (inlined into content.css)
@@ -181,7 +181,7 @@ test/          *.test.ts: core units, browser layer and controllers (jsdom docum
 | --- | --- | --- |
 | `ContentController` | `window`, `bus`, `store`, `sites` (default `SITES`), `annotator` (default `PriceAnnotator`), `isValid` | Load settings and rates, annotate the page with the settings resolved for its `AuctionKey` (on every sync), re-sync on navigation/DOM/settings changes, answer `SYNC_REQUEST`, report `STATE_CHANGED` |
 | `BackgroundController` | `ext`, `bus`, `store`, `rates` (`RatesService`), `sites` | Toolbar badge, `SYNC_REQUEST` to a tab on navigation, answer `GET_RATES`, storage migration, rates refresh schedule |
-| `Panel` (props) | `tabs`, `bus`, `store`, `sites`, `version` | Ask the active tab for its state (`SYNC_REQUEST`, by URL without a content script), show the settings resolved for its auction (reloaded when its `AuctionKey` changes), save them (the settings under that key), show rates of the selected currency, show the active tab's status |
+| `Panel` (props) | `tabs`, `bus`, `store`, `sites`, `version` | Ask the active tab for its state (`SYNC_REQUEST`, by URL without a content script), show the settings resolved for its auction (reloaded when its `AuctionKey` changes), save them (the settings under that key), show rates of the selected currency |
 
 | Helper | Owned by | Purpose |
 | --- | --- | --- |
@@ -202,8 +202,9 @@ test/          *.test.ts: core units, browser layer and controllers (jsdom docum
 | --- | --- | --- |
 | `Panel` | everything below; the form and the header only while the active tab is on a site (`TabState.onSite()`: active with a site; the IDs are optional), otherwise Minerva saying "?" with "No auction or site active" - neither until the tab's state is known | the active tab's `TabState`, the shown settings and their scope, the picked currency; asks the tab on open, on `STATE_CHANGED`, `tabs.onActivated`, `tabs.onUpdated`; `save()` |
 | `AuctionHeader` | house and auction ID from the URL ("unknown" when not found); "Values from" pills, one per `SETTINGS_SCOPES` entry plus *Defaults*, the one the form's values come from highlighted (`aria-current`, tooltip "Saved for this auction house.") | – |
-| `SettingsForm` | one section, all saved per auction: currency (options from `Currency.CODES`), effective auction premium (%), shipment with the currencies of the page's prices next to it ("–" for none), lots won, payment costs (%) and the switch *Advanced settings* revealing the hammer price VAT (%), import VAT (%) and flat fees (in the picked currency) - on at first when one of them is set, counted as 0 while off; `min`/`max`/`step` from `Settings.RANGES`; a "?" toggle per input for its hint; *Save*, filled while the form differs from the shown values; "Saved." for 2 s | the inputs' text and the switch (an emptied input keeps the shown value), reset when values are shown anew; currency `change` → `onCurrencyChange`, `submit` → validate the rendered inputs → `onSave(settings)`; the entered values (as JSON) → `onDraft` whenever they change, `null` while they equal the shown ones or once unmounted |
-| `StatusCard` | status badge ("3 prices annotated, 1 n/a" / "inactive" / "checking…"), the rates the page needs ("1 GBP = 1.16 EUR"), their date / "Loading…" / "Exchange rates unavailable.", the disclaimer, the build version at the very bottom ("v1.2.3+abc1234", `__VERSION__` from the environment variable `VERSION` at build time, "v0.0.0-dev" without) | – |
+| `SettingsForm` | one section, all saved per auction: currency (options from `Currency.CODES`) with `Rates` under it, effective auction premium (%), shipment with the currencies of the page's prices next to it ("–" for none), lots won, payment costs (%) and the switch *Advanced settings* revealing the hammer price VAT (%), import VAT (%) and flat fees (in the picked currency) - on at first when one of them is set, counted as 0 while off; `min`/`max`/`step` from `Settings.RANGES`; a "?" toggle per input for its hint; *Save*, filled while the form differs from the shown values; "Saved." for 2 s | the inputs' text and the switch (an emptied input keeps the shown value), reset when values are shown anew; currency `change` → `onCurrencyChange`, `submit` → validate the rendered inputs → `onSave(settings)`; the entered values (as JSON) → `onDraft` whenever they change, `null` while they equal the shown ones or once unmounted |
+| `Rates` | under the currency select: the rates the page needs ("1 GBP = 1.16 EUR"), their date / "Loading…" / "Exchange rates unavailable." / "No prices on this page." | – |
+| `PanelFooter` | the disclaimer, the report links, the build version at the very bottom ("v1.2.3+abc1234", `__VERSION__` from the environment variable `VERSION` at build time, "v0.0.0-dev" without) | – |
 | `useRates` (hook) | – | loads the picked currency's rates (`GET_RATES`); a superseded request is dropped, `ratesFor()` waits for the latest for Save |
 
 ### Injected annotation (content script)
@@ -377,7 +378,7 @@ sequenceDiagram
   PC->>BC: GET_RATES { base: "USD" }
   BC->>RS: get("USD") (cached for 1 h)
   RS-->>BC: ExchangeRates
-  BC-->>PC: { rates } → StatusCard (only the latest request is shown)
+  BC-->>PC: { rates } → Rates (only the latest request is shown)
   User->>PC: Save
   PC->>Store: save(key, settings, rates) — one write
   Store-)Other: storage.local.onChanged → reload + sync("settings")

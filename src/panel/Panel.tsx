@@ -11,8 +11,8 @@ import { SITES } from "../core/sites/sites.config.ts";
 import type { AuctionSite } from "../core/sites/sites.ts";
 import { TabState } from "../core/state/TabState.ts";
 import { AuctionHeader } from "./AuctionHeader.tsx";
+import { PanelFooter } from "./PanelFooter.tsx";
 import { SettingsForm, type ShownSettings } from "./SettingsForm.tsx";
-import { StatusCard } from "./StatusCard.tsx";
 import { useRates } from "./useRates.ts";
 
 export type PanelProps = {
@@ -31,9 +31,8 @@ type Shown = ShownSettings & { scope: SettingsScope | null };
 
 /**
  * Side panel (Chrome) / sidebar (Firefox): shows and saves the settings of the
- * auction in the active tab, what the extension does there and the exchange
- * rates from that tab's price currencies into the selected currency (loaded by
- * the background). Identical on both browsers; everything it touches is passed in.
+ * auction in the active tab and the exchange rates from that tab's price
+ * currencies into the selected currency (loaded by the background). Identical on both browsers; everything it touches is passed in.
  */
 export function Panel({ tabs, bus, store, sites = SITES, version = "0.0.0-dev" }: PanelProps) {
   /** the active tab; null until known */
@@ -109,13 +108,14 @@ export function Panel({ tabs, bus, store, sites = SITES, version = "0.0.0-dev" }
           <SettingsForm
             shown={shown}
             pageCurrencies={tab.currencies}
+            rates={rates}
             onCurrencyChange={setCurrency}
             onSave={save}
           />
         </>
       )}
       {tab && !onSite && <NoSite />}
-      <StatusCard tab={tab} rates={rates} version={version} />
+      <PanelFooter version={version} />
     </div>
   );
 }

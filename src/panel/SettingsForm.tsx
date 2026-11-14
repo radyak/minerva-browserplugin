@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 
 import { Currency } from "../core/currency/Currency.ts";
+import type { ExchangeRates } from "../core/rates/ExchangeRates.ts";
 import { Settings, type NumericSetting } from "../core/settings/Settings.ts";
+import { Rates } from "./Rates.tsx";
 
 /** Every value entered in a number input. */
 type NumberField = NumericSetting;
@@ -53,6 +55,8 @@ const toDraft = ({ settings }: ShownSettings): Draft => ({
  *   saving) replaces whatever was typed, even when the values are the same
  * @param props.pageCurrencies currencies of the page's prices, which the
  *   shipment is entered in
+ * @param props.rates of the picked currency, shown under its select; undefined
+ *   while loading, null when unavailable
  * @param props.onCurrencyChange called with the picked currency
  * @param props.onSave called with the entered values when they are valid; an
  *   emptied input keeps its shown value
@@ -60,11 +64,13 @@ const toDraft = ({ settings }: ShownSettings): Draft => ({
 export function SettingsForm({
   shown,
   pageCurrencies,
+  rates,
   onCurrencyChange,
   onSave,
 }: {
   shown: ShownSettings;
   pageCurrencies: readonly string[];
+  rates: ExchangeRates | null | undefined;
   onCurrencyChange: (code: string) => void;
   onSave: (settings: Settings) => Promise<void>;
 }) {
@@ -180,7 +186,7 @@ export function SettingsForm({
         <Field
           id="currency"
           label="Your Currency"
-          help="The currency you pay in; the exchange rate for the current page is shown below (see 'Plugin Status')."
+          help="The currency you pay in; the exchange rates from the currencies of the page's prices are shown above."
         >
           <select
             className="form-select"
@@ -198,6 +204,7 @@ export function SettingsForm({
               </option>
             ))}
           </select>
+          <Rates rates={rates} currencies={pageCurrencies} />
         </Field>
 
         <Field
