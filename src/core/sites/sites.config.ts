@@ -19,6 +19,7 @@ export const SITES: readonly AuctionSite[] = [
       ".current-bid",
       '.lot-price > div:nth-child(2) > span[class^="a-cb-"]',
       ".lot-price > div:nth-child(2)",
+      '.lot-bidding span[class^="a-cb-"]',
       "#button-bid",
     ],
     // https://www.biddr.com/agorawien/auction?a=7522&l=9222559
