@@ -255,7 +255,6 @@ export function SettingsForm({
         <Switch
           id="advanced"
           label="Advanced cost settings"
-          hint="VAT on the hammer price, import VAT and flat fees. When switched off, all advanced cost settings count as 0."
           checked={draft.advanced}
           onChange={(advanced) => setDraft({ ...draft, advanced })}
         />
@@ -348,13 +347,11 @@ function Field({
 function Switch({
   id,
   label,
-  hint,
   checked,
   onChange,
 }: {
   id: string;
   label: string;
-  hint: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
 }) {
@@ -372,9 +369,6 @@ function Switch({
       <label className="form-check-label" htmlFor={id}>
         {label}
       </label>
-      <div id={`${id}-hint`} className="form-text mt-0">
-        {hint}
-      </div>
     </div>
   );
 }
