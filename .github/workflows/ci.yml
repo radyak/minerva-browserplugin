@@ -168,5 +168,6 @@ jobs:
           FIREFOX_JWT_ISSUER: ${{ secrets.FIREFOX_JWT_ISSUER }}
           FIREFOX_JWT_SECRET: ${{ secrets.FIREFOX_JWT_SECRET }}
           FIREFOX_CHANNEL: listed
-          DRY_RUN: ${{ inputs.store_dry_run && '--dry-run' }}
-        run: npx wxt submit $DRY_RUN
+          # Read by publish-browser-extension itself, which accepts only "true" or "false".
+          DRY_RUN: ${{ inputs.store_dry_run == true }}
+        run: npx wxt submit
