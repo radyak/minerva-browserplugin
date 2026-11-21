@@ -67,6 +67,15 @@ test("rounds to two decimals", () => {
   assert.equal(plus20("10,55 EUR"), "12,66 EUR");
 });
 
+test("rounds to the decimal places of the result's currency", () => {
+  const times = (factor) => (amount) => amount * factor;
+  // Without decimals of their own: no decimals, even from an input with some.
+  assert.equal(convertPrice("€49.99", times(160.123), "JPY"), "JPY 8005");
+  assert.equal(convertPrice("1.234,56 EUR", times(160.123), "ISK"), "197.681 ISK");
+  // Two decimals otherwise, also for currencies Intl does not know.
+  assert.equal(convertPrice("500 EUR", times(1.0001), "XYZ"), "500.05 XYZ");
+});
+
 test("returns null when the calculation has no result", () => {
   assert.equal(
     convertPrice("500 GBP", () => undefined, "EUR"),

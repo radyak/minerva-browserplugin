@@ -181,9 +181,10 @@ function swapCurrency(
  *   one written in `price`
  */
 export function formatPrice(value: number, price: ParsedPrice, currency?: string): string {
-  const rounded = Math.round(value * 100) / 100;
+  const places = Currency.decimalsOf(currency ?? price.currency?.code);
+  const rounded = Math.round(value * 10 ** places) / 10 ** places;
   // Keep it integer only when the input was integer and nothing was lost.
-  const decimals = price.decimals === 0 && Number.isInteger(rounded) ? 0 : 2;
+  const decimals = price.decimals === 0 && Number.isInteger(rounded) ? 0 : places;
   const [integerPart, decimalPart] = rounded.toFixed(decimals).split(".");
 
   const number = group(integerPart!, price.groupSeparator);

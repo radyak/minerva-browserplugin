@@ -7,16 +7,19 @@ export class Currency {
   readonly code: string;
   readonly symbol: string;
   readonly tokens: readonly string[];
+  readonly decimals: number;
 
   /**
    * @param code ISO 4217 code ("EUR")
    * @param symbol written instead of the code when the input used a symbol
    * @param tokens how the currency may be written in page text
+   * @param decimals decimal places amounts are written with (JPY: 0)
    */
-  constructor(code: string, symbol: string, tokens: string[]) {
+  constructor(code: string, symbol: string, tokens: string[], decimals = 2) {
     this.code = code;
     this.symbol = symbol;
     this.tokens = Object.freeze([...tokens]);
+    this.decimals = decimals;
     Object.freeze(this);
   }
 
@@ -32,6 +35,22 @@ export class Currency {
    */
   static of(code: unknown): Currency | null {
     return Currency.ALL.find((currency) => currency.code === code) ?? null;
+  }
+
+  /**
+   * Decimal places amounts in `code` are written with: the supported
+   * currency's own, else the standard ones (ISO 4217, via `Intl`), else 2.
+   */
+  static decimalsOf(code: string | undefined): number {
+    const currency = Currency.of(code);
+    if (currency) return currency.decimals;
+    if (code === undefined || !Currency.isCode(code)) return 2;
+    try {
+      return new Intl.NumberFormat("en", { style: "currency", currency: code }).resolvedOptions()
+        .maximumFractionDigits!;
+    } catch {
+      return 2;
+    }
   }
 
   /**

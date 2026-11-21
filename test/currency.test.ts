@@ -20,6 +20,17 @@ test("looks a currency up by its code", () => {
   assert.deepEqual(Currency.CODES, ["EUR", "USD", "GBP", "CHF"]);
 });
 
+test("knows the decimal places of a currency", () => {
+  assert.equal(Currency.decimalsOf("EUR"), 2);
+  assert.equal(new Currency("XYZ", "X", ["XYZ"], 0).decimals, 0);
+  // Not supported for detection: the standard ones.
+  assert.equal(Currency.decimalsOf("KRW"), 0);
+  assert.equal(Currency.decimalsOf("INR"), 2);
+  // Nothing sensible to ask Intl about.
+  assert.equal(Currency.decimalsOf(undefined), 2);
+  assert.equal(Currency.decimalsOf("€"), 2);
+});
+
 test("writes the symbol for a symbol and the code for a code", () => {
   assert.equal(Currency.EUR.notationFor("$"), "€");
   assert.equal(Currency.EUR.notationFor("USD"), "EUR");
