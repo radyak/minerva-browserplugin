@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 
-import { Currency } from "../core/currency/Currency.ts";
+import { AuctionCurrency } from "../core/currency/AuctionCurrency.ts";
 import type { ExchangeRates } from "../core/rates/ExchangeRates.ts";
 import { Settings, type NumericSetting } from "../core/settings/Settings.ts";
 import { Rates } from "./Rates.tsx";
@@ -199,7 +199,7 @@ export function SettingsForm({
               onCurrencyChange(event.target.value);
             }}
           >
-            {Currency.CODES.map((code) => (
+            {AuctionCurrency.CODES.map((code) => (
               <option key={code} value={code}>
                 {code}
               </option>

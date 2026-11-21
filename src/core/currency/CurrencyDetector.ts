@@ -1,5 +1,5 @@
 import { escapeRegExp } from "../regexp.ts";
-import { Currency } from "./Currency.ts";
+import { AuctionCurrency } from "./AuctionCurrency.ts";
 
 export interface CurrencyMatch {
   /** ISO code ("EUR") */
@@ -21,7 +21,7 @@ export class CurrencyDetector {
   readonly codeOf: Map<string, string>;
   readonly pattern: RegExp;
 
-  constructor(currencies: readonly Currency[] = Currency.ALL) {
+  constructor(currencies: readonly AuctionCurrency[] = AuctionCurrency.ALL) {
     this.codeOf = new Map(
       currencies.flatMap((currency) => currency.tokens.map((token) => [token, currency.code])),
     );

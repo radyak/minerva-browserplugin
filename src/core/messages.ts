@@ -20,7 +20,7 @@ export type TabStateMessage = TabState & { url: string };
  * The protocol: per message type, what the message carries besides `type` and
  * what its handler answers (`void`: no answer). Messages are structured-cloned,
  * so they hold plain data only; receivers still validate what arrives
- * (`TabState.from()`, `Currency.of()`), the types only keep senders and
+ * (`TabState.from()`, `isIsoCurrency()`), the types only keep senders and
  * handlers in step.
  */
 export interface Protocol {

@@ -1,4 +1,4 @@
-import { Currency } from "../currency/Currency.ts";
+import { UserCurrency } from "../currency/UserCurrency.ts";
 import { inRange, type Range } from "./ranges.ts";
 
 /** `Settings#toJSON()`. */
@@ -75,7 +75,7 @@ export class Settings {
    *   rate markup of bank or card plus any surcharge for the payment method
    * @param values.flatFees flat fees per invoice in `currency`: customs
    *   clearance, bank transfer
-   * @param values.currency ISO code, one of `Currency.CODES`
+   * @param values.currency the user's currency: an ISO code (see UserCurrency)
    * All numbers within `RANGES`.
    */
   constructor({
@@ -117,12 +117,12 @@ export class Settings {
     importVat: 0,
     paymentCosts: 0,
     flatFees: 0,
-    currency: Currency.CODES[0]!,
+    currency: UserCurrency.DEFAULT,
   });
 
   /**
    * Settings out of stored data (see `toJSON()`), falling back to `DEFAULT` for
-   * anything missing, non-numeric, out of range or not a supported currency.
+   * anything missing, non-numeric, out of range or not a currency code.
    * Data saved before a setting existed thus gets its default.
    */
   static from(data: unknown): Settings {
@@ -137,13 +137,13 @@ export class Settings {
       importVat: number("importVat"),
       paymentCosts: number("paymentCosts"),
       flatFees: number("flatFees"),
-      currency: Currency.of(values?.currency)?.code ?? DEFAULT.currency,
+      currency: UserCurrency.orDefault(values?.currency),
     });
   }
 
   /**
    * These settings in `currency`; the same object when they already are.
-   * Falls back to the default currency for an unsupported one, as `from()`.
+   * Falls back to the default currency for an invalid one, as `from()`.
    */
   withCurrency(currency: string): Settings {
     return currency === this.currency ? this : Settings.from({ ...this.toJSON(), currency });

@@ -147,8 +147,10 @@ src/
                    effectivePrice (the default: their total), explainPrice (the pop-up's
                    rows for one price, in the page's notation)
     rates/         ExchangeRates (rates for one base, conversion), RatesClient (Frankfurter / ECB)
-    currency/      Currency (the supported currencies: code, symbol, tokens),
-                   CurrencyDetector (finds the currency next to a price)
+    currency/      AuctionCurrency (the currencies prices can be in: code, symbol, tokens,
+                   decimals), UserCurrency (the currency results are converted into),
+                   codes (ISO code checks, standard decimals), CurrencyDetector (finds the
+                   currency next to a price)
     price.ts       price parsing, conversion, re-formatting
     annotation/    PriceAnnotator (reads and prices the elements),
                    AnnotationView (inserts/updates the sibling, idempotent),
@@ -202,7 +204,7 @@ test/          *.test.ts: core units, browser layer and controllers (jsdom docum
 | --- | --- | --- |
 | `Panel` | everything below; the form and the header only while the active tab is on a site (`TabState.onSite()`: active with a site; the IDs are optional), otherwise Minerva saying "?" with "No auction or site active" - neither until the tab's state is known | the active tab's `TabState`, the shown settings and their scope, the picked currency; asks the tab on open, on `STATE_CHANGED`, `tabs.onActivated`, `tabs.onUpdated`; `save()` |
 | `AuctionHeader` | house and auction ID from the URL ("unknown" when not found); "Values from" pills, one per `SETTINGS_SCOPES` entry plus *Defaults*, the one the form's values come from highlighted (`aria-current`, tooltip "Saved for this auction house.") | – |
-| `SettingsForm` | one section, all saved per auction except the currency (one for every auction): currency (options from `Currency.CODES`) with `Rates` under it, effective auction premium (%), shipment with the currencies of the page's prices next to it ("–" for none), lots won, payment costs (%) and the switch *Advanced settings* revealing the hammer price VAT (%), import VAT (%) and flat fees (in the picked currency) - on at first when one of them is set, counted as 0 while off; `min`/`max`/`step` from `Settings.RANGES`; a "?" toggle per input for its hint; *Save*, filled while the form differs from the shown values; "Saved." for 2 s | the inputs' text and the switch (an emptied input keeps the shown value), reset when values are shown anew; currency `change` → `onCurrencyChange`, `submit` → validate the rendered inputs → `onSave(settings)`; the entered values (as JSON) → `onDraft` whenever they change, `null` while they equal the shown ones or once unmounted |
+| `SettingsForm` | one section, all saved per auction except the currency (one for every auction): currency (options from `AuctionCurrency.CODES`) with `Rates` under it, effective auction premium (%), shipment with the currencies of the page's prices next to it ("–" for none), lots won, payment costs (%) and the switch *Advanced settings* revealing the hammer price VAT (%), import VAT (%) and flat fees (in the picked currency) - on at first when one of them is set, counted as 0 while off; `min`/`max`/`step` from `Settings.RANGES`; a "?" toggle per input for its hint; *Save*, filled while the form differs from the shown values; "Saved." for 2 s | the inputs' text and the switch (an emptied input keeps the shown value), reset when values are shown anew; currency `change` → `onCurrencyChange`, `submit` → validate the rendered inputs → `onSave(settings)`; the entered values (as JSON) → `onDraft` whenever they change, `null` while they equal the shown ones or once unmounted |
 | `Rates` | under the currency select: the rates the page needs ("1 GBP = 1.16 EUR"), their date / "Loading…" / "Exchange rates unavailable." / "No prices on this page." | – |
 | `PanelFooter` | the disclaimer, the report links, the build version at the very bottom ("v1.2.3+abc1234", `__VERSION__` from the environment variable `VERSION` at build time, "v0.0.0-dev" without) | – |
 | `useRates` (hook) | – | loads the picked currency's rates (`GET_RATES`); a superseded request is dropped, `ratesFor()` waits for the latest for Save |

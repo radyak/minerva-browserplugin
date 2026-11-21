@@ -1,4 +1,4 @@
-import { Currency } from "../currency/Currency.ts";
+import { UserCurrency } from "../currency/UserCurrency.ts";
 import { AuctionKey } from "./AuctionKey.ts";
 import { Settings, type AuctionSettingsJSON } from "./Settings.ts";
 import { SETTINGS_SCOPES, scopeMatches, type SettingsScope } from "./SettingsScope.ts";
@@ -29,7 +29,7 @@ export class SettingsBook {
   readonly defaults: Settings;
   /**
    * @param entries oldest first, at most one per key; their currency is replaced by `currency`
-   * @param options.currency the user's currency; the default one when unsupported
+   * @param options.currency the user's currency; the default one when invalid
    * @param options.scopes most specific first
    */
   constructor(
@@ -39,7 +39,7 @@ export class SettingsBook {
       scopes = SETTINGS_SCOPES,
     }: { currency?: string; scopes?: readonly SettingsScope[] } = {},
   ) {
-    this.currency = Currency.of(currency)?.code ?? Settings.DEFAULT.currency;
+    this.currency = UserCurrency.orDefault(currency);
     this.defaults = Settings.DEFAULT.withCurrency(this.currency);
     this.entries = Object.freeze(
       entries.map(({ key, settings }) => ({ key, settings: settings.withCurrency(this.currency) })),
@@ -61,7 +61,7 @@ export class SettingsBook {
       .map((entry) => ({ key: AuctionKey.from(entry), settings: Settings.from(entry?.settings) }))
       .filter(({ key }) => key.site !== null);
     return new SettingsBook(entries, {
-      currency: Currency.of(currency)?.code,
+      currency: UserCurrency.orDefault(currency),
       scopes,
     });
   }

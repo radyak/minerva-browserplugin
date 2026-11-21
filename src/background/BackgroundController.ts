@@ -2,7 +2,7 @@ import type { WxtBrowser } from "wxt/browser";
 
 import type { MessageBus } from "../browser/MessageBus.ts";
 import type { SettingsStore } from "../browser/SettingsStore.ts";
-import { Currency } from "../core/currency/Currency.ts";
+import { isIsoCurrency } from "../core/currency/codes.ts";
 import { MSG } from "../core/messages.ts";
 import type { ExchangeRatesJSON } from "../core/rates/ExchangeRates.ts";
 import { SITES } from "../core/sites/sites.config.ts";
@@ -78,10 +78,9 @@ export class BackgroundController {
    * The current rates of `base` for the panel, as plain data.
    */
   async ratesFor(base: unknown): Promise<{ rates: ExchangeRatesJSON } | { error: string }> {
-    const currency = Currency.of(base);
-    if (!currency) return { error: `Unsupported currency: ${String(base)}` };
+    if (!isIsoCurrency(base)) return { error: `Unsupported currency: ${String(base)}` };
     try {
-      return { rates: (await this.#deps.rates.get(currency.code)).toJSON() };
+      return { rates: (await this.#deps.rates.get(base)).toJSON() };
     } catch (error) {
       return { error: error instanceof Error ? error.message : String(error) };
     }

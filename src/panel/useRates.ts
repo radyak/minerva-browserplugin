@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { MessageBus } from "../browser/MessageBus.ts";
-import { Currency } from "../core/currency/Currency.ts";
+import { AuctionCurrency } from "../core/currency/AuctionCurrency.ts";
 import { MSG } from "../core/messages.ts";
 import { ExchangeRates } from "../core/rates/ExchangeRates.ts";
 
@@ -46,5 +46,5 @@ async function requestRates(bus: Bus, code: string): Promise<ExchangeRates> {
   const answer = await bus.send({ type: MSG.GET_RATES, base: code });
   if (!answer) throw new Error("Exchange rates unavailable");
   if ("error" in answer) throw new Error(answer.error);
-  return ExchangeRates.fromJSON(answer.rates, code, Currency.CODES);
+  return ExchangeRates.fromJSON(answer.rates, code, AuctionCurrency.CODES);
 }

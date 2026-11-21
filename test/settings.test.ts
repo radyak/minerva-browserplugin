@@ -31,7 +31,7 @@ test("falls back to the defaults for unusable values", () => {
     ["", "", ""],
     [null, null, null],
     ["abc", "-1", "eur"],
-    ["101", "-0.01", "JPY"],
+    ["101", "-0.01", "XYZ"],
     [-1, Infinity, 42],
     [NaN, {}, [1, 2]],
   ]) {

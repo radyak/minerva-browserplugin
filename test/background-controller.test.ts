@@ -137,7 +137,7 @@ test("answers the panel's rate requests with plain data or an error", async () =
     rates: { base: "GBP", date: "2026-09-25", rates: { EUR: 1.1 } },
   });
   assert.deepEqual(await bus.deliver({ type: MSG.GET_RATES, base: "CHF" }), { error: "offline" });
-  assert.deepEqual(await bus.deliver({ type: MSG.GET_RATES, base: "JPY" }), {
-    error: "Unsupported currency: JPY",
+  assert.deepEqual(await bus.deliver({ type: MSG.GET_RATES, base: "XYZ" }), {
+    error: "Unsupported currency: XYZ",
   });
 });
