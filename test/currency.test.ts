@@ -42,6 +42,25 @@ test("prefers the longer token at the same position", () => {
   assert.deepEqual(detector.find("SFr. ", "before"), { code: "CHF", token: "SFr.", index: 0 });
 });
 
+test("finds no token inside a word, but next to a number", () => {
+  const forint = new Currency("HUF", "Ft", ["HUF", "Ft"]);
+  const koruna = new Currency("CZK", "Kč", ["CZK", "Kč"]);
+  const krona = new Currency("SEK", "kr", ["SEK", "kr"]);
+  const detector = new CurrencyDetector([forint, koruna, krona, Currency.CHF, Currency.EUR]);
+  const code = (text: string, side: "before" | "after") => detector.find(text, side)?.code ?? null;
+  // Letters next to a token that starts or ends with one: part of a word.
+  assert.equal(code("Darabanth Kft. ", "before"), null);
+  assert.equal(code(" kronor", "after"), null);
+  assert.equal(code(" Kčs", "after"), null);
+  assert.equal(code("ASFr. ", "before"), null);
+  assert.equal(code(" EURO", "after"), null);
+  // Digits, spaces and punctuation are fine.
+  assert.equal(code("Ft", "after"), "HUF");
+  assert.equal(code(" Kč", "after"), "CZK");
+  assert.equal(code(" kr.", "after"), "SEK");
+  assert.equal(code("(Fr. ", "before"), "CHF");
+});
+
 test("only knows the currencies it is given", () => {
   const yen = new Currency("JPY", "¥", ["JPY", "¥"]);
   const detector = new CurrencyDetector([yen]);

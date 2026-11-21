@@ -92,6 +92,7 @@ test("detects the currency next to the number", () => {
   assert.equal(code("500"), null);
   assert.equal(code("¥500"), null);
   assert.equal(code("500 EURO"), null);
+  assert.equal(code("Gebühr. 500"), null); // no "Fr." in it, nor "hr."
 });
 
 test("writes the result in the output currency, keeping the notation", () => {
