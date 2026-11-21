@@ -29,6 +29,20 @@ test("takes any currency code as the user's currency, the default otherwise", ()
   assert.equal(UserCurrency.orDefault(undefined), UserCurrency.DEFAULT);
 });
 
+test("offers the auction currencies and the saved one without the API's list", () => {
+  assert.deepEqual(
+    UserCurrency.fallback("INR", "XYZ").map(({ code }) => code),
+    [...AuctionCurrency.CODES, "INR"].sort(),
+  );
+  assert.equal(UserCurrency.fallback().find(({ code }) => code === "CHF")?.name, "Swiss Franc");
+  const listed = [{ code: "EUR", name: "Euro" }];
+  assert.deepEqual(UserCurrency.including(listed, "EUR"), listed);
+  assert.deepEqual(UserCurrency.including(listed, "CHF"), [
+    { code: "CHF", name: "Swiss Franc" },
+    ...listed,
+  ]);
+});
+
 test("looks a currency up by its code", () => {
   assert.equal(AuctionCurrency.of("GBP"), AuctionCurrency.GBP);
   assert.equal(AuctionCurrency.of("JPY"), null);

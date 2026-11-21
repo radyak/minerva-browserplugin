@@ -46,10 +46,15 @@ function fakeExt() {
   return ext;
 }
 
-/** A RatesService that records its calls; `get()` fails for "CHF". */
+/** A RatesService that records its calls; `get()` fails for "CHF", `currencies()` on demand. */
 function fakeRates() {
   return {
     refreshes: 0,
+    offline: false,
+    async currencies() {
+      if (this.offline) throw new Error("offline");
+      return [{ code: "EUR", name: "Euro" }];
+    },
     async get(base) {
       if (base === "CHF") throw new Error("offline");
       return new ExchangeRates(base, "2026-09-25", { EUR: 1.1 });
@@ -140,4 +145,13 @@ test("answers the panel's rate requests with plain data or an error", async () =
   assert.deepEqual(await bus.deliver({ type: MSG.GET_RATES, base: "XYZ" }), {
     error: "Unsupported currency: XYZ",
   });
+});
+
+test("answers the panel's currency requests with the list or an error", async () => {
+  const { bus, rates } = start();
+  assert.deepEqual(await bus.deliver({ type: MSG.GET_CURRENCIES }), {
+    currencies: [{ code: "EUR", name: "Euro" }],
+  });
+  rates.offline = true;
+  assert.deepEqual(await bus.deliver({ type: MSG.GET_CURRENCIES }), { error: "offline" });
 });

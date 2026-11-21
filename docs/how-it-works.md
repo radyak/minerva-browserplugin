@@ -87,9 +87,13 @@ What the extension does on a page and in the panel, from the user's point of vie
   the saved ones; the bubbles on the page keep showing the saved values until
   *Save*. A site with a calculator of its own only shows the hammer and the
   effective price.
-- Selecting a currency (EUR, USD, GBP, CHF; default EUR) immediately loads the
-  rates against the other three from the Frankfurter API (through the background script) and saves them with the
-  settings. Under the currency select the panel shows only the rates the active tab needs:
+- Your currency can be any currency the Frankfurter API has rates for (about 30,
+  the ECB's reference currencies; default EUR) - the list comes from the API and
+  falls back to the currencies prices are read in while it is unreachable. It is
+  independent of the currencies prices are read in (see above): converting *into*
+  a currency needs no way to recognise it on a page. Selecting one immediately
+  loads its rates against the currencies prices are read in, from the Frankfurter
+  API (through the background script), and saves them with the settings. Under the currency select the panel shows only the rates the active tab needs:
   from the currencies of its prices into the selected one (e.g. `1 USD = 0.8333 GBP`).
   The background refreshes the saved rates of your currency (the default one until
   you save) on install/update, on browser start and once a day. Until

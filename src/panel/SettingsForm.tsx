@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 
-import { AuctionCurrency } from "../core/currency/AuctionCurrency.ts";
+import { UserCurrency, type UserCurrencyOption } from "../core/currency/UserCurrency.ts";
 import type { ExchangeRates } from "../core/rates/ExchangeRates.ts";
 import { Settings, type NumericSetting } from "../core/settings/Settings.ts";
 import { Rates } from "./Rates.tsx";
@@ -54,6 +54,8 @@ const toDraft = ({ settings }: ShownSettings): Draft => ({
  * ship from - the currency once, for every auction.
  * @param props.shown the values to show; a new object (another auction, after
  *   saving) replaces whatever was typed, even when the values are the same
+ * @param props.currencies the currencies the user can pick; the shown and the
+ *   picked one are offered even when missing there
  * @param props.pageCurrencies currencies of the page's prices, which the
  *   shipment is entered in
  * @param props.rates of the picked currency, shown under its select; undefined
@@ -64,12 +66,14 @@ const toDraft = ({ settings }: ShownSettings): Draft => ({
  */
 export function SettingsForm({
   shown,
+  currencies,
   pageCurrencies,
   rates,
   onCurrencyChange,
   onSave,
 }: {
   shown: ShownSettings;
+  currencies: readonly UserCurrencyOption[];
   pageCurrencies: readonly string[];
   rates: ExchangeRates | null | undefined;
   onCurrencyChange: (code: string) => void;
@@ -199,9 +203,9 @@ export function SettingsForm({
               onCurrencyChange(event.target.value);
             }}
           >
-            {AuctionCurrency.CODES.map((code) => (
+            {UserCurrency.including(currencies, draft.currency).map(({ code, name }) => (
               <option key={code} value={code}>
-                {code}
+                {code} – {name}
               </option>
             ))}
           </select>

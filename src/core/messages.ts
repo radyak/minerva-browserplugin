@@ -1,3 +1,4 @@
+import type { UserCurrencyOption } from "./currency/UserCurrency.ts";
 import type { ExchangeRatesJSON } from "./rates/ExchangeRates.ts";
 import type { TabState } from "./state/TabState.ts";
 
@@ -9,6 +10,8 @@ export const MSG = Object.freeze({
   STATE_CHANGED: "state-changed",
   /** panel -> background: the current exchange rates of `base` */
   GET_RATES: "get-rates",
+  /** panel -> background: the currencies the user can pick */
+  GET_CURRENCIES: "get-currencies",
 } as const);
 
 export type MessageType = (typeof MSG)[keyof typeof MSG];
@@ -29,6 +32,10 @@ export interface Protocol {
   [MSG.GET_RATES]: {
     payload: { base: string };
     answer: { rates: ExchangeRatesJSON } | { error: string };
+  };
+  [MSG.GET_CURRENCIES]: {
+    payload: object;
+    answer: { currencies: UserCurrencyOption[] } | { error: string };
   };
 }
 

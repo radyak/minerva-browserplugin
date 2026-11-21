@@ -54,6 +54,17 @@ test("RatesClient requests and parses the rates", async () => {
   assert.deepEqual(rates.rates, { EUR: 1.16, USD: 1.32, CHF: 1.09 });
 });
 
+test("RatesClient lists the currencies the API has rates for", async () => {
+  const body = { USD: "United States Dollar", CHF: "Swiss Franc", XYZ: "Nothing", EUR: "" };
+  assert.deepEqual(await new RatesClient(fakeFetch(body)).currencies(), [
+    { code: "CHF", name: "Swiss Franc" },
+    { code: "USD", name: "United States Dollar" },
+  ]);
+  assert.equal(lastUrl, "https://api.frankfurter.dev/v1/currencies");
+  await assert.rejects(new RatesClient(fakeFetch({})).currencies(), /Unexpected/);
+  await assert.rejects(new RatesClient(fakeFetch({}, 503)).currencies(), /HTTP 503/);
+});
+
 test("RatesClient fails on an HTTP error", async () => {
   await assert.rejects(new RatesClient(fakeFetch({}, 503)).fetch("EUR"), /HTTP 503/);
 });

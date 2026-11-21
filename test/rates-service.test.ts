@@ -13,6 +13,11 @@ const GBP = new Settings({ auctionPremium: 0, shipment: 0, currency: "GBP" });
 function countingClient({ fail = false } = {}) {
   return {
     requests: [] as string[],
+    async currencies() {
+      this.requests.push("currencies");
+      if (fail) throw new Error("offline");
+      return [{ code: "EUR", name: "Euro" }];
+    },
     async fetch(base) {
       this.requests.push(base);
       if (fail) throw new Error("offline");
@@ -42,6 +47,22 @@ test("fetches again when asked for fresh rates", async () => {
   assert.deepEqual(client.requests, ["GBP", "GBP"]);
 });
 
+test("reuses the list of currencies for a day", async () => {
+  let now = 0;
+  const client = countingClient();
+  const service = new RatesService({ store: fakeStore(), client, now: () => now });
+  assert.deepEqual(await service.currencies(), [{ code: "EUR", name: "Euro" }]);
+  now = 24 * HOUR - 1;
+  await service.currencies();
+  now = 24 * HOUR;
+  await service.currencies();
+  assert.deepEqual(client.requests, ["currencies", "currencies"]);
+  await assert.rejects(
+    new RatesService({ store: fakeStore(), client: countingClient({ fail: true }) }).currencies(),
+    /offline/,
+  );
+});
+
 test("fails when the rates cannot be loaded", async () => {
   const service = new RatesService({ store: fakeStore(), client: countingClient({ fail: true }) });
   await assert.rejects(service.get("GBP"), /offline/);
@@ -66,6 +87,7 @@ test("keeps the saved rates of a currency whose refresh fails", async () => {
   vi.spyOn(console, "warn").mockImplementation(() => {});
   const store = fakeStore({ book: bookOf([{ site: "https://a.test" }, GBP]) });
   const client = {
+    currencies: async () => [],
     async fetch(base) {
       if (base === "GBP") throw new Error("offline");
       return ExchangeRates.empty(base);

@@ -271,6 +271,7 @@ hand), linting is ESLint's recommended set plus `typescript-eslint`'s for `.ts`/
   (code → base). It drops invalid entries on construction and is immutable.
 - **The background owns the exchange rates** (`RatesService` in `src/background/`, the only user
   of `RatesClient`). It answers the panel's `GET_RATES` (reusing fetched rates for an hour) and
+  `GET_CURRENCIES` (the API's currency list, reused for a day), and
   keeps the saved rates fresh: on install/update, on browser start and via a daily `alarms`
   alarm (`refresh-exchange-rates`; re-created on start because Firefox drops alarms on restart).
   A refresh covers the user's currency (`SettingsBook#currency`, the default one until saved).
@@ -280,13 +281,17 @@ hand), linting is ESLint's recommended set plus `typescript-eslint`'s for `.ts`/
   latest request (`ratesFor()`). Rates are stored
   per base currency; without stored rates for a currency only the output currency itself (1:1)
   is known.
-- Rates come from Frankfurter (`EXCHANGE_RATES_URL` in `config.ts`, plain `fetch` with an
+- The panel's currency select lists what `GET_CURRENCIES` answers (`useCurrencies`), plus the
+  shown/picked currency (`UserCurrency.including()`); until it arrives, or when the API is
+  unreachable, `UserCurrency.fallback()`: the auction currencies, named via `Intl.DisplayNames`.
+- Rates come from Frankfurter (`EXCHANGE_RATES_URL` in `config.ts`, the currency list from
+  `CURRENCIES_URL`, plain `fetch` with an
   injectable fetch function for tests). It sends `Access-Control-Allow-Origin: *`, so no
   `host_permissions` are needed.
 
 ## Message flow
 
-Four types only, in `src/core/messages.ts`:
+Five types only, in `src/core/messages.ts`:
 
 - background → content: `SYNC_REQUEST` on `tabs.onUpdated` (fires for SPA `pushState` too, which
   is how in-page navigation is caught); content also self-syncs on load, `popstate`, `hashchange`
@@ -298,6 +303,8 @@ Four types only, in `src/core/messages.ts`:
   (`TabState.equals()`). Background turns it into the toolbar badge, the panel re-asks the tab.
 - panel → background: `GET_RATES` (`base`), answered with `{ rates }` (`ExchangeRates#toJSON()`)
   or `{ error }`.
+- panel → background: `GET_CURRENCIES`, answered with `{ currencies: [{ code, name }] }` (the
+  currencies the user can pick) or `{ error }`.
 - panel → content (active tab): `PREVIEW` (`{ preview: { key, settings, rates } | null }`),
   the form's unsaved values for the price pop-up only - the annotations keep the saved values.
   Applied only while `key` is the page's `AuctionKey`; `null` when nothing is unsaved (after

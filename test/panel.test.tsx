@@ -81,6 +81,7 @@ const flush = () =>
  * @param options.state what the content script of the active `tab` answers
  *   (null: there is none); `setState()` changes it later
  * @param options.client the background's rates source
+ * @param options.currencies what the background answers to GET_CURRENCIES (none by default)
  */
 async function openPanel({
   book = bookOf([{ site: SHOP }, GBP]),
@@ -89,6 +90,7 @@ async function openPanel({
   tab = { id: 1, url: `${SHOP}/lot/1` } as object | null,
   settled = true,
   version = undefined as string | undefined,
+  currencies = undefined as unknown,
 } = {}) {
   let current = state;
   const tabs = fakeTabs(tab);
@@ -96,6 +98,7 @@ async function openPanel({
   const bus = fakeBus({
     answers: {
       tab: () => current,
+      [MSG.GET_CURRENCIES]: currencies,
       // What BackgroundController.ratesFor() answers.
       [MSG.GET_RATES]: async ({ base }: { base: string }) => {
         try {
@@ -121,6 +124,7 @@ async function openPanel({
 }
 
 const input = (label: string) => screen.getByLabelText(label) as HTMLInputElement;
+const currencyOptions = () => [...(input("Your Currency") as unknown as HTMLSelectElement).options];
 const form = () => document.querySelector("form");
 const ratesSection = () => screen.getByRole("region", { name: "Exchange rates" });
 const ratesInfo = () => ratesSection().querySelector(".form-text")!;
@@ -153,8 +157,8 @@ const submit = async () => {
 test("shows the saved settings and the rates on open", async () => {
   const { store } = await openPanel();
   assert.deepEqual(
-    [...(input("Your Currency") as unknown as HTMLSelectElement).options].map((o) => o.value),
-    ["EUR", "USD", "GBP", "CHF"],
+    currencyOptions().map(({ value }) => value),
+    ["CHF", "EUR", "GBP", "USD"], // the auction currencies, without the API's list
   );
   assert.equal(input("Your Currency").value, "GBP");
   assert.equal(input("Auction premium").value, "20");
@@ -383,6 +387,32 @@ test("stops listening once closed", async () => {
   tabs.updated(2, { status: "complete" });
   await settle();
   assert.equal(bus.sentToTabs.length, before);
+});
+
+test("offers the currencies of the rates API, and the saved one in any case", async () => {
+  const INR = new Settings({ auctionPremium: 0, shipment: 0, currency: "INR" });
+  await openPanel({
+    book: bookOf([{ site: SHOP }, INR]),
+    currencies: {
+      currencies: [
+        { code: "CAD", name: "Canadian Dollar" },
+        { code: "EUR", name: "Euro" },
+      ],
+    },
+  });
+  assert.deepEqual(
+    currencyOptions().map(({ textContent }) => textContent),
+    ["CAD – Canadian Dollar", "EUR – Euro", "INR – Indian Rupee"],
+  );
+  assert.equal(input("Your Currency").value, "INR");
+});
+
+test("offers the auction currencies when the list is unavailable", async () => {
+  await openPanel({ currencies: { error: "offline" } });
+  assert.deepEqual(
+    currencyOptions().map(({ value }) => value),
+    ["CHF", "EUR", "GBP", "USD"],
+  );
 });
 
 test("shows the currencies of the page's prices next to the shipment", async () => {

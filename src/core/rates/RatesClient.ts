@@ -1,5 +1,6 @@
-import { EXCHANGE_RATES_URL } from "../config.ts";
+import { CURRENCIES_URL, EXCHANGE_RATES_URL } from "../config.ts";
 import { AuctionCurrency } from "../currency/AuctionCurrency.ts";
+import { UserCurrency, type UserCurrencyOption } from "../currency/UserCurrency.ts";
 import { ExchangeRates } from "./ExchangeRates.ts";
 
 /** The part of `fetch` RatesClient needs. */
@@ -40,10 +41,22 @@ export class RatesClient {
    * The current rates of `base` against the auction currencies.
    */
   async fetch(base: string): Promise<ExchangeRates> {
+    return ExchangeRates.fromJSON(await this.#get(this.urlFor(base)), base, this.codes);
+  }
+
+  /**
+   * The currencies the API has rates for - the ones a user can pick - sorted by code.
+   */
+  async currencies(): Promise<UserCurrencyOption[]> {
+    return UserCurrency.fromJSON(await this.#get(CURRENCIES_URL));
+  }
+
+  /** The JSON answer of `url`; rejects on an HTTP error. */
+  async #get(url: string): Promise<unknown> {
     // Called unbound: `fetch` throws "Illegal invocation" with a foreign `this`.
     const fetchFn = this.fetchFn;
-    const response = await fetchFn(this.urlFor(base));
+    const response = await fetchFn(url);
     if (!response.ok) throw new Error(`Exchange rates request failed: HTTP ${response.status}`);
-    return ExchangeRates.fromJSON(await response.json(), base, this.codes);
+    return response.json();
   }
 }

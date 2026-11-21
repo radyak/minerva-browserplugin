@@ -4,6 +4,7 @@ import type { MessageBus } from "../browser/MessageBus.ts";
 import type { SettingsStore } from "../browser/SettingsStore.ts";
 import { isIsoCurrency } from "../core/currency/codes.ts";
 import { MSG } from "../core/messages.ts";
+import type { UserCurrencyOption } from "../core/currency/UserCurrency.ts";
 import type { ExchangeRatesJSON } from "../core/rates/ExchangeRates.ts";
 import { SITES } from "../core/sites/sites.config.ts";
 import { findSite, type AuctionSite } from "../core/sites/sites.ts";
@@ -15,7 +16,7 @@ type Deps = {
   ext: Pick<WxtBrowser, "tabs" | "action" | "alarms" | "runtime">;
   bus: Pick<MessageBus, "on" | "sendToTab">;
   store: Pick<SettingsStore, "migrate">;
-  rates: Pick<RatesService, "get" | "refreshSaved">;
+  rates: Pick<RatesService, "get" | "currencies" | "refreshSaved">;
   sites?: readonly AuctionSite[];
 };
 
@@ -71,7 +72,8 @@ export class BackgroundController {
       .on(MSG.STATE_CHANGED, (message, sender) => {
         if (sender.tab?.id != null) this.updateBadge(sender.tab.id, TabState.from(message).active);
       })
-      .on(MSG.GET_RATES, (message) => this.ratesFor(message.base));
+      .on(MSG.GET_RATES, (message) => this.ratesFor(message.base))
+      .on(MSG.GET_CURRENCIES, () => this.currencies());
   }
 
   /**
@@ -81,6 +83,17 @@ export class BackgroundController {
     if (!isIsoCurrency(base)) return { error: `Unsupported currency: ${String(base)}` };
     try {
       return { rates: (await this.#deps.rates.get(base)).toJSON() };
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : String(error) };
+    }
+  }
+
+  /**
+   * The currencies the user can pick, for the panel.
+   */
+  async currencies(): Promise<{ currencies: UserCurrencyOption[] } | { error: string }> {
+    try {
+      return { currencies: await this.#deps.rates.currencies() };
     } catch (error) {
       return { error: error instanceof Error ? error.message : String(error) };
     }
