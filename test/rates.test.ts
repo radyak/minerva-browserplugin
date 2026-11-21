@@ -21,10 +21,16 @@ const fakeFetch =
 
 const CODES = ["EUR", "USD", "GBP", "CHF"];
 
-test("asks for the other supported currencies only", () => {
+test("asks for the other auction currencies only", () => {
   const url = new URL(new RatesClient().urlFor("USD"));
   assert.equal(url.searchParams.get("base"), "USD");
-  assert.equal(url.searchParams.get("symbols"), "EUR,GBP,CHF");
+  assert.equal(
+    url.searchParams.get("symbols"),
+    "EUR,GBP,CHF,CAD,AUD,NZD,JPY,DKK,SEK,NOK,CZK,PLN,HUF",
+  );
+  // A user currency that prices are never in: every auction currency.
+  const inr = new URL(new RatesClient().urlFor("INR"));
+  assert.equal(inr.searchParams.get("symbols")?.split(",").length, 14);
 });
 
 test("keeps the requested currencies of a valid response", () => {

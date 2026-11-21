@@ -14,12 +14,26 @@ What the extension does on a page and in the panel, from the user's point of vie
   price element itself is never modified. Re-running is idempotent: the
   annotation is only written when its text actually changes, so the extension's
   own DOM writes cannot drive the observer in circles.
-- The input currency is read from the price text: `EUR`/`USD`/`GBP`/`CHF` as a
-  standalone code, or `€`, `$`, `US$`, `£`, `Fr.`, `SFr.`; the one closest to
-  the number wins (prefix before suffix).
+- The input currency is read from the price text, by its code standing on its own
+  or by an unambiguous symbol; the one closest to the number wins (prefix before
+  suffix). A token is never read out of a word (`Kft.` holds no `Ft`):
+
+  | Currency | Recognised as |
+  | --- | --- |
+  | EUR | `EUR`, `€` |
+  | USD | `USD`, `US$`, `$` (a bare `$` is always USD) |
+  | GBP | `GBP`, `£` |
+  | CHF | `CHF`, `SFr.`, `Fr.` |
+  | CAD, AUD, NZD | the code, `C$`/`CA$`, `A$`/`AU$`, `NZ$` |
+  | JPY | `JPY`, `¥`, `￥` |
+  | DKK, SEK, NOK | the code only - `kr` could be any of them |
+  | CZK, PLN, HUF | the code, `Kč`, `zł`, `Ft` |
+
+  Amounts are written with the decimal places of their currency: none for JPY
+  and HUF, two for the others.
 - When the text holds no parsable price (`sold out`, an empty element, a value
   the page has not filled in yet), or its currency is missing, unsupported or
-  has no exchange rate (`500`, `¥500`, foreign prices before any rates were
+  has no exchange rate (`500`, `₹500`, `500 kr`, foreign prices before any rates were
   saved), the sibling is still inserted and shows
   `UNPARSABLE_TEXT` (`n/a`), flagged with `data-minerva-unparsable` and greyed out by
   `content.css`. It turns back into a real amount as soon as the text becomes a

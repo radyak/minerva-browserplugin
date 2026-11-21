@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, test } from "vitest";
 
+import { AuctionCurrency } from "../src/core/currency/AuctionCurrency.ts";
 import { MSG } from "../src/core/messages.ts";
 import { ExchangeRates } from "../src/core/rates/ExchangeRates.ts";
 import { AuctionKey } from "../src/core/settings/AuctionKey.ts";
@@ -158,7 +159,7 @@ test("shows the saved settings and the rates on open", async () => {
   const { store } = await openPanel();
   assert.deepEqual(
     currencyOptions().map(({ value }) => value),
-    ["CHF", "EUR", "GBP", "USD"], // the auction currencies, without the API's list
+    [...AuctionCurrency.CODES].sort(), // the auction currencies, without the API's list
   );
   assert.equal(input("Your Currency").value, "GBP");
   assert.equal(input("Auction premium").value, "20");
@@ -411,7 +412,7 @@ test("offers the auction currencies when the list is unavailable", async () => {
   await openPanel({ currencies: { error: "offline" } });
   assert.deepEqual(
     currencyOptions().map(({ value }) => value),
-    ["CHF", "EUR", "GBP", "USD"],
+    [...AuctionCurrency.CODES].sort(),
   );
 });
 

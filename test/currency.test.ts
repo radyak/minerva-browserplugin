@@ -45,9 +45,16 @@ test("offers the auction currencies and the saved one without the API's list", (
 
 test("looks a currency up by its code", () => {
   assert.equal(AuctionCurrency.of("GBP"), AuctionCurrency.GBP);
-  assert.equal(AuctionCurrency.of("JPY"), null);
+  assert.equal(AuctionCurrency.of("HKD"), null);
   assert.equal(AuctionCurrency.of(undefined), null);
-  assert.deepEqual(AuctionCurrency.CODES, ["EUR", "USD", "GBP", "CHF"]);
+  assert.deepEqual(AuctionCurrency.CODES, [
+    ...["EUR", "USD", "GBP", "CHF", "CAD", "AUD", "NZD", "JPY"],
+    ...["DKK", "SEK", "NOK", "CZK", "PLN", "HUF"],
+  ]);
+  // Each one a real currency, each token for one currency only.
+  assert.ok(AuctionCurrency.CODES.every((code) => isIsoCurrency(code)));
+  const tokens = AuctionCurrency.ALL.flatMap((currency) => currency.tokens);
+  assert.equal(new Set(tokens).size, tokens.length);
 });
 
 test("knows the decimal places of a currency", () => {
@@ -79,6 +86,9 @@ test("detects every token of every supported currency", () => {
 
 test("prefers the longer token at the same position", () => {
   const detector = new CurrencyDetector();
+  assert.equal(detector.find("CA$ ", "before")?.code, "CAD");
+  assert.equal(detector.find("AU$ ", "before")?.code, "AUD");
+  assert.equal(detector.find("NZ$ ", "before")?.code, "NZD");
   assert.deepEqual(detector.find("US$ ", "before"), { code: "USD", token: "US$", index: 0 });
   assert.deepEqual(detector.find("SFr. ", "before"), { code: "CHF", token: "SFr.", index: 0 });
 });

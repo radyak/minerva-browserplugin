@@ -54,13 +54,37 @@ export class AuctionCurrency {
   static USD = new AuctionCurrency("USD", "$", ["USD", "US$", "$"]);
   static GBP = new AuctionCurrency("GBP", "£", ["GBP", "£"]);
   static CHF = new AuctionCurrency("CHF", "CHF", ["CHF", "SFr.", "Fr."]);
+  // A bare "$" stays USD: the other dollars only by their prefixed symbols.
+  static CAD = new AuctionCurrency("CAD", "C$", ["CAD", "C$", "CA$"]);
+  static AUD = new AuctionCurrency("AUD", "A$", ["AUD", "A$", "AU$"]);
+  static NZD = new AuctionCurrency("NZD", "NZ$", ["NZD", "NZ$"]);
+  // "￥" is the full-width sign of Japanese pages.
+  static JPY = new AuctionCurrency("JPY", "¥", ["JPY", "¥", "￥"], 0);
+  // The krone/krona are only read by their codes: "kr" alone could be any of them.
+  static DKK = new AuctionCurrency("DKK", "DKK", ["DKK"]);
+  static SEK = new AuctionCurrency("SEK", "SEK", ["SEK"]);
+  static NOK = new AuctionCurrency("NOK", "NOK", ["NOK"]);
+  static CZK = new AuctionCurrency("CZK", "Kč", ["CZK", "Kč"]);
+  static PLN = new AuctionCurrency("PLN", "zł", ["PLN", "zł"]);
+  // ISO 4217 gives the forint 2 decimals, but prices are written without them.
+  static HUF = new AuctionCurrency("HUF", "Ft", ["HUF", "Ft"], 0);
 
-  /** Every auction currency, in the order the panel lists them. */
+  /** Every auction currency. */
   static ALL = Object.freeze([
     AuctionCurrency.EUR,
     AuctionCurrency.USD,
     AuctionCurrency.GBP,
     AuctionCurrency.CHF,
+    AuctionCurrency.CAD,
+    AuctionCurrency.AUD,
+    AuctionCurrency.NZD,
+    AuctionCurrency.JPY,
+    AuctionCurrency.DKK,
+    AuctionCurrency.SEK,
+    AuctionCurrency.NOK,
+    AuctionCurrency.CZK,
+    AuctionCurrency.PLN,
+    AuctionCurrency.HUF,
   ]);
 
   /** The ISO codes of `AuctionCurrency.ALL`, in the same order. */
