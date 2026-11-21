@@ -47,16 +47,19 @@ test("fails when the rates cannot be loaded", async () => {
   await assert.rejects(service.get("GBP"), /offline/);
 });
 
-test("refreshes the rates of every saved currency and of the default one", async () => {
+test("refreshes the rates of the user's currency", async () => {
   const store = fakeStore({ book: bookOf([{ site: "https://a.test" }, GBP]) });
   const client = countingClient();
   const service = new RatesService({ store, client });
-  assert.deepEqual(await service.refreshSaved(), ["EUR", "GBP"]);
-  assert.deepEqual(client.requests, ["EUR", "GBP"]);
-  assert.deepEqual(store.savedRates, [
-    new ExchangeRates("EUR", "1", { EUR: 1.1 }),
-    new ExchangeRates("GBP", "2", { EUR: 1.1 }),
-  ]);
+  assert.deepEqual(await service.refreshSaved(), ["GBP"]);
+  assert.deepEqual(client.requests, ["GBP"]);
+  assert.deepEqual(store.savedRates, [new ExchangeRates("GBP", "1", { EUR: 1.1 })]);
+});
+
+test("refreshes the rates of the default currency while none is saved", async () => {
+  const store = fakeStore();
+  const client = countingClient();
+  assert.deepEqual(await new RatesService({ store, client }).refreshSaved(), ["EUR"]);
 });
 
 test("keeps the saved rates of a currency whose refresh fails", async () => {
@@ -69,6 +72,6 @@ test("keeps the saved rates of a currency whose refresh fails", async () => {
     },
   };
   const service = new RatesService({ store, client });
-  assert.deepEqual(await service.refreshSaved(), ["EUR"]);
-  assert.deepEqual(store.savedRates, [ExchangeRates.empty("EUR")]);
+  assert.deepEqual(await service.refreshSaved(), []);
+  assert.deepEqual(store.savedRates, []);
 });

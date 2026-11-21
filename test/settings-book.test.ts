@@ -74,7 +74,7 @@ test("follows the order and choice of its scopes", () => {
     [{ site: A, house: "leu", auction: "1" }, premium(10)],
     [{ site: A, house: "cng", auction: "2" }, premium(20)],
   ).entries;
-  const book = new SettingsBook(entries, siteOnly);
+  const book = new SettingsBook(entries, { scopes: siteOnly });
   assert.deepEqual(resolve(book, { site: A, house: "leu", auction: "1" }), [20, "site"]);
   assert.deepEqual(
     SETTINGS_SCOPES.map((scope) => scope.name),
@@ -92,9 +92,9 @@ test("survives a round trip through storage and drops entries without a site", (
     site: B,
     house: null,
     auction: null,
-    settings: premium(20).toJSON(),
+    settings: premium(20).perAuction(),
   });
-  assert.deepEqual(SettingsBook.from(stored), book);
+  assert.deepEqual(SettingsBook.from(stored, { currency: book.currency }), book);
   assert.deepEqual(SettingsBook.from([{ house: "leu", settings: {} }, null]).entries, []);
   assert.deepEqual(SettingsBook.from("garbage").entries, []);
   assert.deepEqual(SettingsBook.from([{ site: A, settings: { auctionPremium: 500 } }]).entries, [
@@ -106,14 +106,29 @@ test("stores only the key's own fields, even when given a whole tab state", () =
   const state = { site: A, house: "leu", auction: "1", active: true, annotated: 2 };
   const book = new SettingsBook().with(state, premium(10));
   assert.deepEqual(book.toJSON(), [
-    { site: A, house: "leu", auction: "1", settings: premium(10).toJSON() },
+    { site: A, house: "leu", auction: "1", settings: premium(10).perAuction() },
   ]);
 });
 
-test("lists the currencies of all saved settings", () => {
-  const book = bookOf(
-    [{ site: A }, premium(10)],
-    [{ site: B }, new Settings({ auctionPremium: 0, shipment: 0, currency: "CHF" })],
-  );
-  assert.deepEqual([...book.currencies()], ["EUR", "CHF"]);
+test("holds one currency for every auction: the one saved last", () => {
+  const CHF = new Settings({ auctionPremium: 0, shipment: 0, currency: "CHF" });
+  const book = bookOf([{ site: A }, premium(10)], [{ site: B }, CHF]);
+  assert.equal(book.currency, "CHF");
+  // Saving for one auction changes the currency of all of them.
+  assert.deepEqual(resolve(book, { site: A }), [10, "site"]);
+  assert.equal(book.resolve(AuctionKey.from({ site: A }))?.settings.currency, "CHF");
+  assert.deepEqual(book.defaults, Settings.DEFAULT.withCurrency("CHF"));
+  // Not stored per entry, but on its own.
+  assert.ok(book.toJSON().every(({ settings }) => !("currency" in settings)));
+  const loaded = SettingsBook.from(structuredClone(book.toJSON()), { currency: "CHF" });
+  assert.deepEqual(loaded, book);
+});
+
+test("falls back to the default currency when none or an unsupported one is stored", () => {
+  for (const currency of [undefined, null, "XYZ", 42]) {
+    const book = SettingsBook.from([{ site: A, settings: { auctionPremium: 10 } }], { currency });
+    assert.equal(book.currency, Settings.DEFAULT.currency, String(currency));
+    assert.equal(book.entries[0]?.settings.currency, Settings.DEFAULT.currency);
+    assert.deepEqual(book.defaults, Settings.DEFAULT);
+  }
 });

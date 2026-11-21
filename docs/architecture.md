@@ -181,16 +181,16 @@ test/          *.test.ts: core units, browser layer and controllers (jsdom docum
 | --- | --- | --- |
 | `ContentController` | `window`, `bus`, `store`, `sites` (default `SITES`), `annotator` (default `PriceAnnotator`), `isValid` | Load settings and rates, annotate the page with the settings resolved for its `AuctionKey` (on every sync), re-sync on navigation/DOM/settings changes, answer `SYNC_REQUEST`, report `STATE_CHANGED` |
 | `BackgroundController` | `ext`, `bus`, `store`, `rates` (`RatesService`), `sites` | Toolbar badge, `SYNC_REQUEST` to a tab on navigation, answer `GET_RATES`, storage migration, rates refresh schedule |
-| `Panel` (props) | `tabs`, `bus`, `store`, `sites`, `version` | Ask the active tab for its state (`SYNC_REQUEST`, by URL without a content script), show the settings resolved for its auction (reloaded when its `AuctionKey` changes), save them (the settings under that key), show rates of the selected currency |
+| `Panel` (props) | `tabs`, `bus`, `store`, `sites`, `version` | Ask the active tab for its state (`SYNC_REQUEST`, by URL without a content script), show the settings resolved for its auction (reloaded when its `AuctionKey` changes), save them (the settings under that key, their currency for every auction), show rates of the selected currency |
 
 | Helper | Owned by | Purpose |
 | --- | --- | --- |
-| `RatesService` | Background | The only user of `RatesClient`; one-hour cache for the panel's requests, refreshes the saved rates of every currency in use |
+| `RatesService` | Background | The only user of `RatesClient`; one-hour cache for the panel's requests, refreshes the saved rates of the user's currency |
 | `useRates` | Panel | Rates of the currency picked in the panel (React hook); a newer request supersedes older ones, Save waits for the latest |
 | `PriceAnnotator` / `AnnotationView` | Content | *What* to show (wrapper rule, pricing) / writes the annotations, only on change |
 | `BreakdownPopup` | Content | the one pop-up explaining a price (`position: fixed`, appended to the body, next to its bubble); the only other class writing to the page, only on change |
 | `MessageBus` | all | `on(type, handler)` dispatch; returns `true` for async answers so the channel stays open |
-| `SettingsStore` | all | `load()` → `{ book, rates }` in one read, `save(key, settings, rates)` in one write, `saveRates()`, `onChange()` (once per changed key) → unsubscribe, `migrate()`; WXT storage items `local:auctionSettings`, `local:exchangeRates`, `local:storageVersion` |
+| `SettingsStore` | all | `load()` → `{ book, rates }` in one read, `save(key, settings, rates)` in one write, `saveRates()`, `onChange()` (once per changed key) → unsubscribe, `migrate()`; WXT storage items `local:auctionSettings`, `local:currency`, `local:exchangeRates`, `local:storageVersion` |
 
 ## HTML components
 
@@ -202,7 +202,7 @@ test/          *.test.ts: core units, browser layer and controllers (jsdom docum
 | --- | --- | --- |
 | `Panel` | everything below; the form and the header only while the active tab is on a site (`TabState.onSite()`: active with a site; the IDs are optional), otherwise Minerva saying "?" with "No auction or site active" - neither until the tab's state is known | the active tab's `TabState`, the shown settings and their scope, the picked currency; asks the tab on open, on `STATE_CHANGED`, `tabs.onActivated`, `tabs.onUpdated`; `save()` |
 | `AuctionHeader` | house and auction ID from the URL ("unknown" when not found); "Values from" pills, one per `SETTINGS_SCOPES` entry plus *Defaults*, the one the form's values come from highlighted (`aria-current`, tooltip "Saved for this auction house.") | – |
-| `SettingsForm` | one section, all saved per auction: currency (options from `Currency.CODES`) with `Rates` under it, effective auction premium (%), shipment with the currencies of the page's prices next to it ("–" for none), lots won, payment costs (%) and the switch *Advanced settings* revealing the hammer price VAT (%), import VAT (%) and flat fees (in the picked currency) - on at first when one of them is set, counted as 0 while off; `min`/`max`/`step` from `Settings.RANGES`; a "?" toggle per input for its hint; *Save*, filled while the form differs from the shown values; "Saved." for 2 s | the inputs' text and the switch (an emptied input keeps the shown value), reset when values are shown anew; currency `change` → `onCurrencyChange`, `submit` → validate the rendered inputs → `onSave(settings)`; the entered values (as JSON) → `onDraft` whenever they change, `null` while they equal the shown ones or once unmounted |
+| `SettingsForm` | one section, all saved per auction except the currency (one for every auction): currency (options from `Currency.CODES`) with `Rates` under it, effective auction premium (%), shipment with the currencies of the page's prices next to it ("–" for none), lots won, payment costs (%) and the switch *Advanced settings* revealing the hammer price VAT (%), import VAT (%) and flat fees (in the picked currency) - on at first when one of them is set, counted as 0 while off; `min`/`max`/`step` from `Settings.RANGES`; a "?" toggle per input for its hint; *Save*, filled while the form differs from the shown values; "Saved." for 2 s | the inputs' text and the switch (an emptied input keeps the shown value), reset when values are shown anew; currency `change` → `onCurrencyChange`, `submit` → validate the rendered inputs → `onSave(settings)`; the entered values (as JSON) → `onDraft` whenever they change, `null` while they equal the shown ones or once unmounted |
 | `Rates` | under the currency select: the rates the page needs ("1 GBP = 1.16 EUR"), their date / "Loading…" / "Exchange rates unavailable." / "No prices on this page." | – |
 | `PanelFooter` | the disclaimer, the report links, the build version at the very bottom ("v1.2.3+abc1234", `__VERSION__` from the environment variable `VERSION` at build time, "v0.0.0-dev" without) | – |
 | `useRates` (hook) | – | loads the picked currency's rates (`GET_RATES`); a superseded request is dropped, `ratesFor()` waits for the latest for Save |
@@ -279,11 +279,12 @@ Everything is stored in `storage.local` through `SettingsStore`, which defines o
 
 | Key | Value | Written by | Read by |
 | --- | --- | --- | --- |
-| `auctionSettings` | `[{ site, house, auction, settings: { auctionPremium, shipment, lotsWon, hammerVat, importVat, paymentCosts, flatFees, currency } }]` (`SettingsBook#toJSON()`), oldest first, one entry per key; a missing value reads as its default | panel on Save | content script, panel, background (currencies to refresh) |
+| `auctionSettings` | `[{ site, house, auction, settings: { auctionPremium, shipment, lotsWon, hammerVat, importVat, paymentCosts, flatFees } }]` (`SettingsBook#toJSON()`), oldest first, one entry per key; a missing value reads as its default | panel on Save | content script, panel |
+| `currency` | the user's currency (`SettingsBook#currency`), one for every auction; missing or unsupported = `Settings.DEFAULT.currency` | panel on Save | content script, panel, background (rates to refresh) |
 | `exchangeRates` | `{ [base]: { base, date, rates } }` (`ExchangeRates#toJSON()` per currency; `1 base = rates[code] code`) | panel on Save (with the settings, one write), background on refresh | content script |
-| `storageVersion` | layout version of `auctionSettings` and `exchangeRates` (`SettingsStore.VERSION`, currently 1; missing = 1) | panel on Save, background on install/update (`migrate()`) | every `load()` |
+| `storageVersion` | layout version of `auctionSettings`, `currency` and `exchangeRates` (`SettingsStore.VERSION`, currently 2 - version 1 kept a currency per entry; missing = 1) | panel on Save, background on install/update (`migrate()`) | every `load()` |
 
-The settings of a page are found by `SettingsBook#resolve()`, which tries `SETTINGS_SCOPES` (auction, then house, then site; see [Configuration](configuration.md#which-saved-settings-apply)); without a match the defaults apply. Without stored rates for a currency, only prices already in it are converted.
+The settings of a page are found by `SettingsBook#resolve()`, which tries `SETTINGS_SCOPES` (auction, then house, then site; see [Configuration](configuration.md#which-saved-settings-apply)); without a match the defaults apply. Either way in the user's one currency. Without stored rates for a currency, only prices already in it are converted.
 
 A layout change raises `SettingsStore.VERSION` and adds a function to `SettingsStore.MIGRATIONS` that turns the values of the previous version into the new one (none exist yet). Every `load()` applies the missing migrations in memory, so all contexts read the current layout even before the stored data is converted; the background's `migrate()` on `runtime.onInstalled` writes the converted data and the version once. It is a small runner of our own over both keys rather than WXT's per-item versioning, because `storage.setItems()` - our one-write save - stores no WXT version metadata.
 
@@ -296,7 +297,7 @@ A layout change raises `SettingsStore.VERSION` and adds a function to `SettingsS
 | Content | script injected (`document_idle`) | `start()`: load settings/rates, register listeners, `sync("load")`, observe the DOM |
 | Content | `MutationObserver` (`childList`, `characterData`, whole document) | one `sync("mutation")` per animation frame |
 | Content | `popstate`, `hashchange` | `sync("popstate")` / `sync("hashchange")` |
-| Content | `storage.local.onChanged` of `auctionSettings` or `exchangeRates` (WXT `item.watch()`, once per changed key) | reload settings/rates, `sync("settings")` |
+| Content | `storage.local.onChanged` of `auctionSettings`, `currency` or `exchangeRates` (WXT `item.watch()`, once per changed key) | reload settings/rates, `sync("settings")` |
 | Content | `SYNC_REQUEST` | reload settings/rates, `sync("request")`, answer the state |
 | Content | `PREVIEW` | keep (or drop) the panel's unsaved values, refresh the pop-up |
 | Content | `click` / `keydown` (Enter, Space, Escape) on the document, capture phase | on a bubble: open the pop-up for it (close it on its own bubble); Escape: close it |
@@ -342,7 +343,7 @@ sequenceDiagram
   participant PC as Panel
 
   Page->>CC: content script injected
-  CC->>Store: load() auctionSettings + exchangeRates
+  CC->>Store: load() auctionSettings + currency + exchangeRates
   CC->>Page: annotate with the settings resolved for the page's AuctionKey
   CC-)BC: STATE_CHANGED (reason "load")
   CC-)PC: STATE_CHANGED (if the panel is open)
@@ -410,12 +411,10 @@ sequenceDiagram
     Browser->>BC: alarms.onAlarm "refresh-exchange-rates"
   end
   BC->>RS: refreshSaved()
-  RS->>Store: load() → currencies of the saved settings + the default
-  loop every currency
-    RS->>API: GET latest?base=…&symbols=…
-    API-->>RS: rates (ECB reference)
-    RS->>Store: saveRates() — that currency only, a failure keeps the old ones
-  end
+  RS->>Store: load() → the user's currency (the default until saved)
+  RS->>API: GET latest?base=…&symbols=…
+  API-->>RS: rates (ECB reference)
+  RS->>Store: saveRates() — that currency only, a failure keeps the old ones
   Store-)Tabs: storage.local.onChanged → reload + sync("settings")
 ```
 

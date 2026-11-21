@@ -415,7 +415,8 @@ test("fills the form with the settings of the auction the active tab is on", asy
   await navigate({ house: "nac", auction: "9" });
   assert.deepEqual(showing(), ["CHF", "10", "Saved for this site."]);
   await navigate({ site: "https://other.test", house: "leu", auction: "1" });
-  assert.deepEqual(showing(), ["EUR", "0", "Nothing saved yet: defaults."]);
+  // The defaults, but in the user's currency: it is the same for every auction.
+  assert.deepEqual(showing(), ["CHF", "0", "Nothing saved yet: defaults."]);
   assert.ok(form());
   // On the site without IDs: the site's settings, still in the form.
   await navigate({ house: null, auction: null });

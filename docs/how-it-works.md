@@ -51,8 +51,9 @@ What the extension does on a page and in the panel, from the user's point of vie
   directly what it is doing; a tab without the content script (not loaded yet)
   is judged by its URL. Settings are saved per
   auction: *Save* stores them under the active tab's site, auction house and
-  auction ID, together with the exchange rates of their currency, in one write to
-  `storage.local` (`auctionSettings`, `exchangeRates`), and makes the active tab
+  auction ID - and the currency once, for every auction - together with the exchange
+  rates of that currency, in one write to `storage.local` (`auctionSettings`,
+  `currency`, `exchangeRates`), and makes the active tab
   recalculate right away; other open tabs follow via `storage.onChanged`. An
   emptied input keeps the value shown.
 - Whenever the active tab is on another auction (navigation, tab switch), the
@@ -66,8 +67,9 @@ What the extension does on a page and in the panel, from the user's point of vie
 - The shipment is entered in the auction's currency: next to it the panel shows
   the currency of the active tab's prices ("–" while none was found, all of them
   when the page mixes several), and it is converted together with the price.
-- The form holds every cost factor, all saved per auction (as above): currency,
-  auction premium, shipment, lots won and payment costs, then behind the switch
+- The form holds your currency - one for every auction: picking another one on any
+  auction and saving changes it everywhere - and every cost factor, all saved per
+  auction (as above): auction premium, shipment, lots won and payment costs, then behind the switch
   *Advanced settings* the hammer price VAT, import VAT and flat fees - payment
   costs differ between sites and houses, import VAT with the country an auction
   ships from. The switch starts on when one of the advanced values of the shown
@@ -89,8 +91,8 @@ What the extension does on a page and in the panel, from the user's point of vie
   rates against the other three from the Frankfurter API (through the background script) and saves them with the
   settings. Under the currency select the panel shows only the rates the active tab needs:
   from the currencies of its prices into the selected one (e.g. `1 USD = 0.8333 GBP`).
-  The background refreshes the saved rates of every currency in use (and of the
-  default currency) on install/update, on browser start and once a day. Until
+  The background refreshes the saved rates of your currency (the default one until
+  you save) on install/update, on browser start and once a day. Until
   rates for a currency have been stored once, only prices already in that
   currency are converted; all others show `n/a`.
 - The settings form is shown while the active tab is on a configured site. The

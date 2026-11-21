@@ -5,7 +5,7 @@ configured element on a configured auction site, calculates the effective price 
 settings entered in the side panel and inserts the result as a sibling element next to it. The
 side panel shows the exchange rates and holds the persisted auction premium, shipment,
 lots won, hammer price VAT, import VAT, payment costs, flat fees (all per auction; the
-shipment in the auction's currency) and currency inputs.
+shipment in the auction's currency) and the user's currency (one for every auction).
 
 `README.md` is the entry point; the chapters live in `docs/` (`how-it-works.md`: user-facing
 behaviour and the price-format table, `architecture.md`: components, messages, storage and event
@@ -203,32 +203,39 @@ hand), linting is ESLint's recommended set plus `typescript-eslint`'s for `.ts`/
 ## Settings and the effective price
 
 - **All storage goes through `SettingsStore` (`src/browser/SettingsStore.ts`).** The layout is
-  `{ auctionSettings: SettingsBook#toJSON(), exchangeRates: { [base]: ExchangeRates#toJSON() },
-  storageVersion }`; `load()` reads them in one `storage.local.get` (`storage.getItems`) and
-  returns the `SettingsBook` and the rates per currency. `save(key, settings, rates)` writes them
+  `{ auctionSettings: SettingsBook#toJSON(), currency: SettingsBook#currency, exchangeRates:
+  { [base]: ExchangeRates#toJSON() }, storageVersion }`; `load()` reads them in one
+  `storage.local.get` (`storage.getItems`) and returns the `SettingsBook` (with the currency)
+  and the rates per currency. `save(key, settings, rates)` writes them
   all in **one** `storage.local.set` (`storage.setItems`), so there is one change event and
   nobody sees new settings without their rates. `saveRates()` (background) writes the rates only,
-  so a refresh never undoes a concurrent save. `onChange()` watches the two data items
-  (`item.watch()`) and is therefore called once per changed key — up to twice after a
+  so a refresh never undoes a concurrent save. `onChange()` watches the three data items
+  (`item.watch()`) and is therefore called once per changed key — up to three times after a
   save, each time seeing all; the content script's re-sync is idempotent, so that is harmless. The items are
   defined in the constructor, never at module level: `defineItem()` reads storage right away, and
   entry points are imported in Node at build time.
 - **Changing the stored layout** means raising `SettingsStore.VERSION` and adding the conversion
-  from the previous version to `SettingsStore.MIGRATIONS` (none yet; data without
-  `storageVersion` is version 1). *Adding* a value to `Settings` needs none:
+  from the previous version to `SettingsStore.MIGRATIONS` (version 2 moved the currency out of
+  the entries into the global `currency`, taking the newest entry's; data without
+  `storageVersion` is version 1, an empty storage is a fresh install and needs no migration). *Adding* a value to `Settings` needs none:
   `from()` reads a missing value as its default. `load()` converts older data in memory in every context,
   `save()` writes the current version, and the background's `migrate()` (on `runtime.onInstalled`)
   rewrites the stored data once and records the version even on a fresh install. This is our own
-  runner over both keys, not WXT's per-item `version`/`migrations`: WXT's `storage.setItems()`
+  runner over all keys, not WXT's per-item `version`/`migrations`: WXT's `storage.setItems()`
   writes no version metadata, so data written that way would later be taken for version 1.
 - **Settings are saved per auction.** `SettingsBook` (`src/core/settings/`) holds one entry per
   `AuctionKey` (site origin + house + auction ID, as `TabState` carries them; `null` = unknown),
   newest last. `resolve(key)` walks `SETTINGS_SCOPES` (`SettingsScope.ts`: auction > house > site,
   each a list of key fields that must be equal) and returns the newest entry of the first scope
-  with one, or `null` - then `Settings.DEFAULT` applies. A scope is skipped when one of its fields
+  with one, or `null` - then `book.defaults` (`Settings.DEFAULT` in the user's currency) applies. A scope is skipped when one of its fields
   is unknown on the page, so unknown IDs never match each other. The lookup order lives only in
   `SETTINGS_SCOPES`; saving always stores the full key. The content script resolves on every
   `sync()` (so URL changes switch settings), the panel when the active tab's `AuctionKey` changes.
+- **The user's currency is global, not per auction.** `Settings` still carries `currency` (it is
+  the calculation's one input), but `SettingsBook` holds a single `currency`, sets it on every
+  entry it holds and stores the entries without it (`Settings#perAuction()`); `with()` adopts
+  the saved settings' currency for every auction. Read the currency from the book or from
+  resolved settings, never from an entry's stored JSON.
 - The panel shows the resolved settings and saves the full `Settings` under the active tab's key
   when Save is clicked; an emptied input keeps the value shown. **Every cost factor is per
   auction** - import VAT, payment costs and flat fees too, since sites, houses and the countries
@@ -259,8 +266,7 @@ hand), linting is ESLint's recommended set plus `typescript-eslint`'s for `.ts`/
   of `RatesClient`). It answers the panel's `GET_RATES` (reusing fetched rates for an hour) and
   keeps the saved rates fresh: on install/update, on browser start and via a daily `alarms`
   alarm (`refresh-exchange-rates`; re-created on start because Firefox drops alarms on restart).
-  A refresh covers every currency of the saved settings plus `Settings.DEFAULT.currency` (used
-  where nothing saved applies), each saved on its own.
+  A refresh covers the user's currency (`SettingsBook#currency`, the default one until saved).
 - The panel displays the rates it gets from the background and saves them together with the
   settings on Save (one write, see above). `useRates` (`src/panel/`) lets only the latest
   request count, so fast currency switches cannot show or store stale rates; Save waits for the

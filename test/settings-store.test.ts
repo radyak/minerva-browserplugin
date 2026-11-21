@@ -45,13 +45,27 @@ test("saves settings and their rates in one write and loads them back", async ()
   await store.save(AUCTION, GBP, GBP_RATES);
   assert.equal(writes.length, 1);
   assert.deepEqual(await data(), {
-    auctionSettings: [{ site: BIDDR, house: "leu", auction: "7", settings: GBP.toJSON() }],
+    auctionSettings: [{ site: BIDDR, house: "leu", auction: "7", settings: GBP.perAuction() }],
+    currency: "GBP",
     exchangeRates: { GBP: GBP_RATES.toJSON() },
-    storageVersion: 1,
+    storageVersion: SettingsStore.VERSION,
   });
   const { book, rates } = await store.load();
   assert.deepEqual(book.resolve(AUCTION)?.settings, GBP);
   assert.deepEqual(rates, { GBP: GBP_RATES });
+});
+
+test("stores the currency once, for every auction: the one saved last", async () => {
+  const { data } = await storageWith();
+  const store = new SettingsStore();
+  await store.save(SITE, CHF);
+  await store.save(AUCTION, GBP);
+  const { book } = await store.load();
+  assert.equal(book.currency, "GBP");
+  assert.equal(book.resolve(SITE)?.settings.currency, "GBP");
+  const saved = await data();
+  assert.equal(saved.currency, "GBP");
+  assert.ok(saved.auctionSettings.every(({ settings }) => !("currency" in settings)));
 });
 
 test("keeps the settings of other auctions and the rates of other currencies", async () => {
@@ -94,10 +108,11 @@ test("reports changes of its own keys in local storage only", async () => {
   let calls = 0;
   new SettingsStore().onChange(() => (calls += 1));
   await local.set({ auctionSettings: [] });
+  await local.set({ currency: "GBP" });
   await local.set({ exchangeRates: { GBP: GBP_RATES.toJSON() } });
   await local.set({ unrelated: 1 });
   await fakeBrowser.storage.sync.set({ auctionSettings: [{ site: BIDDR }] });
-  assert.equal(calls, 2);
+  assert.equal(calls, 3);
 });
 
 test("a save is one change event; every notification sees settings and rates together", async () => {
@@ -109,8 +124,8 @@ test("a save is one change event; every notification sees settings and rates tog
   store.onChange(() => seen.push(store.load()));
   await store.save(AUCTION, GBP, GBP_RATES);
   assert.equal(events, 1);
-  // Once per changed key (WXT watches keys one by one), always with both new values.
-  assert.equal(seen.length, 2);
+  // Once per changed key (WXT watches keys one by one), always with all new values.
+  assert.equal(seen.length, 3);
   for (const { book, rates } of await Promise.all(seen)) {
     assert.deepEqual(book.resolve(AUCTION)?.settings, GBP);
     assert.deepEqual(rates, { GBP: GBP_RATES });
@@ -130,16 +145,48 @@ test("records the layout version on install, once", async () => {
   const { writes, data } = await storageWith();
   const store = new SettingsStore();
   assert.equal(await store.migrate(), false);
-  assert.deepEqual(await data(), { storageVersion: 1 });
+  assert.deepEqual(await data(), { storageVersion: SettingsStore.VERSION });
   assert.equal(await store.migrate(), false);
   assert.equal(writes.length, 1);
 });
 
-/** A layout version 2 that renames `shipment` to `shipping` in every entry. */
+test("migrates the currencies of version 1 entries into one: the newest entry's", async () => {
+  const { data } = await storageWith({
+    auctionSettings: [
+      { ...SITE, settings: CHF.toJSON() },
+      { ...AUCTION, settings: GBP.toJSON() },
+    ],
+    exchangeRates: { GBP: GBP_RATES.toJSON() },
+  });
+  const store = new SettingsStore();
+  assert.equal(await store.migrate(), true);
+  assert.deepEqual(await data(), {
+    auctionSettings: [
+      { ...SITE, settings: CHF.perAuction() },
+      { ...AUCTION, settings: GBP.perAuction() },
+    ],
+    currency: "GBP",
+    exchangeRates: { GBP: GBP_RATES.toJSON() },
+    storageVersion: 2,
+  });
+  const { book } = await store.load();
+  assert.deepEqual(book.entries[0]?.settings, CHF.withCurrency("GBP"));
+});
+
+test("migrates version 1 data without entries to the default currency", async () => {
+  const { data } = await storageWith({ auctionSettings: [], exchangeRates: {} });
+  const store = new SettingsStore();
+  assert.equal(await store.migrate(), true);
+  assert.equal((await data()).currency, undefined);
+  assert.equal((await store.load()).book.currency, Settings.DEFAULT.currency);
+});
+
+/** A layout version 3 on top of the real ones that renames `shipping` to `shipment` in every entry. */
 const RENAMED = {
-  version: 2,
+  version: 3,
   migrations: {
-    2: (({ auctionSettings, exchangeRates }) => ({
+    ...SettingsStore.MIGRATIONS,
+    3: (({ auctionSettings, exchangeRates, currency }) => ({
       auctionSettings: (auctionSettings as any[]).map(
         ({ settings: { shipping, ...settings }, ...key }) => ({
           ...key,
@@ -147,6 +194,7 @@ const RENAMED = {
         }),
       ),
       exchangeRates,
+      currency,
     })) satisfies Migration,
   },
 };
@@ -171,11 +219,10 @@ test("migrates data of an older layout in one write and records the new version"
   assert.equal(await store.migrate(), true);
   assert.equal(writes.length, 1);
   assert.deepEqual(await data(), {
-    auctionSettings: [
-      { ...AUCTION, settings: { auctionPremium: 20, shipment: 15, currency: "GBP" } },
-    ],
+    auctionSettings: [{ ...AUCTION, settings: { auctionPremium: 20, shipment: 15 } }],
+    currency: "GBP",
     exchangeRates: { GBP: GBP_RATES.toJSON() },
-    storageVersion: 2,
+    storageVersion: 3,
   });
   assert.equal(await store.migrate(), false);
 });
@@ -184,9 +231,10 @@ test("a save writes the current layout version", async () => {
   const { data } = await storageWith({ auctionSettings: [V1_ENTRY] });
   await new SettingsStore(RENAMED).save(SITE, CHF);
   const saved = await data();
-  assert.equal(saved.storageVersion, 2);
+  assert.equal(saved.storageVersion, 3);
+  assert.equal(saved.currency, "CHF");
   assert.deepEqual(saved.auctionSettings, [
-    { ...AUCTION, settings: GBP.toJSON() },
-    { ...SITE, settings: CHF.toJSON() },
+    { ...AUCTION, settings: GBP.perAuction() },
+    { ...SITE, settings: CHF.perAuction() },
   ]);
 });

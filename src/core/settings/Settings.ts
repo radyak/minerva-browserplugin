@@ -13,6 +13,12 @@ export type SettingsJSON = {
   currency: string;
 };
 
+/**
+ * `Settings#perAuction()`: what is saved per auction - everything but the
+ * currency, which is the user's own and the same for every auction.
+ */
+export type AuctionSettingsJSON = Omit<SettingsJSON, "currency">;
+
 /** The numeric settings, each with its accepted range. */
 export type NumericSetting =
   | "auctionPremium"
@@ -24,9 +30,11 @@ export type NumericSetting =
   | "flatFees";
 
 /**
- * The settings of one auction - every cost factor, from the premium to the
- * payment costs, since they all differ between sites, houses and the countries
- * lots ship from - entered in the side panel and read by the content script.
+ * What the calculation of one auction's prices needs: every cost factor, from
+ * the premium to the payment costs - saved per auction, since they all differ
+ * between sites, houses and the countries lots ship from - and the user's
+ * currency, which is global (SettingsBook applies it to every auction).
+ * Entered in the side panel and read by the content script.
  * Knows the accepted ranges and how to turn stored data into
  * settings the calculation can rely on; where they are stored is
  * SettingsStore's business (src/browser/SettingsStore.ts). Immutable.
@@ -133,8 +141,21 @@ export class Settings {
     });
   }
 
-  /** Plain data to store. */
+  /**
+   * These settings in `currency`; the same object when they already are.
+   * Falls back to the default currency for an unsupported one, as `from()`.
+   */
+  withCurrency(currency: string): Settings {
+    return currency === this.currency ? this : Settings.from({ ...this.toJSON(), currency });
+  }
+
+  /** Plain data, with the currency. */
   toJSON(): SettingsJSON {
+    return { ...this.perAuction(), currency: this.currency };
+  }
+
+  /** Plain data to store per auction: without the currency, which is global. */
+  perAuction(): AuctionSettingsJSON {
     return {
       auctionPremium: this.auctionPremium,
       shipment: this.shipment,
@@ -143,7 +164,6 @@ export class Settings {
       importVat: this.importVat,
       paymentCosts: this.paymentCosts,
       flatFees: this.flatFees,
-      currency: this.currency,
     };
   }
 }

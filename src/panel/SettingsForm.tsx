@@ -49,8 +49,9 @@ const toDraft = ({ settings }: ShownSettings): Draft => ({
  * split over the lots won and payment costs, and behind the "Advanced cost
  * settings" switch the VAT on the hammer price, import VAT and flat fees -
  * switched on from the start when one of them is set, and saved as 0 while
- * switched off, so the form shows what is calculated. Every value is saved per auction -
- * sites and houses differ in all of them, down to the country lots ship from.
+ * switched off, so the form shows what is calculated. Every cost value is saved per
+ * auction - sites and houses differ in all of them, down to the country lots
+ * ship from - the currency once, for every auction.
  * @param props.shown the values to show; a new object (another auction, after
  *   saving) replaces whatever was typed, even when the values are the same
  * @param props.pageCurrencies currencies of the page's prices, which the
@@ -186,7 +187,7 @@ export function SettingsForm({
         <Field
           id="currency"
           label="Your Currency"
-          help="The currency you pay in; the exchange rates from the currencies of the page's prices are shown above."
+          help="The currency you pay in, for every auction; the exchange rates from the currencies of the page's prices are shown above."
         >
           <select
             className="form-select"
