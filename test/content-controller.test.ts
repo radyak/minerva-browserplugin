@@ -209,7 +209,8 @@ test("uses the settings saved for the auction, its house or its site", async () 
     window.dispatchEvent(new window.PopStateEvent("popstate"));
     return annotation();
   };
-  assert.equal(visit("/lot/2"), "n/a"); // CHF, without rates
+  // Saved with CHF, but the currency is the user's for every auction: EUR, saved last.
+  assert.equal(visit("/lot/2"), "250 EUR");
   assert.equal(visit("/lot/3?h=leu"), "305 EUR"); // auction 1's house
   assert.equal(visit("/lot/4?h=nac"), "250.50 EUR"); // the newest on the site
   await settle();

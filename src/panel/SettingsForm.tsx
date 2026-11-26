@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 
-import { Currency } from "../core/currency/Currency.ts";
+import { UserCurrency, type UserCurrencyOption } from "../core/currency/UserCurrency.ts";
 import type { ExchangeRates } from "../core/rates/ExchangeRates.ts";
 import { Settings, type NumericSetting } from "../core/settings/Settings.ts";
 import { Rates } from "./Rates.tsx";
@@ -49,10 +49,13 @@ const toDraft = ({ settings }: ShownSettings): Draft => ({
  * split over the lots won and payment costs, and behind the "Advanced cost
  * settings" switch the VAT on the hammer price, import VAT and flat fees -
  * switched on from the start when one of them is set, and saved as 0 while
- * switched off, so the form shows what is calculated. Every value is saved per auction -
- * sites and houses differ in all of them, down to the country lots ship from.
+ * switched off, so the form shows what is calculated. Every cost value is saved per
+ * auction - sites and houses differ in all of them, down to the country lots
+ * ship from - the currency once, for every auction.
  * @param props.shown the values to show; a new object (another auction, after
  *   saving) replaces whatever was typed, even when the values are the same
+ * @param props.currencies the currencies the user can pick; the shown and the
+ *   picked one are offered even when missing there
  * @param props.pageCurrencies currencies of the page's prices, which the
  *   shipment is entered in
  * @param props.rates of the picked currency, shown under its select; undefined
@@ -63,12 +66,14 @@ const toDraft = ({ settings }: ShownSettings): Draft => ({
  */
 export function SettingsForm({
   shown,
+  currencies,
   pageCurrencies,
   rates,
   onCurrencyChange,
   onSave,
 }: {
   shown: ShownSettings;
+  currencies: readonly UserCurrencyOption[];
   pageCurrencies: readonly string[];
   rates: ExchangeRates | null | undefined;
   onCurrencyChange: (code: string) => void;
@@ -186,7 +191,7 @@ export function SettingsForm({
         <Field
           id="currency"
           label="Your Currency"
-          help="The currency you pay in; the exchange rates from the currencies of the page's prices are shown above."
+          help="The currency you pay in, for every auction; the exchange rates from the currencies of the page's prices are shown above."
         >
           <select
             className="form-select"
@@ -198,9 +203,9 @@ export function SettingsForm({
               onCurrencyChange(event.target.value);
             }}
           >
-            {Currency.CODES.map((code) => (
+            {UserCurrency.including(currencies, draft.currency).map(({ code, name }) => (
               <option key={code} value={code}>
-                {code}
+                {code} – {name}
               </option>
             ))}
           </select>

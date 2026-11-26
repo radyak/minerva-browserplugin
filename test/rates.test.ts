@@ -21,10 +21,16 @@ const fakeFetch =
 
 const CODES = ["EUR", "USD", "GBP", "CHF"];
 
-test("asks for the other supported currencies only", () => {
+test("asks for the other auction currencies only", () => {
   const url = new URL(new RatesClient().urlFor("USD"));
   assert.equal(url.searchParams.get("base"), "USD");
-  assert.equal(url.searchParams.get("symbols"), "EUR,GBP,CHF");
+  assert.equal(
+    url.searchParams.get("symbols"),
+    "EUR,GBP,CHF,CAD,AUD,NZD,JPY,DKK,SEK,NOK,CZK,PLN,HUF",
+  );
+  // A user currency that prices are never in: every auction currency.
+  const inr = new URL(new RatesClient().urlFor("INR"));
+  assert.equal(inr.searchParams.get("symbols")?.split(",").length, 14);
 });
 
 test("keeps the requested currencies of a valid response", () => {
@@ -52,6 +58,17 @@ test("RatesClient requests and parses the rates", async () => {
   const rates = await new RatesClient(fakeFetch(body)).fetch("GBP");
   assert.equal(new URL(lastUrl).searchParams.get("base"), "GBP");
   assert.deepEqual(rates.rates, { EUR: 1.16, USD: 1.32, CHF: 1.09 });
+});
+
+test("RatesClient lists the currencies the API has rates for", async () => {
+  const body = { USD: "United States Dollar", CHF: "Swiss Franc", XYZ: "Nothing", EUR: "" };
+  assert.deepEqual(await new RatesClient(fakeFetch(body)).currencies(), [
+    { code: "CHF", name: "Swiss Franc" },
+    { code: "USD", name: "United States Dollar" },
+  ]);
+  assert.equal(lastUrl, "https://api.frankfurter.dev/v1/currencies");
+  await assert.rejects(new RatesClient(fakeFetch({})).currencies(), /Unexpected/);
+  await assert.rejects(new RatesClient(fakeFetch({}, 503)).currencies(), /HTTP 503/);
 });
 
 test("RatesClient fails on an HTTP error", async () => {

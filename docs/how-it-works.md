@@ -14,12 +14,26 @@ What the extension does on a page and in the panel, from the user's point of vie
   price element itself is never modified. Re-running is idempotent: the
   annotation is only written when its text actually changes, so the extension's
   own DOM writes cannot drive the observer in circles.
-- The input currency is read from the price text: `EUR`/`USD`/`GBP`/`CHF` as a
-  standalone code, or `€`, `$`, `US$`, `£`, `Fr.`, `SFr.`; the one closest to
-  the number wins (prefix before suffix).
+- The input currency is read from the price text, by its code standing on its own
+  or by an unambiguous symbol; the one closest to the number wins (prefix before
+  suffix). A token is never read out of a word (`Kft.` holds no `Ft`):
+
+  | Currency | Recognised as |
+  | --- | --- |
+  | EUR | `EUR`, `€` |
+  | USD | `USD`, `US$`, `$` (a bare `$` is always USD) |
+  | GBP | `GBP`, `£` |
+  | CHF | `CHF`, `SFr.`, `Fr.` |
+  | CAD, AUD, NZD | the code, `C$`/`CA$`, `A$`/`AU$`, `NZ$` |
+  | JPY | `JPY`, `¥`, `￥` |
+  | DKK, SEK, NOK | the code only - `kr` could be any of them |
+  | CZK, PLN, HUF | the code, `Kč`, `zł`, `Ft` |
+
+  Amounts are written with the decimal places of their currency: none for JPY
+  and HUF, two for the others.
 - When the text holds no parsable price (`sold out`, an empty element, a value
   the page has not filled in yet), or its currency is missing, unsupported or
-  has no exchange rate (`500`, `¥500`, foreign prices before any rates were
+  has no exchange rate (`500`, `₹500`, `500 kr`, foreign prices before any rates were
   saved), the sibling is still inserted and shows
   `UNPARSABLE_TEXT` (`n/a`), flagged with `data-minerva-unparsable` and greyed out by
   `content.css`. It turns back into a real amount as soon as the text becomes a
@@ -51,8 +65,9 @@ What the extension does on a page and in the panel, from the user's point of vie
   directly what it is doing; a tab without the content script (not loaded yet)
   is judged by its URL. Settings are saved per
   auction: *Save* stores them under the active tab's site, auction house and
-  auction ID, together with the exchange rates of their currency, in one write to
-  `storage.local` (`auctionSettings`, `exchangeRates`), and makes the active tab
+  auction ID - and the currency once, for every auction - together with the exchange
+  rates of that currency, in one write to `storage.local` (`auctionSettings`,
+  `currency`, `exchangeRates`), and makes the active tab
   recalculate right away; other open tabs follow via `storage.onChanged`. An
   emptied input keeps the value shown.
 - Whenever the active tab is on another auction (navigation, tab switch), the
@@ -66,8 +81,9 @@ What the extension does on a page and in the panel, from the user's point of vie
 - The shipment is entered in the auction's currency: next to it the panel shows
   the currency of the active tab's prices ("–" while none was found, all of them
   when the page mixes several), and it is converted together with the price.
-- The form holds every cost factor, all saved per auction (as above): currency,
-  auction premium, shipment, lots won and payment costs, then behind the switch
+- The form holds your currency - one for every auction: picking another one on any
+  auction and saving changes it everywhere - and every cost factor, all saved per
+  auction (as above): auction premium, shipment, lots won and payment costs, then behind the switch
   *Advanced settings* the hammer price VAT, import VAT and flat fees - payment
   costs differ between sites and houses, import VAT with the country an auction
   ships from. The switch starts on when one of the advanced values of the shown
@@ -85,12 +101,16 @@ What the extension does on a page and in the panel, from the user's point of vie
   the saved ones; the bubbles on the page keep showing the saved values until
   *Save*. A site with a calculator of its own only shows the hammer and the
   effective price.
-- Selecting a currency (EUR, USD, GBP, CHF; default EUR) immediately loads the
-  rates against the other three from the Frankfurter API (through the background script) and saves them with the
-  settings. Under the currency select the panel shows only the rates the active tab needs:
+- Your currency can be any currency the Frankfurter API has rates for (about 30,
+  the ECB's reference currencies; default EUR) - the list comes from the API and
+  falls back to the currencies prices are read in while it is unreachable. It is
+  independent of the currencies prices are read in (see above): converting *into*
+  a currency needs no way to recognise it on a page. Selecting one immediately
+  loads its rates against the currencies prices are read in, from the Frankfurter
+  API (through the background script), and saves them with the settings. Under the currency select the panel shows only the rates the active tab needs:
   from the currencies of its prices into the selected one (e.g. `1 USD = 0.8333 GBP`).
-  The background refreshes the saved rates of every currency in use (and of the
-  default currency) on install/update, on browser start and once a day. Until
+  The background refreshes the saved rates of your currency (the default one until
+  you save) on install/update, on browser start and once a day. Until
   rates for a currency have been stored once, only prices already in that
   currency are converted; all others show `n/a`.
 - The settings form is shown while the active tab is on a configured site. The

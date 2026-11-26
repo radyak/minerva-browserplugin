@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, test } from "vitest";
 
+import { AuctionCurrency } from "../src/core/currency/AuctionCurrency.ts";
 import { MSG } from "../src/core/messages.ts";
 import { ExchangeRates } from "../src/core/rates/ExchangeRates.ts";
 import { AuctionKey } from "../src/core/settings/AuctionKey.ts";
@@ -81,6 +82,7 @@ const flush = () =>
  * @param options.state what the content script of the active `tab` answers
  *   (null: there is none); `setState()` changes it later
  * @param options.client the background's rates source
+ * @param options.currencies what the background answers to GET_CURRENCIES (none by default)
  */
 async function openPanel({
   book = bookOf([{ site: SHOP }, GBP]),
@@ -89,6 +91,7 @@ async function openPanel({
   tab = { id: 1, url: `${SHOP}/lot/1` } as object | null,
   settled = true,
   version = undefined as string | undefined,
+  currencies = undefined as unknown,
 } = {}) {
   let current = state;
   const tabs = fakeTabs(tab);
@@ -96,6 +99,7 @@ async function openPanel({
   const bus = fakeBus({
     answers: {
       tab: () => current,
+      [MSG.GET_CURRENCIES]: currencies,
       // What BackgroundController.ratesFor() answers.
       [MSG.GET_RATES]: async ({ base }: { base: string }) => {
         try {
@@ -121,6 +125,7 @@ async function openPanel({
 }
 
 const input = (label: string) => screen.getByLabelText(label) as HTMLInputElement;
+const currencyOptions = () => [...(input("Your Currency") as unknown as HTMLSelectElement).options];
 const form = () => document.querySelector("form");
 const ratesSection = () => screen.getByRole("region", { name: "Exchange rates" });
 const ratesInfo = () => ratesSection().querySelector(".form-text")!;
@@ -153,8 +158,8 @@ const submit = async () => {
 test("shows the saved settings and the rates on open", async () => {
   const { store } = await openPanel();
   assert.deepEqual(
-    [...(input("Your Currency") as unknown as HTMLSelectElement).options].map((o) => o.value),
-    ["EUR", "USD", "GBP", "CHF"],
+    currencyOptions().map(({ value }) => value),
+    [...AuctionCurrency.CODES].sort(), // the auction currencies, without the API's list
   );
   assert.equal(input("Your Currency").value, "GBP");
   assert.equal(input("Auction premium").value, "20");
@@ -385,6 +390,32 @@ test("stops listening once closed", async () => {
   assert.equal(bus.sentToTabs.length, before);
 });
 
+test("offers the currencies of the rates API, and the saved one in any case", async () => {
+  const INR = new Settings({ auctionPremium: 0, shipment: 0, currency: "INR" });
+  await openPanel({
+    book: bookOf([{ site: SHOP }, INR]),
+    currencies: {
+      currencies: [
+        { code: "CAD", name: "Canadian Dollar" },
+        { code: "EUR", name: "Euro" },
+      ],
+    },
+  });
+  assert.deepEqual(
+    currencyOptions().map(({ textContent }) => textContent),
+    ["CAD – Canadian Dollar", "EUR – Euro", "INR – Indian Rupee"],
+  );
+  assert.equal(input("Your Currency").value, "INR");
+});
+
+test("offers the auction currencies when the list is unavailable", async () => {
+  await openPanel({ currencies: { error: "offline" } });
+  assert.deepEqual(
+    currencyOptions().map(({ value }) => value),
+    [...AuctionCurrency.CODES].sort(),
+  );
+});
+
 test("shows the currencies of the page's prices next to the shipment", async () => {
   const { navigate } = await openPanel({ state: { ...ON_USD_PAGE, currencies: [] } });
   assert.equal(shipmentCurrency(), "–"); // no price found yet
@@ -415,7 +446,8 @@ test("fills the form with the settings of the auction the active tab is on", asy
   await navigate({ house: "nac", auction: "9" });
   assert.deepEqual(showing(), ["CHF", "10", "Saved for this site."]);
   await navigate({ site: "https://other.test", house: "leu", auction: "1" });
-  assert.deepEqual(showing(), ["EUR", "0", "Nothing saved yet: defaults."]);
+  // The defaults, but in the user's currency: it is the same for every auction.
+  assert.deepEqual(showing(), ["CHF", "0", "Nothing saved yet: defaults."]);
   assert.ok(form());
   // On the site without IDs: the site's settings, still in the form.
   await navigate({ house: null, auction: null });

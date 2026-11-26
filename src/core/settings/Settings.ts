@@ -1,4 +1,4 @@
-import { Currency } from "../currency/Currency.ts";
+import { UserCurrency } from "../currency/UserCurrency.ts";
 import { inRange, type Range } from "./ranges.ts";
 
 /** `Settings#toJSON()`. */
@@ -13,6 +13,12 @@ export type SettingsJSON = {
   currency: string;
 };
 
+/**
+ * `Settings#perAuction()`: what is saved per auction - everything but the
+ * currency, which is the user's own and the same for every auction.
+ */
+export type AuctionSettingsJSON = Omit<SettingsJSON, "currency">;
+
 /** The numeric settings, each with its accepted range. */
 export type NumericSetting =
   | "auctionPremium"
@@ -24,9 +30,11 @@ export type NumericSetting =
   | "flatFees";
 
 /**
- * The settings of one auction - every cost factor, from the premium to the
- * payment costs, since they all differ between sites, houses and the countries
- * lots ship from - entered in the side panel and read by the content script.
+ * What the calculation of one auction's prices needs: every cost factor, from
+ * the premium to the payment costs - saved per auction, since they all differ
+ * between sites, houses and the countries lots ship from - and the user's
+ * currency, which is global (SettingsBook applies it to every auction).
+ * Entered in the side panel and read by the content script.
  * Knows the accepted ranges and how to turn stored data into
  * settings the calculation can rely on; where they are stored is
  * SettingsStore's business (src/browser/SettingsStore.ts). Immutable.
@@ -67,7 +75,7 @@ export class Settings {
    *   rate markup of bank or card plus any surcharge for the payment method
    * @param values.flatFees flat fees per invoice in `currency`: customs
    *   clearance, bank transfer
-   * @param values.currency ISO code, one of `Currency.CODES`
+   * @param values.currency the user's currency: an ISO code (see UserCurrency)
    * All numbers within `RANGES`.
    */
   constructor({
@@ -109,12 +117,12 @@ export class Settings {
     importVat: 0,
     paymentCosts: 0,
     flatFees: 0,
-    currency: Currency.CODES[0]!,
+    currency: UserCurrency.DEFAULT,
   });
 
   /**
    * Settings out of stored data (see `toJSON()`), falling back to `DEFAULT` for
-   * anything missing, non-numeric, out of range or not a supported currency.
+   * anything missing, non-numeric, out of range or not a currency code.
    * Data saved before a setting existed thus gets its default.
    */
   static from(data: unknown): Settings {
@@ -129,12 +137,25 @@ export class Settings {
       importVat: number("importVat"),
       paymentCosts: number("paymentCosts"),
       flatFees: number("flatFees"),
-      currency: Currency.of(values?.currency)?.code ?? DEFAULT.currency,
+      currency: UserCurrency.orDefault(values?.currency),
     });
   }
 
-  /** Plain data to store. */
+  /**
+   * These settings in `currency`; the same object when they already are.
+   * Falls back to the default currency for an invalid one, as `from()`.
+   */
+  withCurrency(currency: string): Settings {
+    return currency === this.currency ? this : Settings.from({ ...this.toJSON(), currency });
+  }
+
+  /** Plain data, with the currency. */
   toJSON(): SettingsJSON {
+    return { ...this.perAuction(), currency: this.currency };
+  }
+
+  /** Plain data to store per auction: without the currency, which is global. */
+  perAuction(): AuctionSettingsJSON {
     return {
       auctionPremium: this.auctionPremium,
       shipment: this.shipment,
@@ -143,7 +164,6 @@ export class Settings {
       importVat: this.importVat,
       paymentCosts: this.paymentCosts,
       flatFees: this.flatFees,
-      currency: this.currency,
     };
   }
 }

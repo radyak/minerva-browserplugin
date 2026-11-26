@@ -5,7 +5,7 @@ import type { MessageBus } from "../browser/MessageBus.ts";
 import type { SettingsStore } from "../browser/SettingsStore.ts";
 import { MSG } from "../core/messages.ts";
 import { AuctionKey } from "../core/settings/AuctionKey.ts";
-import { Settings } from "../core/settings/Settings.ts";
+import type { Settings } from "../core/settings/Settings.ts";
 import type { SettingsScope } from "../core/settings/SettingsScope.ts";
 import { SITES } from "../core/sites/sites.config.ts";
 import type { AuctionSite } from "../core/sites/sites.ts";
@@ -13,6 +13,7 @@ import { TabState } from "../core/state/TabState.ts";
 import { AuctionHeader } from "./AuctionHeader.tsx";
 import { PanelFooter } from "./PanelFooter.tsx";
 import { SettingsForm, type ShownSettings } from "./SettingsForm.tsx";
+import { useCurrencies } from "./useCurrencies.ts";
 import { useRates } from "./useRates.ts";
 
 export type PanelProps = {
@@ -40,6 +41,7 @@ export function Panel({ tabs, bus, store, sites = SITES, version = "0.0.0-dev" }
   const [shown, setShown] = useState<Shown | null>(null);
   const [currency, setCurrency] = useState<string | null>(null);
   const { rates, ratesFor } = useRates(bus, currency);
+  const currencies = useCurrencies(bus);
   /** the auction whose settings are shown; read by callbacks that outlive a render */
   const key = useRef<AuctionKey | null>(null);
 
@@ -57,7 +59,7 @@ export function Panel({ tabs, bus, store, sites = SITES, version = "0.0.0-dev" }
     const { book } = await store.load();
     if (!AuctionKey.equals(next, key.current)) return; // the tab moved on in the meantime
     const found = book.resolve(next);
-    const settings = found?.settings ?? Settings.DEFAULT;
+    const settings = found?.settings ?? book.defaults;
     setShown({ settings, scope: found?.scope ?? null });
     setCurrency(settings.currency);
   }, [tabs, bus, store, sites]);
@@ -84,8 +86,8 @@ export function Panel({ tabs, bus, store, sites = SITES, version = "0.0.0-dev" }
   }, [tabs, bus, refresh]);
 
   /**
-   * Save `settings` for the active tab's auction, with the matching rates; the
-   * tab recalculates.
+   * Save `settings` for the active tab's auction, their currency for every
+   * auction, with the matching rates; the tab recalculates.
    */
   const save = async (settings: Settings) => {
     const saveKey = key.current;
@@ -107,6 +109,7 @@ export function Panel({ tabs, bus, store, sites = SITES, version = "0.0.0-dev" }
           <AuctionHeader tab={tab} scope={shown.scope} />
           <SettingsForm
             shown={shown}
+            currencies={currencies}
             pageCurrencies={tab.currencies}
             rates={rates}
             onCurrencyChange={setCurrency}

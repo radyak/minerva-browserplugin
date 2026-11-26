@@ -17,3 +17,9 @@ export const UNPARSABLE_TEXT = "n/a";
  * Queried as `${EXCHANGE_RATES_URL}?base=EUR&symbols=USD,GBP`.
  */
 export const EXCHANGE_RATES_URL = "https://api.frankfurter.dev/v1/latest";
+
+/**
+ * The currencies the exchange rates API serves, `{ [code]: name }`: the ones
+ * the user can pick as their currency.
+ */
+export const CURRENCIES_URL = "https://api.frankfurter.dev/v1/currencies";

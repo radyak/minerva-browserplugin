@@ -1,4 +1,5 @@
-import { Currency } from "./currency/Currency.ts";
+import { AuctionCurrency } from "./currency/AuctionCurrency.ts";
+import { isCurrencyCode } from "./currency/codes.ts";
 import { CurrencyDetector, type CurrencyMatch } from "./currency/CurrencyDetector.ts";
 
 /**
@@ -163,8 +164,8 @@ function swapCurrency(
   if (!currency || !price.currency || price.currency.code === currency) return { prefix, suffix };
 
   const { token, index, side } = price.currency;
-  let notation = Currency.of(currency)?.notationFor(token) ?? currency;
-  const spaced = Currency.isCode(notation) && !Currency.isCode(token);
+  let notation = AuctionCurrency.of(currency)?.notationFor(token) ?? currency;
+  const spaced = isCurrencyCode(notation) && !isCurrencyCode(token);
   if (side === "prefix") {
     if (spaced && index + token.length === prefix.length) notation += " ";
     prefix = prefix.slice(0, index) + notation + prefix.slice(index + token.length);
@@ -181,9 +182,10 @@ function swapCurrency(
  *   one written in `price`
  */
 export function formatPrice(value: number, price: ParsedPrice, currency?: string): string {
-  const rounded = Math.round(value * 100) / 100;
+  const places = AuctionCurrency.decimalsOf(currency ?? price.currency?.code);
+  const rounded = Math.round(value * 10 ** places) / 10 ** places;
   // Keep it integer only when the input was integer and nothing was lost.
-  const decimals = price.decimals === 0 && Number.isInteger(rounded) ? 0 : 2;
+  const decimals = price.decimals === 0 && Number.isInteger(rounded) ? 0 : places;
   const [integerPart, decimalPart] = rounded.toFixed(decimals).split(".");
 
   const number = group(integerPart!, price.groupSeparator);

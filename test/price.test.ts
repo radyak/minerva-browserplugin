@@ -67,6 +67,16 @@ test("rounds to two decimals", () => {
   assert.equal(plus20("10,55 EUR"), "12,66 EUR");
 });
 
+test("rounds to the decimal places of the result's currency", () => {
+  const times = (factor) => (amount) => amount * factor;
+  // Without decimals of their own: no decimals, even from an input with some.
+  assert.equal(convertPrice("€49.99", times(160.123), "JPY"), "¥8005");
+  assert.equal(convertPrice("EUR 500", times(373.55), "HUF"), "HUF 186775");
+  assert.equal(convertPrice("1.234,56 EUR", times(160.123), "ISK"), "197.681 ISK");
+  // Two decimals otherwise, also for currencies Intl does not know.
+  assert.equal(convertPrice("500 EUR", times(1.0001), "XYZ"), "500.05 XYZ");
+});
+
 test("returns null when the calculation has no result", () => {
   assert.equal(
     convertPrice("500 GBP", () => undefined, "EUR"),
@@ -90,8 +100,41 @@ test("detects the currency next to the number", () => {
   assert.equal(code("Preis: 500 EUR"), "EUR");
   // Nothing (supported) there.
   assert.equal(code("500"), null);
-  assert.equal(code("¥500"), null);
+  assert.equal(code("₹500"), null);
+  assert.equal(code("500 kr"), null); // DKK, SEK or NOK?
   assert.equal(code("500 EURO"), null);
+  assert.equal(code("Gebühr. 500"), null); // no "Fr." in it, nor "hr."
+});
+
+test("detects the currencies beyond the big four", () => {
+  const code = (text) => parsePrice(text).currency?.code ?? null;
+  assert.equal(code("C$ 1,250"), "CAD");
+  assert.equal(code("CA$1,250"), "CAD");
+  assert.equal(code("A$ 400"), "AUD");
+  assert.equal(code("AU$400"), "AUD");
+  assert.equal(code("NZ$ 75"), "NZD");
+  assert.equal(code("¥120,000"), "JPY");
+  assert.equal(code("￥120,000"), "JPY");
+  assert.equal(code("DKK 2.500"), "DKK");
+  assert.equal(code("1 500 SEK"), "SEK");
+  assert.equal(code("NOK 900"), "NOK");
+  assert.equal(code("12 500 Kč"), "CZK");
+  assert.equal(code("1 234,50 zł"), "PLN");
+  assert.equal(code("45 000 Ft"), "HUF");
+  // A bare "$" is still the US dollar.
+  assert.equal(code("$ 20"), "USD");
+  assert.equal(code("US$ 20"), "USD");
+});
+
+test("writes the new currencies in the input's notation", () => {
+  const half = (amount) => amount / 2;
+  assert.equal(convertPrice("C$100", half, "EUR"), "€50");
+  assert.equal(convertPrice("€100", half, "AUD"), "A$50");
+  assert.equal(convertPrice("12 500 Kč", half, "PLN"), "6 250 zł");
+  assert.equal(convertPrice("45 000 Ft", half, "EUR"), "22 500 €");
+  assert.equal(convertPrice("1 234,50 zł", half, "HUF"), "617 Ft");
+  assert.equal(convertPrice("¥120,000", half, "SEK"), "SEK 60,000");
+  assert.equal(convertPrice("€20", half, "DKK"), "DKK 10");
 });
 
 test("writes the result in the output currency, keeping the notation", () => {

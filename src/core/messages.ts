@@ -1,3 +1,4 @@
+import type { UserCurrencyOption } from "./currency/UserCurrency.ts";
 import type { ExchangeRatesJSON } from "./rates/ExchangeRates.ts";
 import type { TabState } from "./state/TabState.ts";
 
@@ -9,6 +10,8 @@ export const MSG = Object.freeze({
   STATE_CHANGED: "state-changed",
   /** panel -> background: the current exchange rates of `base` */
   GET_RATES: "get-rates",
+  /** panel -> background: the currencies the user can pick */
+  GET_CURRENCIES: "get-currencies",
 } as const);
 
 export type MessageType = (typeof MSG)[keyof typeof MSG];
@@ -20,7 +23,7 @@ export type TabStateMessage = TabState & { url: string };
  * The protocol: per message type, what the message carries besides `type` and
  * what its handler answers (`void`: no answer). Messages are structured-cloned,
  * so they hold plain data only; receivers still validate what arrives
- * (`TabState.from()`, `Currency.of()`), the types only keep senders and
+ * (`TabState.from()`, `isIsoCurrency()`), the types only keep senders and
  * handlers in step.
  */
 export interface Protocol {
@@ -29,6 +32,10 @@ export interface Protocol {
   [MSG.GET_RATES]: {
     payload: { base: string };
     answer: { rates: ExchangeRatesJSON } | { error: string };
+  };
+  [MSG.GET_CURRENCIES]: {
+    payload: object;
+    answer: { currencies: UserCurrencyOption[] } | { error: string };
   };
 }
 

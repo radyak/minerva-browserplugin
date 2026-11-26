@@ -7,7 +7,7 @@ import { MSG } from "../core/messages.ts";
 import { explainPrice } from "../core/pricing/explainPrice.ts";
 import { ExchangeRates } from "../core/rates/ExchangeRates.ts";
 import { AuctionKey } from "../core/settings/AuctionKey.ts";
-import { Settings } from "../core/settings/Settings.ts";
+import type { Settings } from "../core/settings/Settings.ts";
 import { SettingsBook } from "../core/settings/SettingsBook.ts";
 import { SITES } from "../core/sites/sites.config.ts";
 import { findSite, identify, type AuctionSite } from "../core/sites/sites.ts";
@@ -209,10 +209,11 @@ export class ContentController {
 
   /**
    * The settings saved for the auction of `key` (see SettingsBook#resolve), the
-   * defaults when nothing saved applies, and the rates into their currency.
+   * defaults when nothing saved applies - either in the user's currency - and
+   * the rates into that currency.
    */
   settingsFor(key: AuctionKey): { settings: Settings; rates: ExchangeRates } {
-    const settings = this.#book.resolve(key)?.settings ?? Settings.DEFAULT;
+    const settings = this.#book.resolve(key)?.settings ?? this.#book.defaults;
     const rates = this.#rates[settings.currency] ?? ExchangeRates.empty(settings.currency);
     return { settings, rates };
   }
